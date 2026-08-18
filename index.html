@@ -1964,41 +1964,47 @@ function handleFileImport(file){
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, {type:'array'});
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
-      if(!json.length){ showToast('Dosya boş görünüyor.'); return; }
-      const header = json[0].map(h=>String(h||'').toLowerCase().trim());
-      // Parça No: başlıkta "parça no" / "parca no" geçiyorsa, yoksa "no" içeren ama "istenen" olmayan sütun
-      let noIdx = header.findIndex(h=>h.includes('parça no') || h.includes('parca no'));
-      if(noIdx===-1) noIdx = header.findIndex(h=>h.includes('no') && !h.includes('istenen'));
-      // Parça Adı: başlıkta "parça ad"/"parca ad"/"isim"/"ürün ad" gibi ifadeler geçiyorsa o sütun.
-      // Bulunamazsa isim sütunu YOK sayılır — adet sütunu isim alanına yazılmaz, isim boş bırakılır.
-      let nameIdx = header.findIndex(h=> (h.includes('parça ad') || h.includes('parca ad') || h.includes('ürün ad') || h.includes('urun ad') || h.includes('isim') || h.includes('ad ')|| h==='ad' || h==='adı' || h==='adi') && !h.includes('istenen') && !h.includes('adet'));
-      // İstenen Adet: "istenen", "adet", "miktar", "sipariş" içeren sütun.
-      let qtyIdx = header.findIndex(h=>h.includes('istenen') || h.includes('adet') || h.includes('miktar') || h.includes('siparis') || h.includes('sipariş'));
-
-      if(noIdx===-1) noIdx=0;
-      if(qtyIdx===-1){
-        // adet sütunu başlıktan tanınamadıysa, no ve isim dışındaki ilk sayısal sütunu adet kabul et
-        const candidateIdx = [0,1,2].find(i=> i!==noIdx && i!==nameIdx);
-        qtyIdx = candidateIdx!==undefined ? candidateIdx : -1;
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      
+      if(!currentCompanyId){
+        showToast('Lütfen önce bir şirket seçin!');
+        return;
       }
 
-      const rows = [];
-      for(let i=1;i<json.length;i++){
-        const r = json[i];
-        if(!r || r.every(c=>c==='' || c==null)) continue;
-        const partNo = String(r[noIdx]||'').trim();
-        const partName = nameIdx!==-1 ? String(r[nameIdx]||'').trim() : '';
-        const orderedQty = qtyIdx!==-1 ? (Number(r[qtyIdx])||0) : 0;
-        if(!partNo) continue;
-        rows.push({partNo, partName, orderedQty});
-      }
-      if(!rows.length){ showToast('Geçerli satır bulunamadı.'); return; }
-      state.importPreview = {rows, fileName: file.name};
+      let importedCount = 0;
+      rows.forEach(row => {
+        const partCode = row['Parça Kodu'] || row['PARÇA KODU'] || row['Code'] || row['code'] || '';
+        const partName = row['Parça Adı'] || row['PARÇA ADI'] || row['Name'] || row['name'] || '';
+        const orderedQty = Number(row['Sipariş Adedi'] || row['SİPARİŞ ADEDİ'] || row['OrderedQty'] || row['qty'] || 0);
+
+        if(partCode || partName){
+          const newPart = {
+            id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            companyId: currentCompanyId,
+            code: String(partCode),
+            name: String(partName),
+            orderedQty: orderedQty,
+            qtys: {},
+            ncrs: [],
+            rejects: {}
+          };
+          
+          if(!state.partsByCompany[currentCompanyId]) state.partsByCompany[currentCompanyId] = [];
+          state.partsByCompany[currentCompanyId].push(newPart);
+          importedCount++;
+        }
+      });
+
+      persistParts(currentCompanyId);
       render();
+      showToast(`${importedCount} adet parça başarıyla aktarıldı.`);
     }catch(err){
       console.error(err);
-      showToast('Dosya okunamadı. Lütfen .xlsx, .xls veya .csv formatında bir dosya seçin.');
+      showToast('Dosya okunamadı. Lütfen geçerli bir .xlsx, .xls veya .csv dosyası seçin.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
     }
   };
   reader.readAsArrayBuffer(file);
