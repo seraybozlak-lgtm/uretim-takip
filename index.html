@@ -535,21 +535,28 @@ function partRemaining(part){
   const company = getCompany(part.companyId);
   const stages = (company && company.stages) ? company.stages : DEFAULT_STAGES;
   const last = stages[stages.length - 1];
-  const qtys = part.qtys || {};
+  const qtys = (part && part.qtys) ? part.qtys : {};
   const shipped = Number(qtys[last] || 0);
   return Math.max(0, Number(part.orderedQty || 0) - shipped);
 }
+
 function partTotalReject(part){
-  return Object.values(part.rejects||{}).reduce((a,b)=>a+(Number(b)||0),0);
+  if (!part) return 0;
+  return Object.values(part.rejects || {}).reduce((a,b) => a + (Number(b) || 0), 0);
 }
+
 function partStatus(part, stages){
-  const last = stages[stages.length-1];
-  const shipped = Number(part.qtys[last]||0);
-  const anyProgress = stages.some(s => Number(part.qtys[s]||0) > 0);
-  if(shipped >= Number(part.orderedQty||0) && Number(part.orderedQty||0) > 0) return 'shipped';
+  if (!part) return 'notstarted';
+  const st = stages || DEFAULT_STAGES;
+  const last = st[st.length - 1];
+  const qtys = part.qtys || {};
+  const shipped = Number(qtys[last] || 0);
+  const anyProgress = st.some(s => Number(qtys[s] || 0) > 0);
+  if(shipped >= Number(part.orderedQty || 0) && Number(part.orderedQty || 0) > 0) return 'shipped';
   if(anyProgress) return 'progress';
   return 'notstarted';
 }
+
 function companyTotals(companyId){
   const company = getCompany(companyId);
   const parts = getParts(companyId) || [];
@@ -570,9 +577,6 @@ function companyTotals(companyId){
 
   return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
 }
-function allTotals(){
-  let totals = {companyCount: state.companies.length, partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0};
-  state.companies.forEach(c=>{
     const t = companyTotals(c.id);
     totals.partCount += t.partCount; totals.ordered += t.ordered; totals.shipped += t.shipped;
     totals.completed += t.completed; totals.inProgress += t.inProgress; totals.rejected += t.rejected;
