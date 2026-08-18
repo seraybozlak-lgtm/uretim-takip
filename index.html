@@ -528,54 +528,70 @@ async function persistKnownUsers(){ await storageSet('known-users', state.knownU
 
 function getCompany(id){ return state.companies.find(c=>c.id===id); }
 function getParts(companyId){ return state.partsByCompany[companyId] || []; }
+/* ================================= COMPUTATIONS ================================= */
 
-/* ============================= COMPUTATIONS ============================= */
 function partRemaining(part){
-  if (!part) return 0;
-  const company = getCompany(part.companyId);
-  const stages = (company && company.stages) ? company.stages : DEFAULT_STAGES;
-  const last = stages[stages.length - 1];
-  const qtys = (part && part.qtys) ? part.qtys : {};
-  const shipped = Number(qtys[last] || 0);
-  return Math.max(0, Number(part.orderedQty || 0) - shipped);
+  try {
+    if (!part) return 0;
+    const company = getCompany(part.companyId);
+    const stages = (company && Array.isArray(company.stages)) ? company.stages : DEFAULT_STAGES;
+    const last = stages[stages.length - 1];
+    const qtys = (part && typeof part.qtys === 'object' && part.qtys !== null) ? part.qtys : {};
+    const shipped = Number(qtys[last] || 0);
+    return Math.max(0, Number(part.orderedQty || 0) - shipped);
+  } catch(e) {
+    return 0;
+  }
 }
 
 function partTotalReject(part){
-  if (!part) return 0;
-  return Object.values(part.rejects || {}).reduce((a,b) => a + (Number(b) || 0), 0);
+  try {
+    if (!part) return 0;
+    return Object.values(part.rejects || {}).reduce((a,b) => a + (Number(b) || 0), 0);
+  } catch(e) {
+    return 0;
+  }
 }
 
 function partStatus(part, stages){
-  if (!part) return 'notstarted';
-  const st = stages || DEFAULT_STAGES;
-  const last = st[st.length - 1];
-  const qtys = part.qtys || {};
-  const shipped = Number(qtys[last] || 0);
-  const anyProgress = st.some(s => Number(qtys[s] || 0) > 0);
-  if(shipped >= Number(part.orderedQty || 0) && Number(part.orderedQty || 0) > 0) return 'shipped';
-  if(anyProgress) return 'progress';
-  return 'notstarted';
+  try {
+    if (!part) return 'notstarted';
+    const st = (stages && Array.isArray(stages)) ? stages : DEFAULT_STAGES;
+    const last = st[st.length - 1];
+    const qtys = (part && typeof part.qtys === 'object' && part.qtys !== null) ? part.qtys : {};
+    const shipped = Number(qtys[last] || 0);
+    const anyProgress = st.some(s => Number(qtys[s] || 0) > 0);
+    if(shipped >= Number(part.orderedQty || 0) && Number(part.orderedQty || 0) > 0) return 'shipped';
+    if(anyProgress) return 'progress';
+    return 'notstarted';
+  } catch(e) {
+    return 'notstarted';
+  }
 }
 
 function companyTotals(companyId){
-  const company = getCompany(companyId);
-  const parts = getParts(companyId) || [];
-  const stages = (company && company.stages) ? company.stages : DEFAULT_STAGES;
-  const last = stages[stages.length - 1];
-  const prev = stages.length > 1 ? stages[stages.length - 2] : last;
-  let ordered=0, shipped=0, completed=0, rejected=0, openNcr=0, closedNcr=0;
+  try {
+    const company = getCompany(companyId);
+    const parts = getParts(companyId) || [];
+    const stages = (company && Array.isArray(company.stages)) ? company.stages : DEFAULT_STAGES;
+    const last = stages[stages.length - 1];
+    const prev = stages.length > 1 ? stages[stages.length - 2] : last;
+    let ordered=0, shipped=0, completed=0, rejected=0, openNcr=0, closedNcr=0;
 
-  parts.forEach(p => {
-    if (!p) return;
-    const qtys = p.qtys || {};
-    ordered += Number(p.orderedQty || 0);
-    shipped += Number(qtys[last] || 0);
-    completed += Number(qtys[prev] || 0);
-    rejected += partTotalReject(p);
-    (p.ncrs || []).forEach(n => n && n.status === 'acik' ? openNcr++ : closedNcr++);
-  });
+    parts.forEach(p => {
+      if (!p) return;
+      const qtys = (p && typeof p.qtys === 'object' && p.qtys !== null) ? p.qtys : {};
+      ordered += Number(p.orderedQty || 0);
+      shipped += Number(qtys[last] || 0);
+      completed += Number(qtys[prev] || 0);
+      rejected += partTotalReject(p);
+      (p.ncrs || []).forEach(n => n && n.status === 'acik' ? openNcr++ : closedNcr++);
+    });
 
-  return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
+    return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
+  } catch(e) {
+    return { partCount: 0, ordered: 0, shipped: 0, completed: 0, rejected: 0, openNcr: 0, closedNcr: 0, inProgress: 0 };
+  }
 }
     const t = companyTotals(c.id);
     totals.partCount += t.partCount; totals.ordered += t.ordered; totals.shipped += t.shipped;
