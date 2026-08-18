@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Üretim ve Kalite Takip Sistemi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy-950:#081226;
+    --navy-900:#0D1F42;
+    --navy-800:#163368;
+    --navy-700:#1F4488;
+    --navy-600:#2E5AA8;
+    --navy-100:#E7ECF6;
+    --navy-50:#F2F5FB;
+    --red-800:#7C0F27;
+    --red-700:#A31432;
+    --red-600:#C81E3A;
+    --red-500:#DB3B57;
+    --red-100:#FBE3E7;
+    --gray-50:#F5F6F8;
+    --gray-100:#ECEEF2;
+    --gray-200:#DFE2E9;
+    --gray-300:#C7CCD6;
+    --gray-500:#7C8494;
+    --gray-700:#3A4152;
+    --gray-900:#181D28;
+    --white:#FFFFFF;
+    --font-display:'Times New Roman', Times, serif;
+    --font-body:'Times New Roman', Times, serif;
+    --font-mono:'Times New Roman', Times, serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:var(--font-body);
+    background:var(--gray-50);
+    color:var(--gray-900);
+  }
+  #app{display:flex;min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:224px;
+    flex-shrink:0;
+    background:linear-gradient(180deg,var(--navy-950) 0%, var(--navy-900) 100%);
+    color:var(--navy-100);
+    display:flex;
+    flex-direction:column;
+    padding:0 0 16px 0;
+  }
+  .brand{
+    padding:22px 20px 16px 20px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .brand-mark{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:23px;
+    letter-spacing:0.3px;
+    color:var(--white);
+    line-height:1.15;
+  }
+  .brand-mark span{color:var(--red-500);}
+  .brand-sub{
+    font-size:11px;
+    font-style:italic;
+    letter-spacing:0.3px;
+    color:var(--navy-100);
+    opacity:0.6;
+    margin-top:5px;
+  }
+  .user-pill{
+    margin:14px 16px 0 16px;
+    padding:10px 12px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px;
+    font-size:12px;
+    display:flex;justify-content:space-between;align-items:center;gap:8px;
+  }
+  .user-pill .who{overflow:hidden;}
+  .user-pill .label{opacity:0.5;font-size:10px;letter-spacing:0.3px;margin-bottom:3px;}
+  .user-pill .value{font-weight:700;font-size:14px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .user-pill .switch-user{font-size:10.5px;color:var(--red-500);cursor:pointer;white-space:nowrap;text-decoration:underline;}
+  .company-pill{
+    margin:8px 16px 6px 16px;
+    padding:10px 12px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px;
+    font-size:12px;
+  }
+  .company-pill .label{opacity:0.5;font-size:10px;margin-bottom:3px;}
+  .company-pill .value{font-weight:700;font-size:14px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nav{margin-top:10px;display:flex;flex-direction:column;gap:2px;padding:0 10px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:7px;cursor:pointer;
+    font-size:14.5px;font-weight:500;color:var(--navy-100);opacity:0.72;
+    border-left:3px solid transparent;
+    transition:background .15s,opacity .15s;
+    user-select:none;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.05);opacity:1;}
+  .nav-item.active{background:rgba(200,30,58,0.16);opacity:1;border-left:3px solid var(--red-500);color:var(--white);}
+  .nav-icon{width:16px;text-align:center;font-size:14px;}
+  .nav-badge{margin-left:auto;background:var(--red-600);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;}
+  .sidebar-footer{margin-top:auto;padding:14px 20px 4px 20px;font-size:10.5px;font-style:italic;color:var(--navy-100);opacity:0.4;}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;min-width:0;padding:28px 34px;}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+  .page-title{font-family:var(--font-display);font-weight:700;font-size:30px;color:var(--navy-900);line-height:1;}
+  .page-sub{font-size:13px;color:var(--gray-500);margin-top:6px;font-style:italic;}
+  .btn{
+    font-family:var(--font-body);font-weight:700;font-size:13.5px;
+    padding:9px 16px;border-radius:7px;border:none;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;
+    transition:transform .1s, box-shadow .15s;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--red-600);color:var(--white);}
+  .btn-primary:hover{background:var(--red-700);}
+  .btn-navy{background:var(--navy-800);color:var(--white);}
+  .btn-navy:hover{background:var(--navy-900);}
+  .btn-ghost{background:var(--white);color:var(--navy-800);border:1px solid var(--gray-300);}
+  .btn-ghost:hover{border-color:var(--navy-700);}
+  .btn-sm{padding:6px 11px;font-size:12.5px;}
+  .btn-danger-ghost{background:var(--white);color:var(--red-700);border:1px solid var(--red-100);}
+  .btn-danger-ghost:hover{background:var(--red-100);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  .card{background:var(--white);border:1px solid var(--gray-200);border-radius:12px;}
+  .empty-state{
+    text-align:center;padding:70px 20px;color:var(--gray-500);
+    border:1.5px dashed var(--gray-300);border-radius:12px;background:var(--white);
+  }
+  .empty-state .ico{font-size:34px;margin-bottom:10px;}
+  .empty-state h3{font-family:var(--font-display);font-size:21px;color:var(--navy-800);margin:0 0 6px 0;font-weight:700;}
+  .empty-state p{font-size:13.5px;margin:0 0 16px 0;}
+
+  /* company grid */
+  .company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
+  .company-card{
+    padding:18px;cursor:pointer;position:relative;
+    border-top:3px solid var(--navy-800);
+    transition:box-shadow .15s, transform .1s;
+  }
+  .company-card:hover{box-shadow:0 6px 18px rgba(13,31,66,0.1);transform:translateY(-1px);}
+  .company-card.selected{border-top-color:var(--red-600);box-shadow:0 6px 18px rgba(200,30,58,0.12);}
+  .company-card h3{font-family:var(--font-display);font-size:21px;font-weight:700;color:var(--navy-900);margin:0 0 4px 0;}
+  .company-card .meta{font-size:11.5px;color:var(--gray-500);font-style:italic;}
+  .company-card .stats{display:flex;gap:14px;margin-top:12px;}
+  .company-card .stat{font-size:11px;color:var(--gray-500);}
+  .company-card .stat b{display:block;font-family:var(--font-mono);font-size:17px;color:var(--navy-800);font-weight:700;}
+  .company-card .actions{position:absolute;top:12px;right:10px;display:flex;gap:4px;opacity:0;transition:opacity .15s;}
+  .company-card:hover .actions{opacity:1;}
+  .icon-btn{
+    width:26px;height:26px;border-radius:6px;border:1px solid var(--gray-200);background:var(--white);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--gray-700);
+  }
+  .icon-btn:hover{background:var(--gray-100);}
+  .icon-btn.danger:hover{background:var(--red-100);color:var(--red-700);border-color:var(--red-100);}
+  .badge-selected{position:absolute;top:12px;right:12px;background:var(--red-600);color:#fff;font-size:10px;font-weight:700;letter-spacing:.3px;padding:3px 8px;border-radius:20px;}
+
+  /* modal */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(8,18,38,0.55);backdrop-filter:blur(2px);
+    display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
+  }
+  .modal{background:var(--white);border-radius:14px;width:100%;max-width:440px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:88vh;overflow-y:auto;}
+  .modal.wide{max-width:660px;}
+  .modal h2{font-family:var(--font-display);font-size:23px;font-weight:700;color:var(--navy-900);margin:0 0 4px 0;}
+  .modal .modal-sub{font-size:13px;color:var(--gray-500);margin-bottom:18px;font-style:italic;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;font-weight:700;color:var(--gray-700);margin-bottom:5px;}
+  .field input[type=text],.field input[type=number],.field textarea,.field select{
+    width:100%;padding:9px 11px;border:1.5px solid var(--gray-300);border-radius:7px;
+    font-family:var(--font-body);font-size:14px;color:var(--gray-900);background:var(--white);
+  }
+  .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--navy-700);}
+  .field textarea{resize:vertical;min-height:60px;font-family:var(--font-body);}
+  .field .radio-row{display:flex;gap:14px;margin-top:4px;}
+  .field .radio-row label{display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;}
+  .modal-close{position:absolute;top:16px;right:18px;cursor:pointer;font-size:18px;color:var(--gray-500);}
+  .modal-wrap-pos{position:relative;}
+
+  /* login modal specific */
+  .login-overlay{position:fixed;inset:0;background:linear-gradient(160deg,var(--navy-950),var(--navy-800) 70%);display:flex;align-items:center;justify-content:center;z-index:300;}
+  .login-box{background:var(--white);border-radius:14px;padding:36px 34px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,0.4);border-top:5px solid var(--red-600);}
+  .login-box .login-brand{font-family:var(--font-display);font-weight:700;font-size:26px;color:var(--navy-900);text-align:center;}
+  .login-box .login-brand span{color:var(--red-600);}
+  .login-box .login-sub{text-align:center;font-size:12.5px;color:var(--gray-500);font-style:italic;margin:6px 0 22px 0;}
+  .login-box .field{margin-bottom:16px;}
+  .login-note{font-size:11px;color:var(--gray-500);text-align:center;margin-top:10px;line-height:1.5;font-style:italic;}
+  datalist{}
+
+  /* toolbar */
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+  .search-box{flex:1;min-width:200px;position:relative;}
+  .search-box input{width:100%;padding:9px 12px 9px 32px;border:1.5px solid var(--gray-300);border-radius:7px;font-size:14px;font-family:var(--font-body);}
+  .search-box::before{content:"⌕";position:absolute;left:11px;top:8px;color:var(--gray-500);font-size:15px;}
+  .filter-select{padding:9px 11px;border:1.5px solid var(--gray-300);border-radius:7px;font-size:13.5px;font-family:var(--font-body);}
+
+  /* table */
+  table.data-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:12px;overflow:hidden;border:1px solid var(--gray-200);}
+  table.data-table thead th{
+    background:var(--navy-900);color:var(--navy-100);text-align:left;padding:10px 12px;
+    font-size:11.5px;font-weight:700;white-space:nowrap;letter-spacing:.2px;
+  }
+  table.data-table tbody td{padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13.5px;vertical-align:middle;}
+  table.data-table tbody tr:last-child td{border-bottom:none;}
+  table.data-table tbody tr:hover{background:var(--navy-50);}
+  .mono{font-family:var(--font-mono);}
+  .part-no-tag{font-family:var(--font-mono);font-weight:700;color:var(--navy-800);background:var(--navy-100);padding:2px 8px;border-radius:5px;font-size:12.5px;}
+  .row-actions{display:flex;gap:5px;}
+
+  .status-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;}
+  .status-badge.shipped{background:var(--navy-100);color:var(--navy-800);}
+  .status-badge.progress{background:var(--red-100);color:var(--red-700);}
+  .status-badge.notstarted{background:var(--gray-100);color:var(--gray-500);}
+  .status-badge.open{background:var(--red-100);color:var(--red-700);}
+  .status-badge.closed{background:var(--navy-100);color:var(--navy-800);}
+  .status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  .progress-track{width:100%;height:6px;border-radius:4px;background:var(--gray-200);overflow:hidden;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--navy-700),var(--red-600));border-radius:4px;}
+
+  /* dashboard */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:26px;}
+  .kpi-card{padding:18px 18px 16px 18px;border-radius:12px;background:var(--white);border:1px solid var(--gray-200);border-left:4px solid var(--navy-700);}
+  .kpi-card.accent{border-left-color:var(--red-600);}
+  .kpi-card .kpi-label{font-size:11.5px;color:var(--gray-500);font-weight:700;}
+  .kpi-card .kpi-value{font-family:var(--font-mono);font-size:27px;font-weight:700;color:var(--navy-900);margin-top:6px;}
+  .kpi-card .kpi-unit{font-size:12px;color:var(--gray-500);margin-left:4px;font-style:italic;}
+
+  .section-title{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--navy-900);margin:26px 0 12px 0;}
+
+  /* pipeline / stage flow */
+  .pipeline{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:4px 0 10px 0;}
+  .pipeline-stage{
+    flex:1;min-width:132px;position:relative;padding:14px 12px 12px 12px;background:var(--white);
+    border:1px solid var(--gray-200);border-left:none;
+  }
+  .pipeline-stage:first-child{border-left:1px solid var(--gray-200);border-radius:10px 0 0 10px;}
+  .pipeline-stage:last-child{border-radius:0 10px 10px 0;}
+  .pipeline-stage .stage-name{font-size:11px;letter-spacing:.2px;color:var(--gray-500);font-weight:700;margin-bottom:8px;white-space:nowrap;}
+  .pipeline-stage .stage-input{
+    width:100%;border:1.5px solid var(--gray-300);border-radius:6px;padding:7px 8px;font-family:var(--font-mono);
+    font-size:15px;font-weight:700;color:var(--navy-900);text-align:center;
+  }
+  .pipeline-stage .stage-input:focus{outline:none;border-color:var(--red-600);}
+  .pipeline-stage .reject-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
+  .pipeline-stage .reject-row label{font-size:10.5px;color:var(--red-700);font-weight:700;white-space:nowrap;}
+  .pipeline-stage .reject-input{
+    width:100%;border:1.5px solid var(--red-100);background:var(--red-100);border-radius:6px;padding:5px 6px;
+    font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--red-700);text-align:center;
+  }
+  .pipeline-stage .reject-input:focus{outline:none;border-color:var(--red-600);}
+  .pipeline-stage::after{
+    content:"›";position:absolute;right:-11px;top:26px;
+    font-size:20px;color:var(--gray-300);z-index:2;font-weight:700;
+  }
+  .pipeline-stage:last-child::after{content:"";}
+  .pipeline-stage .stage-bar{height:4px;border-radius:3px;background:var(--gray-200);margin-top:8px;overflow:hidden;}
+  .pipeline-stage .stage-bar-fill{height:100%;background:var(--navy-700);}
+  .pipeline-stage.final .stage-bar-fill{background:var(--red-600);}
+  .pipeline-stage.final .stage-name{color:var(--red-600);}
+
+  .history-list{max-height:260px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:10px;}
+  .history-row{display:flex;justify-content:space-between;gap:8px;padding:9px 13px;font-size:12.5px;border-bottom:1px solid var(--gray-100);flex-wrap:wrap;}
+  .history-row:last-child{border-bottom:none;}
+  .history-row .h-date{color:var(--gray-500);font-family:var(--font-mono);font-size:11.5px;}
+  .history-row .h-stage{font-weight:700;color:var(--navy-800);}
+  .history-row .h-qty{font-family:var(--font-mono);font-weight:700;color:var(--red-700);}
+  .history-row .h-user{font-size:11px;color:var(--gray-500);font-style:italic;}
+
+  .tag-chip{
+    display:inline-flex;align-items:center;gap:6px;background:var(--navy-50);border:1px solid var(--navy-100);
+    padding:5px 10px 5px 12px;border-radius:20px;font-size:13px;color:var(--navy-800);font-weight:600;
+  }
+  .tag-chip .x{cursor:pointer;color:var(--red-600);font-weight:700;}
+  .stage-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .add-stage-row{display:flex;gap:8px;margin-top:12px;}
+  .add-stage-row input{flex:1;}
+
+  .helper-text{font-size:11.5px;color:var(--gray-500);margin-top:4px;line-height:1.5;font-style:italic;}
+  .toast{
+    position:fixed;bottom:22px;right:22px;background:var(--navy-900);color:#fff;padding:12px 18px;border-radius:9px;
+    font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.25);z-index:200;display:flex;align-items:center;gap:8px;
+    border-left:3px solid var(--red-600);
+  }
+  .loading-screen{display:flex;align-items:center;justify-content:center;height:100vh;width:100%;color:var(--gray-500);font-size:14px;font-style:italic;}
+  .select-company-hint{padding:60px 20px;text-align:center;color:var(--gray-500);}
+  .drop-zone{
+    border:2px dashed var(--gray-300);border-radius:10px;padding:26px;text-align:center;cursor:pointer;
+    background:var(--gray-50);transition:border-color .15s, background .15s;
+  }
+  .drop-zone:hover,.drop-zone.drag{border-color:var(--red-600);background:var(--red-100);}
+  .drop-zone .dz-ico{font-size:26px;margin-bottom:6px;}
+  .drop-zone .dz-text{font-size:13.5px;color:var(--gray-700);font-weight:600;}
+  .drop-zone .dz-sub{font-size:11.5px;color:var(--gray-500);margin-top:3px;font-style:italic;}
+  .preview-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px;}
+  .preview-table th{background:var(--gray-100);padding:6px 9px;text-align:left;font-size:11px;color:var(--gray-500);}
+  .preview-table td{padding:6px 9px;border-bottom:1px solid var(--gray-100);}
+  .import-summary{display:flex;gap:16px;margin-top:12px;font-size:13px;}
+  .import-summary b{color:var(--navy-800);}
+  select.stage-select{padding:9px 11px;border:1.5px solid var(--gray-300);border-radius:7px;font-size:13.5px;min-width:220px;font-family:var(--font-body);}
+
+  .bulk-bar{display:flex;align-items:center;gap:12px;background:var(--navy-900);color:var(--white);padding:10px 16px;border-radius:9px;margin-bottom:14px;flex-wrap:wrap;}
+  .bulk-bar .bulk-count{font-weight:700;font-size:13.5px;}
+  .bulk-bar .bulk-count b{color:var(--red-500);}
+  .bulk-bar .spacer{flex:1;}
+  .bulk-bar .btn-ghost{background:transparent;color:var(--white);border-color:rgba(255,255,255,0.3);}
+  .bulk-bar .btn-ghost:hover{border-color:var(--white);}
+  .row-check{width:34px;}
+  input[type=checkbox].sel-check{width:16px;height:16px;cursor:pointer;accent-color:var(--red-600);}
+  .radio-row-mode{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+  .radio-row-mode label{display:flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px;cursor:pointer;}
+  .bulk-preview{max-height:170px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:8px;margin-top:10px;}
+  .bulk-preview-row{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;font-size:12px;border-bottom:1px solid var(--gray-100);}
+  .bulk-preview-row:last-child{border-bottom:none;}
+  .bulk-preview-row .old{color:var(--gray-500);text-decoration:line-through;}
+  .bulk-preview-row .new{color:var(--navy-800);font-weight:700;}
+
+  .storage-warning{background:var(--red-100);color:var(--red-800);border:1px solid var(--red-500);padding:10px 16px;border-radius:9px;font-size:12.5px;font-weight:600;margin-bottom:16px;}
+
+  .drawing-box{border:1.5px dashed var(--gray-300);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;background:var(--gray-50);}
+  .drawing-thumb{width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--gray-300);background:var(--white);cursor:pointer;}
+  .drawing-file-icon{width:64px;height:64px;border-radius:7px;border:1px solid var(--gray-300);background:var(--white);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;}
+  .drawing-info{flex:1;font-size:12.5px;}
+  .drawing-info .fname{font-weight:700;color:var(--navy-800);word-break:break-all;}
+  .drawing-attach-icon{color:var(--navy-700);font-size:12px;margin-left:5px;cursor:pointer;}
+
+  .meas-marker{
+    position:absolute;transform:translate(-50%,-50%);
+    width:24px;height:24px;border-radius:50%;background:var(--red-600);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;
+    border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);pointer-events:none;
+  }
+  .meas-marker.ok{background:var(--navy-700);}
+  .meas-marker.fail{background:var(--red-600);}
+  .meas-marker.pending{background:var(--gray-500);}
+
+  .ncr-card{border:1px solid var(--gray-200);border-left:4px solid var(--red-600);border-radius:10px;padding:14px 16px;background:var(--white);margin-bottom:10px;}
+  .ncr-card.closed{border-left-color:var(--navy-700);}
+  .ncr-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .ncr-title{font-weight:700;color:var(--navy-900);font-size:14.5px;}
+  .ncr-meta{font-size:11.5px;color:var(--gray-500);margin-top:2px;font-style:italic;}
+  .ncr-desc{font-size:13px;margin-top:8px;color:var(--gray-700);line-height:1.5;}
+  .ncr-action{font-size:12.5px;margin-top:6px;color:var(--navy-800);background:var(--navy-50);padding:8px 10px;border-radius:7px;}
+  .ncr-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+
+  @media (max-width:820px){
+    .sidebar{width:74px;}
+    .brand-sub,.company-pill,.user-pill .who,.user-pill .switch-user,.nav-item span.label-text{display:none;}
+    .nav-item{justify-content:center;}
+    .main{padding:18px;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading-screen">Yükleniyor…</div></div>
+
+<script>
+/* ============================= STORAGE HELPERS (Firebase Realtime Database) ============================= */
+const FIREBASE_URL = 'https://seria-6efb4-default-rtdb.firebaseio.com';
+const FIREBASE_SECRET = 'pke4NlY8pW2uF4BNTWn23BVeAgLA7yMWuzprQS8G';
+
+async function firebaseFetch(path, options){
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `${FIREBASE_URL}/${path}.json${sep}auth=${FIREBASE_SECRET}`;
+  const res = await fetch(url, options);
+  if(!res.ok) throw new Error('Firebase request failed: ' + res.status);
+  return res;
+}
+async function storageGet(key){
+  try{
+    const res = await firebaseFetch(encodeURIComponent(key));
+    const data = await res.json();
+    return (data===null || data===undefined) ? null : data;
+  }catch(e){
+    console.error('storageGet error', e);
+    return null;
+  }
+}
+async function storageSet(key, value){
+  try{
+    const json = JSON.stringify(value);
+    if(json.length > 9000000){
+      showToast('Kayıt boyutu çok büyük. Teknik resim dosyalarını küçültün.');
+      return false;
+    }
+    await firebaseFetch(encodeURIComponent(key), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: json
+    });
+    return true;
+  }catch(e){
+    console.error('storage set error', e);
+    return false;
+  }
+}
+async function storageDelete(key){
+  try{
+    await firebaseFetch(encodeURIComponent(key), { method:'DELETE' });
+  }catch(e){ console.error('storage delete error', e); }
+}
+
+const DEFAULT_STAGES = ['Kesim','Büküm','Kaynak','Taşlama','Boya','Montaj','Paketleme','Sevkiyat'];
+const APP_PASSWORD = 'formak1907';
+
+// Örnekleme / kontrol sıklığı tablosu (kullanıcının verdiği tabloya göre)
+const SAMPLING_TABLE = [
+  {min:1,   max:3,     full:true},           // 1-3 arası -> %100 kontrol
+  {min:4,   max:50,    num:1, per:10},       // 3-50 arası -> 1 adet / 10 adet
+  {min:51,  max:150,   num:3, per:50},       // 51-150 arası -> 3 adet / 50 adet
+  {min:151, max:500,   num:4, per:100},      // 151-500 arası -> 4 adet / 100 adet
+  {min:501, max:3250,  num:5, per:250},      // 501-3250 arası -> 5 adet / 250 adet
+  {min:3251,max:35000, num:6, per:500},      // 3201-35000 arası -> 6 adet / 500 adet
+];
+function calcSampleCount(orderedQty){
+  const q = Number(orderedQty)||0;
+  if(q<=0) return 0;
+  let bracket = SAMPLING_TABLE.find(b => q>=b.min && q<=b.max);
+  if(!bracket) bracket = q < SAMPLING_TABLE[0].min ? SAMPLING_TABLE[0] : SAMPLING_TABLE[SAMPLING_TABLE.length-1];
+  if(bracket.full) return q;
+  return Math.max(1, Math.ceil(q / bracket.per) * bracket.num);
+}
+
+function uid(prefix){
+  return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+}
+function todayStr(){
+  const d = new Date();
+  return d.toLocaleDateString('tr-TR') + ' ' + d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+}
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function fmtNum(n){
+  n = Number(n)||0;
+  return n.toLocaleString('tr-TR');
+}
+
+/* ============================= STATE ============================= */
+let state = {
+  currentUser: null,        // identification only — not a secured login
+  companies: [],
+  partsByCompany: {},
+  selectedCompanyId: null,
+  view: 'companies',        // companies | parts | tracking | quality | dashboard | reports
+  selectedPartId: null,
+  search: '',
+  qualityFilter: 'acik',    // acik | kapali | hepsi
+  modal: null,
+  toast: null,
+  loading: true,
+  importPreview: null,
+  knownUsers: [],
+  storageUnavailable: false,
+  lastSaveFailed: false,
+  selectedPartIds: new Set(),
+  markingMeasurementId: null,
+};
+
+function setState(patch){ Object.assign(state, patch); render(); }
+function showToast(msg){
+  state.toast = msg;
+  render();
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>{ state.toast=null; render(); }, 2600);
+}
+
+/* ============================= DATA ACCESS ============================= */
+function asArray(v){ return Array.isArray(v) ? v : []; }
+
+async function loadAll(){
+  try{
+    try{
+      await firebaseFetch('companies');
+    }catch(e){
+      state.storageUnavailable = true;
+    }
+    const companiesRaw = await storageGet('companies');
+    const companies = asArray(companiesRaw);
+    state.companies = companies;
+    companies.forEach(c => { if(c && (!c.stages || !c.stages.length)) c.stages = DEFAULT_STAGES.slice(); });
+    const partsMap = {};
+    for(const c of companies){
+      if(!c || !c.id) continue;
+      const partsRaw = await storageGet('parts:'+c.id);
+      const parts = asArray(partsRaw);
+      parts.forEach(p=>{ if(!p) return; if(!p.rejects) p.rejects={}; if(!p.ncrs) p.ncrs=[]; if(!p.history) p.history=[]; if(p.drawing===undefined) p.drawing=null; if(p.color===undefined) p.color=''; if(!Array.isArray(p.measurements)) p.measurements=[]; });
+      partsMap[c.id] = parts;
+    }
+    state.partsByCompany = partsMap;
+    const knownUsersRaw = await storageGet('known-users');
+    state.knownUsers = asArray(knownUsersRaw).filter(u=>typeof u==='string');
+    if(companies.length && !state.selectedCompanyId) state.selectedCompanyId = companies[0].id;
+  }catch(e){
+    console.error('loadAll fatal error', e);
+    state.storageUnavailable = true;
+    state.companies = asArray(state.companies);
+    state.partsByCompany = state.partsByCompany || {};
+    state.knownUsers = asArray(state.knownUsers);
+  }
+  state.loading = false;
+  render();
+}
+async function persistCompanies(){
+  state.lastSaveFailed = false;
+  const ok = await storageSet('companies', state.companies);
+  if(!ok && !state.storageUnavailable){ state.lastSaveFailed = true; render(); }
+  return ok;
+}
+async function persistParts(companyId){
+  state.lastSaveFailed = false;
+  const ok = await storageSet('parts:'+companyId, state.partsByCompany[companyId] || []);
+  if(!ok && !state.storageUnavailable){ state.lastSaveFailed = true; render(); }
+  return ok;
+}
+async function persistKnownUsers(){ await storageSet('known-users', state.knownUsers); }
+
+function getCompany(id){ return state.companies.find(c=>c.id===id); }
+function getParts(companyId){ return state.partsByCompany[companyId] || []; }
+
+/* ============================= COMPUTATIONS ============================= */
+function partRemaining(part, stages){
+  const last = stages[stages.length-1];
+  const shipped = Number(part.qtys[last]||0);
+  return Math.max(0, Number(part.orderedQty||0) - shipped);
+}
+function partTotalReject(part){
+  return Object.values(part.rejects||{}).reduce((a,b)=>a+(Number(b)||0),0);
+}
+function partStatus(part, stages){
+  const last = stages[stages.length-1];
+  const shipped = Number(part.qtys[last]||0);
+  const anyProgress = stages.some(s => Number(part.qtys[s]||0) > 0);
+  if(shipped >= Number(part.orderedQty||0) && Number(part.orderedQty||0) > 0) return 'shipped';
+  if(anyProgress) return 'progress';
+  return 'notstarted';
+}
+function companyTotals(companyId){
+  const company = getCompany(companyId);
+  const parts = getParts(companyId);
+  const stages = company ? company.stages : DEFAULT_STAGES;
+  const last = stages[stages.length-1];
+  const prev = stages.length>1 ? stages[stages.length-2] : last;
+  let ordered=0, shipped=0, completed=0, rejected=0, openNcr=0, closedNcr=0;
+  parts.forEach(p=>{
+    ordered += Number(p.orderedQty||0);
+    shipped += Number(p.qtys[last]||0);
+    completed += Number(p.qtys[prev]||0);
+    rejected += partTotalReject(p);
+    (p.ncrs||[]).forEach(n=> n.status==='acik' ? openNcr++ : closedNcr++);
+  });
+  return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
+}
+function allTotals(){
+  let totals = {companyCount: state.companies.length, partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0};
+  state.companies.forEach(c=>{
+    const t = companyTotals(c.id);
+    totals.partCount += t.partCount; totals.ordered += t.ordered; totals.shipped += t.shipped;
+    totals.completed += t.completed; totals.inProgress += t.inProgress; totals.rejected += t.rejected;
+    totals.openNcr += t.openNcr; totals.closedNcr += t.closedNcr;
+  });
+  return totals;
+}
+function allOpenNcrCount(){
+  let n=0;
+  state.companies.forEach(c=> getParts(c.id).forEach(p=> (p.ncrs||[]).forEach(x=> { if(x.status==='acik') n++; })));
+  return n;
+}
+
+/* ============================= RENDER ROOT ============================= */
+function render(){
+  const app = document.getElementById('app');
+  if(state.loading){ app.innerHTML = '<div class="loading-screen">Veriler yükleniyor…</div>'; return; }
+  if(!state.currentUser){
+    app.innerHTML = renderLogin();
+    attachLoginHandlers();
+    return;
+  }
+  app.innerHTML = `
+    ${renderSidebar()}
+    <div class="main">
+      ${state.storageUnavailable ? `<div class="storage-warning">&#9888; Firebase veritabanına bağlanılamadı — internet bağlantınızı kontrol edin veya veritabanı kurallarının (Rules) açık olduğundan emin olun.</div>` : ''}
+      ${state.lastSaveFailed ? `<div class="storage-warning">&#9888; Son değişiklik kaydedilemedi. Lütfen tekrar deneyin veya sayfayı yenileyip son işlemi tekrar yapın.</div>` : ''}
+      ${renderView()}
+    </div>
+    ${state.modal ? renderModal() : ''}
+    ${state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : ''}
+  `;
+  attachHandlers();
+}
+
+/* ============================= LOGIN ============================= */
+function renderLogin(){
+  return `
+  <div class="login-overlay">
+    <div class="login-box">
+      <div class="login-brand">ÜRETİM<span>.</span>TAKİP</div>
+      <div class="login-sub">Devam etmek için adınızı ve şifreyi girin</div>
+      <div class="field">
+        <label>Kullanıcı Adı</label>
+        <input type="text" id="loginNameInput" list="knownUsersList" placeholder="Örn. Ahmet Yılmaz" autocomplete="off" autocapitalize="words"/>
+        <datalist id="knownUsersList">
+          ${state.knownUsers.map(u=>`<option value="${escapeHtml(u)}"></option>`).join('')}
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Şifre</label>
+        <input type="password" id="loginPassInput" placeholder="Şifre" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+        <div id="loginErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin-top:6px;min-height:16px;"></div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" id="loginBtn">Sisteme Gir</button>
+      <div class="login-note">Kullanıcı adı, kayıtlara "kim güncelledi" bilgisini eklemek için kullanılır. Şifre ise sisteme sadece yetkili ekibin girmesini sağlar.</div>
+    </div>
+  </div>`;
+}
+function attachLoginHandlers(){
+  const btn = document.getElementById('loginBtn');
+  const input = document.getElementById('loginNameInput');
+  const passInput = document.getElementById('loginPassInput');
+  input.focus();
+  const doLogin = async ()=>{
+    const name = input.value.trim();
+    const pass = passInput.value.trim();
+    const errEl = document.getElementById('loginErrorMsg');
+    if(errEl) errEl.textContent = '';
+    if(!name){ input.style.borderColor = 'var(--red-600)'; if(errEl) errEl.textContent=''; input.focus(); return; }
+    if(pass !== APP_PASSWORD){
+      passInput.style.borderColor = 'var(--red-600)';
+      passInput.value='';
+      passInput.focus();
+      if(errEl) errEl.textContent = 'Şifre hatalı. Lütfen tekrar deneyin.';
+      return;
+    }
+    state.currentUser = name;
+    render(); // önce ekranı geçir, kayıt arka planda denensin
+    try{
+      if(!Array.isArray(state.knownUsers)) state.knownUsers = [];
+      if(!state.knownUsers.includes(name)){
+        state.knownUsers.push(name);
+        await persistKnownUsers();
+      }
+    }catch(e){
+      console.error('knownUsers kayıt hatası', e);
+    }
+  };
+  btn.addEventListener('click', doLogin);
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') passInput.focus(); });
+  passInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
+  passInput.addEventListener('input', ()=>{ passInput.style.borderColor=''; const errEl=document.getElementById('loginErrorMsg'); if(errEl) errEl.textContent=''; });
+  input.addEventListener('input', ()=>{ input.style.borderColor=''; });
+}
+
+function renderSidebar(){
+  const items = [
+    {id:'companies', icon:'&#127970;', label:'Şirketler'},
+    {id:'parts', icon:'&#128230;', label:'Parçalar'},
+    {id:'tracking', icon:'&#128295;', label:'Üretim Takibi'},
+    {id:'quality', icon:'&#9878;', label:'Kalite Kontrol', badge: allOpenNcrCount()},
+    {id:'dashboard', icon:'&#128202;', label:'Dashboard'},
+    {id:'reports', icon:'&#128196;', label:'Raporlar'},
+  ];
+  const sel = getCompany(state.selectedCompanyId);
+  return `
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">ÜRETİM<span>.</span>TAKİP</div>
+      <div class="brand-sub">Şirket, Üretim &amp; Kalite Sistemi</div>
+    </div>
+    <div class="user-pill">
+      <div class="who"><div class="label">Kullanıcı</div><div class="value">${escapeHtml(state.currentUser)}</div></div>
+      <div class="switch-user" data-action="switchUser">değiştir</div>
+    </div>
+    <div class="company-pill">
+      <div class="label">Aktif Şirket</div>
+      <div class="value">${sel ? escapeHtml(sel.name) : 'Seçilmedi'}</div>
+    </div>
+    <div class="nav">
+      ${items.map(it => `
+        <div class="nav-item ${state.view===it.id?'active':''}" data-nav="${it.id}">
+          <span class="nav-icon">${it.icon}</span><span class="label-text">${it.label}</span>
+          ${it.badge ? `<span class="nav-badge">${it.badge}</span>` : ''}
+        </div>`).join('')}
+    </div>
+    <div class="sidebar-footer">Veriler otomatik olarak kaydedilir.</div>
+  </div>`;
+}
+
+function renderView(){
+  switch(state.view){
+    case 'companies': return renderCompaniesView();
+    case 'parts': return renderPartsView();
+    case 'tracking': return renderTrackingView();
+    case 'quality': return renderQualityView();
+    case 'dashboard': return renderDashboardView();
+    case 'reports': return renderReportsView();
+    default: return '';
+  }
+}
+
+/* ============================= COMPANIES VIEW ============================= */
+function renderCompaniesView(){
+  const companies = state.companies;
+  return `
+    <div class="page-head">
+      <div>
+        <div class="page-title">Şirketler</div>
+        <div class="page-sub">Her şirketin parça verileri birbirinden tamamen bağımsızdır.</div>
+      </div>
+      <button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>
+    </div>
+    ${companies.length===0 ? `
+      <div class="empty-state">
+        <div class="ico">&#127970;</div>
+        <h3>Henüz şirket eklenmedi</h3>
+        <p>Başlamak için ilk şirketinizi ekleyin, ardından parça listesini yükleyin.</p>
+        <button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>
+      </div>
+    ` : `
+      <div class="company-grid">
+        ${companies.map(c=>{
+          const t = companyTotals(c.id);
+          const isSel = c.id === state.selectedCompanyId;
+          return `
+          <div class="card company-card ${isSel?'selected':''}" data-select-company="${c.id}">
+            ${isSel ? '<div class="badge-selected">Seçili</div>' : `
+            <div class="actions">
+              <div class="icon-btn" data-edit-company="${c.id}" title="Düzenle">&#9998;</div>
+              <div class="icon-btn danger" data-delete-company="${c.id}" title="Sil">&#128465;</div>
+            </div>`}
+            <h3>${escapeHtml(c.name)}</h3>
+            <div class="meta">Eklendi: ${c.createdAt}</div>
+            <div class="stats">
+              <div class="stat">Parça<b>${fmtNum(t.partCount)}</b></div>
+              <div class="stat">Sipariş<b>${fmtNum(t.ordered)}</b></div>
+              <div class="stat">Sevk<b>${fmtNum(t.shipped)}</b></div>
+              <div class="stat">Ret<b style="color:var(--red-700);">${fmtNum(t.rejected)}</b></div>
+            </div>
+            ${!isSel ? `<div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" data-select-company-btn="${c.id}">Seç ve Çalış</button></div>` : `
+            <div style="display:flex;gap:6px;margin-top:12px;">
+              <button class="btn btn-ghost btn-sm" data-edit-company="${c.id}">Düzenle</button>
+              <button class="btn btn-danger-ghost btn-sm" data-delete-company="${c.id}">Sil</button>
+            </div>`}
+          </div>`;
+        }).join('')}
+      </div>
+    `}
+  `;
+}
+
+/* ============================= PARTS VIEW ============================= */
+function renderPartsView(){
+  const company = getCompany(state.selectedCompanyId);
+  if(!company) return renderNoCompanySelected();
+  const stages = company.stages;
+  let parts = getParts(company.id);
+  if(state.search.trim()){
+    const q = state.search.trim().toLowerCase();
+    parts = parts.filter(p => p.partNo.toLowerCase().includes(q) || p.partName.toLowerCase().includes(q));
+  }
+  return `
+    <div class="page-head">
+      <div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span></div>
+        <div class="page-sub">${fmtNum(getParts(company.id).length)} parça kayıtlı · Proses akışı: ${stages.map(escapeHtml).join(' → ')}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" data-action="openStages">Proses Aşamaları</button>
+        <button class="btn btn-navy" data-action="openImport">&#128228; Excel / CSV Yükle</button>
+        <button class="btn btn-primary" data-action="openAddPart">+ Parça Ekle</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="search-box"><input type="text" id="searchInput" placeholder="Parça no veya adı ile ara…" value="${escapeHtml(state.search)}"/></div>
+    </div>
+    ${parts.length===0 ? `
+      <div class="empty-state">
+        <div class="ico">&#128230;</div>
+        <h3>${getParts(company.id).length===0 ? 'Henüz parça eklenmedi' : 'Sonuç bulunamadı'}</h3>
+        <p>${getParts(company.id).length===0 ? 'Excel/CSV dosyası yükleyerek veya manuel olarak parça ekleyin.' : 'Arama kriterlerinizi değiştirin.'}</p>
+        ${getParts(company.id).length===0 ? `<button class="btn btn-primary" data-action="openImport">Excel / CSV Yükle</button>` : ''}
+      </div>
+    ` : `
+      ${state.selectedPartIds.size>0 ? `
+      <div class="bulk-bar">
+        <span class="bulk-count"><b>${state.selectedPartIds.size}</b> parça seçili</span>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost btn-sm" data-action="openBulkRename">Toplu İsim Değiştir</button>
+        <button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>
+      </div>` : ''}
+      <table class="data-table">
+        <thead><tr>
+          <th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>
+          <th>Parça No</th><th>Parça Adı</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${parts.map(p=>{
+            const remaining = partRemaining(p, stages);
+            const status = partStatus(p, stages);
+            const shipped = Number(p.qtys[stages[stages.length-1]]||0);
+            const reject = partTotalReject(p);
+            const pct = p.orderedQty>0 ? Math.min(100, Math.round(shipped/p.orderedQty*100)) : 0;
+            const statusLabel = status==='shipped'?'Sevk Edildi':status==='progress'?'Üretimde':'Başlamadı';
+            const openNcr = (p.ncrs||[]).filter(n=>n.status==='acik').length;
+            return `
+            <tr>
+              <td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>
+              <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${p.drawing?` <span title="Teknik resim eklendi" class="drawing-attach-icon">&#128206;</span>`:''}</td>
+              <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
+              <td class="mono">${fmtNum(p.orderedQty)}</td>
+              <td class="mono">${fmtNum(shipped)}</td>
+              <td class="mono" style="color:${reject>0?'var(--red-700)':'var(--gray-500)'};font-weight:700;">${fmtNum(reject)}</td>
+              <td class="mono" style="color:${remaining>0?'var(--red-700)':'var(--gray-500)'};font-weight:700;">${fmtNum(remaining)}</td>
+              <td style="width:110px;"><div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div></td>
+              <td><span class="status-badge ${status}"><span class="status-dot"></span>${statusLabel}</span></td>
+              <td style="font-size:11.5px;color:var(--gray-500);white-space:nowrap;">${p.lastUpdate||'—'}</td>
+              <td>
+                <div class="row-actions">
+                  <div class="icon-btn" data-track-part="${p.id}" title="Üretim Takibi">&#128295;</div>
+                  <div class="icon-btn" data-edit-part="${p.id}" title="Düzenle">&#9998;</div>
+                  <div class="icon-btn danger" data-delete-part="${p.id}" title="Sil">&#128465;</div>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `}
+  `;
+}
+
+/* ============================= TRACKING VIEW ============================= */
+function renderTrackingView(){
+  const company = getCompany(state.selectedCompanyId);
+  if(!company) return renderNoCompanySelected();
+  const stages = company.stages;
+  const parts = getParts(company.id);
+  if(parts.length===0){
+    return `
+      <div class="page-head"><div><div class="page-title">Üretim Takibi</div><div class="page-sub">${escapeHtml(company.name)}</div></div></div>
+      <div class="empty-state">
+        <div class="ico">&#128295;</div><h3>Takip edilecek parça yok</h3>
+        <p>Önce Parçalar bölümünden parça ekleyin veya Excel/CSV yükleyin.</p>
+        <button class="btn btn-primary" data-action="gotoParts">Parçalara Git</button>
+      </div>`;
+  }
+  const partId = state.selectedPartId && parts.find(p=>p.id===state.selectedPartId) ? state.selectedPartId : parts[0].id;
+  state.selectedPartId = partId;
+  const part = parts.find(p=>p.id===partId);
+  const remaining = partRemaining(part, stages);
+  const reject = partTotalReject(part);
+
+  return `
+    <div class="page-head">
+      <div>
+        <div class="page-title">Üretim Takibi</div>
+        <div class="page-sub">${escapeHtml(company.name)} — parça no veya adı yazarak bulun</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" list="trackPartList" class="stage-select" id="partSearchInput" placeholder="Parça no veya adı yazın…" value="${escapeHtml(part.partNo)} — ${escapeHtml(part.partName)}" autocomplete="off"/>
+        <datalist id="trackPartList">
+          ${parts.map(p=>`<option data-id="${p.id}" value="${escapeHtml(p.partNo)} — ${escapeHtml(p.partName)}"></option>`).join('')}
+        </datalist>
+        <button class="btn btn-primary btn-sm" data-action="openAddPart" style="white-space:nowrap;">+ Parça Ekle</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:20px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:13px;color:var(--navy-800);font-weight:700;">${escapeHtml(part.partNo)}</div>
+          <div style="font-family:var(--font-display);font-size:23px;font-weight:700;color:var(--navy-900);">${part.partName ? escapeHtml(part.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim girilmedi)</span>'}</div>
+        </div>
+        <div style="display:flex;gap:22px;text-align:right;">
+          <div><div class="helper-text" style="margin:0;">İstenen</div><div class="mono" style="font-size:18px;font-weight:700;color:var(--navy-800);">${fmtNum(part.orderedQty)}</div></div>
+          <div><div class="helper-text" style="margin:0;">Toplam Ret</div><div class="mono" style="font-size:18px;font-weight:700;color:var(--red-700);">${fmtNum(reject)}</div></div>
+          <div><div class="helper-text" style="margin:0;">Kalan</div><div class="mono" style="font-size:18px;font-weight:700;color:${remaining>0?'var(--red-700)':'var(--gray-500)'};">${fmtNum(remaining)}</div></div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Teknik Resim</label>
+        ${part.drawing ? `
+          <div class="drawing-box">
+            ${part.drawing.type && part.drawing.type.startsWith('image/') ?
+              `<img src="${part.drawing.data}" class="drawing-thumb" data-view-drawing="${part.id}"/>` :
+              `<div class="drawing-file-icon" data-view-drawing="${part.id}">&#128196;</div>`}
+            <div class="drawing-info"><div class="fname">${escapeHtml(part.drawing.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">Görüntülemek için tıklayın</div></div>
+            <button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}">Kaldır</button>
+          </div>
+        ` : `
+          <div class="drop-zone" id="drawingDropZone" style="padding:16px;">
+            <div class="dz-text">Teknik resim yüklemek için tıklayın</div>
+            <div class="dz-sub">.png, .jpg veya .pdf — en fazla 3 MB</div>
+            <input type="file" id="drawingFileInput" accept=".png,.jpg,.jpeg,.pdf" style="display:none;"/>
+          </div>
+        `}
+      </div>
+
+      <div class="field">
+        <label>Malzeme Rengi (opsiyonel)</label>
+        <input type="text" id="partColorTrackInput" placeholder="Örn. RAL 9005 Siyah — boyanmıyorsa boş bırakın" value="${escapeHtml(part.color||'')}"/>
+      </div>
+
+      <div class="pipeline" id="pipelineWrap">
+        ${stages.map((s,i)=>{
+          const val = Number(part.qtys[s]||0);
+          const rej = Number(part.rejects[s]||0);
+          const pct = part.orderedQty>0 ? Math.min(100, Math.round(val/part.orderedQty*100)) : 0;
+          const isFinal = i === stages.length-1;
+          return `
+          <div class="pipeline-stage ${isFinal?'final':''}">
+            <div class="stage-name">${escapeHtml(s)}</div>
+            <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}"/>
+            <div class="reject-row">
+              <label>Ret</label>
+              <input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}"/>
+            </div>
+            <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="field" style="margin-top:18px;">
+        <label>Not</label>
+        <textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…">${escapeHtml(part.note||'')}</textarea>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
+        <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>
+          <button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button>
+        </div>
+      </div>
+    </div>
+
+    ${renderMeasurementSection(part)}
+
+    <div class="section-title">Değişiklik Geçmişi</div>
+    <div class="history-list">
+      ${(part.history && part.history.length) ? part.history.slice().reverse().map(h=>`
+        <div class="history-row">
+          <span class="h-date">${h.date}</span>
+          <span class="h-stage">${escapeHtml(h.stage)}</span>
+          <span class="h-qty">${h.reject ? 'Ret: '+fmtNum(h.qty) : fmtNum(h.qty)+' adet'}</span>
+          <span class="h-user">${escapeHtml(h.user||'')}</span>
+        </div>`).join('') : `<div class="history-row" style="justify-content:center;color:var(--gray-500);">Henüz geçmiş kaydı yok</div>`}
+    </div>
+
+    ${(part.ncrs && part.ncrs.length) ? `
+    <div class="section-title">Bu Parçaya Ait Uygunsuzluk Kayıtları</div>
+    ${renderNcrList(part.ncrs, company.id, part.id)}
+    ` : ''}
+  `;
+}
+
+/* ============================= ÖLÇÜM KONTROLÜ ============================= */
+function measurementStatus(m){
+  const measured = m.measuredValue!==''&&m.measuredValue!=null ? Number(m.measuredValue) : null;
+  const nominal = m.nominalValue!==''&&m.nominalValue!=null ? Number(m.nominalValue) : null;
+  const tol = m.tolerance!==''&&m.tolerance!=null ? Math.abs(Number(m.tolerance)) : null;
+  if(measured===null || nominal===null || tol===null || isNaN(measured) || isNaN(nominal) || isNaN(tol)) return 'pending';
+  return Math.abs(measured-nominal) <= tol ? 'ok' : 'fail';
+}
+function renderMeasurementSection(part){
+  const measurements = part.measurements || [];
+  const suggested = calcSampleCount(part.orderedQty);
+  const hasImageDrawing = part.drawing && part.drawing.type && part.drawing.type.startsWith('image/');
+  return `
+    <div class="section-title">Ölçüm Kontrolü</div>
+    <div class="helper-text" style="margin-bottom:10px;">Sipariş adedine (${fmtNum(part.orderedQty)}) göre örnekleme tablosuna göre önerilen ölçüm sayısı: <b style="color:var(--navy-800);font-style:normal;">${suggested}</b> ${measurements.length ? `· şu an ${measurements.length} ölçüm noktası tanımlı` : ''}</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn btn-navy btn-sm" data-action="addMeasurement" data-part="${part.id}">+ Ölçüm Noktası Ekle</button>
+      ${suggested > measurements.length ? `<button class="btn btn-ghost btn-sm" data-action="addSuggestedMeasurements" data-part="${part.id}" data-count="${suggested}">Önerilen Sayıya Tamamla (+${suggested-measurements.length})</button>` : ''}
+    </div>
+
+    ${hasImageDrawing ? `
+      <div class="card" style="padding:14px;margin-bottom:14px;">
+        <div class="helper-text" style="margin:0 0 8px 0;">${state.markingMeasurementId ? 'Resme tıklayarak ölçüm noktasının yerini işaretleyin.' : 'Bir ölçüm satırındaki "Resimde İşaretle" butonuna basıp resme tıklayarak konumunu belirleyebilirsiniz.'}</div>
+        <div class="drawing-image-wrap" id="measureImageWrap" style="position:relative;display:inline-block;max-width:100%;cursor:${state.markingMeasurementId?'crosshair':'default'};">
+          <img src="${part.drawing.data}" id="measureImageEl" style="max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--gray-300);display:block;"/>
+          ${measurements.filter(m=>m.imgX!=null && m.imgY!=null).map(m=>`<div class="meas-marker ${measurementStatus(m)}" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${measurements.length===0 ? `
+      <div class="empty-state" style="padding:30px 20px;">
+        <p style="margin:0;">Henüz ölçüm noktası eklenmedi.</p>
+      </div>
+    ` : `
+      <table class="data-table">
+        <thead><tr><th>No</th>${hasImageDrawing?'<th>Konum</th>':''}<th>Ölçülen Değer</th><th>Nominal Değer</th><th>Tolerans (±)</th><th>Durum</th><th></th></tr></thead>
+        <tbody>
+          ${measurements.map(m=>{
+            const status = measurementStatus(m);
+            const statusLabel = status==='ok' ? 'Uygun' : status==='fail' ? 'Tolerans Dışı' : 'Bekliyor';
+            const statusClass = status==='ok' ? 'shipped' : status==='fail' ? 'progress' : 'notstarted';
+            return `
+            <tr>
+              <td class="mono">${m.no}</td>
+              ${hasImageDrawing ? `<td>${m.imgX!=null ? `<span style="color:var(--red-600);font-weight:700;">&#128204; işaretli</span>` : `<button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Resimde İşaretle</button>`}</td>` : ''}
+              <td><input type="number" step="any" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-value="${m.id}" value="${m.measuredValue!=null?m.measuredValue:''}"/></td>
+              <td><input type="number" step="any" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-nominal="${m.id}" value="${m.nominalValue!=null?m.nominalValue:''}"/></td>
+              <td><input type="number" step="any" class="stage-input" style="width:80px;font-size:13px;padding:6px 8px;" data-meas-tol="${m.id}" value="${m.tolerance!=null?m.tolerance:''}"/></td>
+              <td><span class="status-badge ${statusClass}"><span class="status-dot"></span>${statusLabel}</span></td>
+              <td><div class="icon-btn danger" data-remove-measurement="${m.id}" title="Sil">&#128465;</div></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `}
+  `;
+}
+
+/* ============================= QUALITY VIEW ============================= */
+function collectAllNcrs(){
+  const all = [];
+  state.companies.forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      (p.ncrs||[]).forEach(n=> all.push({...n, companyId:c.id, companyName:c.name, partId:p.id, partNo:p.partNo, partName:p.partName}));
+    });
+  });
+  return all.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+}
+function renderQualityView(){
+  const totals = allTotals();
+  let all = collectAllNcrs();
+  if(state.qualityFilter==='acik') all = all.filter(n=>n.status==='acik');
+  if(state.qualityFilter==='kapali') all = all.filter(n=>n.status==='kapali');
+
+  return `
+    <div class="page-head">
+      <div><div class="page-title">Kalite Kontrol</div><div class="page-sub">Ret adetleri ve uygunsuzluk kayıtları — tüm şirketler</div></div>
+      <button class="btn btn-primary" data-action="openNcrGlobal">+ Uygunsuzluk Kaydı Aç</button>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card accent"><div class="kpi-label">Toplam Ret Adedi</div><div class="kpi-value">${fmtNum(totals.rejected)}</div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Açık Uygunsuzluk</div><div class="kpi-value">${fmtNum(totals.openNcr)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Kapatılan Uygunsuzluk</div><div class="kpi-value">${fmtNum(totals.closedNcr)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Sevk Edilen / Sipariş</div><div class="kpi-value" style="font-size:20px;">${fmtNum(totals.shipped)} <span class="kpi-unit">/ ${fmtNum(totals.ordered)}</span></div></div>
+    </div>
+    <div class="toolbar">
+      <select class="filter-select" id="qualityFilterSelect">
+        <option value="acik" ${state.qualityFilter==='acik'?'selected':''}>Açık kayıtlar</option>
+        <option value="kapali" ${state.qualityFilter==='kapali'?'selected':''}>Kapatılan kayıtlar</option>
+        <option value="hepsi" ${state.qualityFilter==='hepsi'?'selected':''}>Tümü</option>
+      </select>
+    </div>
+    ${all.length===0 ? `
+      <div class="empty-state"><div class="ico">&#9878;</div><h3>Kayıt bulunamadı</h3><p>Seçili filtreye uyan bir uygunsuzluk kaydı yok.</p></div>
+    ` : all.map(n=>`
+      <div class="ncr-card ${n.status==='kapali'?'closed':''}">
+        <div class="ncr-top">
+          <div>
+            <div class="ncr-title">${escapeHtml(n.partNo)} — ${escapeHtml(n.partName)} <span style="font-weight:400;color:var(--gray-500);">(${escapeHtml(n.companyName)})</span></div>
+            <div class="ncr-meta">${n.date} · Aşama: ${escapeHtml(n.stage)} · Kaydeden: ${escapeHtml(n.user)}</div>
+          </div>
+          <span class="status-badge ${n.status==='acik'?'open':'closed'}"><span class="status-dot"></span>${n.status==='acik'?'Açık':'Kapatıldı'}</span>
+        </div>
+        <div class="ncr-desc">${escapeHtml(n.description)}</div>
+        ${n.correctiveAction ? `<div class="ncr-action"><b>Düzeltici Faaliyet:</b> ${escapeHtml(n.correctiveAction)}</div>` : ''}
+        <div class="ncr-foot">
+          <span class="helper-text" style="margin:0;">${n.status==='kapali' && n.closedDate ? 'Kapatıldı: '+n.closedDate : ''}</span>
+          ${n.status==='acik' ? `<button class="btn btn-ghost btn-sm" data-close-ncr="${n.partId}|${n.id}" data-company="${n.companyId}">Kapat</button>` : ''}
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+function renderNcrList(ncrs, companyId, partId){
+  return ncrs.slice().reverse().map(n=>`
+    <div class="ncr-card ${n.status==='kapali'?'closed':''}">
+      <div class="ncr-top">
+        <div>
+          <div class="ncr-title">${escapeHtml(n.stage)}</div>
+          <div class="ncr-meta">${n.date} · Kaydeden: ${escapeHtml(n.user)}</div>
+        </div>
+        <span class="status-badge ${n.status==='acik'?'open':'closed'}"><span class="status-dot"></span>${n.status==='acik'?'Açık':'Kapatıldı'}</span>
+      </div>
+      <div class="ncr-desc">${escapeHtml(n.description)}</div>
+      ${n.correctiveAction ? `<div class="ncr-action"><b>Düzeltici Faaliyet:</b> ${escapeHtml(n.correctiveAction)}</div>` : ''}
+      ${n.status==='acik' ? `<div class="ncr-foot"><span></span><button class="btn btn-ghost btn-sm" data-close-ncr="${partId}|${n.id}" data-company="${companyId}">Kapat</button></div>` : ''}
+    </div>
+  `).join('');
+}
+
+/* ============================= DASHBOARD VIEW ============================= */
+function renderDashboardView(){
+  const totals = allTotals();
+  const companies = state.companies;
+  return `
+    <div class="page-head">
+      <div><div class="page-title">Dashboard</div><div class="page-sub">Tüm şirketler genelinde özet üretim ve kalite durumu</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Toplam Şirket</div><div class="kpi-value">${fmtNum(totals.companyCount)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Toplam Parça</div><div class="kpi-value">${fmtNum(totals.partCount)}</div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Toplam Sipariş</div><div class="kpi-value">${fmtNum(totals.ordered)}<span class="kpi-unit">adet</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">Üretimde</div><div class="kpi-value">${fmtNum(totals.inProgress)}<span class="kpi-unit">adet</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">Tamamlanan</div><div class="kpi-value">${fmtNum(totals.completed)}<span class="kpi-unit">adet</span></div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Sevk Edilen</div><div class="kpi-value">${fmtNum(totals.shipped)}<span class="kpi-unit">adet</span></div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Toplam Ret</div><div class="kpi-value">${fmtNum(totals.rejected)}<span class="kpi-unit">adet</span></div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Açık Uygunsuzluk</div><div class="kpi-value">${fmtNum(totals.openNcr)}</div></div>
+    </div>
+
+    <div class="section-title">Şirket Bazında Durum</div>
+    ${companies.length===0 ? `<div class="empty-state"><div class="ico">&#128202;</div><h3>Veri yok</h3><p>Dashboard, şirket ve parça eklendikçe otomatik dolacaktır.</p></div>` : `
+    <table class="data-table">
+      <thead><tr><th>Şirket</th><th>Parça Sayısı</th><th>Sipariş</th><th>Üretimde</th><th>Tamamlanan</th><th>Sevk Edilen</th><th>Ret</th><th>Sevk Oranı</th></tr></thead>
+      <tbody>
+        ${companies.map(c=>{
+          const t = companyTotals(c.id);
+          const pct = t.ordered>0 ? Math.round(t.shipped/t.ordered*100) : 0;
+          return `<tr>
+            <td style="font-weight:700;color:var(--navy-900);">${escapeHtml(c.name)}</td>
+            <td class="mono">${fmtNum(t.partCount)}</td>
+            <td class="mono">${fmtNum(t.ordered)}</td>
+            <td class="mono">${fmtNum(t.inProgress)}</td>
+            <td class="mono">${fmtNum(t.completed)}</td>
+            <td class="mono">${fmtNum(t.shipped)}</td>
+            <td class="mono" style="color:var(--red-700);font-weight:700;">${fmtNum(t.rejected)}</td>
+            <td style="width:130px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:${pct}%;"></div></div>
+                <span style="font-size:11.5px;color:var(--gray-500);width:32px;">%${pct}</span>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`}
+  `;
+}
+
+/* ============================= REPORTS VIEW ============================= */
+function renderReportsView(){
+  const companies = state.companies;
+  return `
+    <div class="page-head">
+      <div><div class="page-title">Raporlar</div><div class="page-sub">Üretim ve kalite verilerini Excel olarak dışa aktarın</div></div>
+    </div>
+    ${companies.length===0 ? `<div class="empty-state"><div class="ico">&#128196;</div><h3>Rapor oluşturulacak veri yok</h3><p>Önce şirket ve parça ekleyin.</p></div>` : `
+    <div class="card" style="padding:20px;margin-bottom:18px;">
+      <div style="font-weight:700;font-family:var(--font-display);font-size:19px;color:var(--navy-900);margin-bottom:4px;">Tüm Şirketler — Birleşik Rapor</div>
+      <div class="helper-text" style="margin-bottom:14px;">Her şirket için üretim sayfası + tüm şirketlerin uygunsuzluk kayıtları için ayrı bir sayfa (sheet) içeren tek bir Excel dosyası indirin.</div>
+      <button class="btn btn-primary" data-action="exportAll">&#11015; Tüm Verileri Excel Olarak İndir</button>
+    </div>
+    <div class="section-title">Şirket Bazında Rapor</div>
+    <table class="data-table">
+      <thead><tr><th>Şirket</th><th>Parça Sayısı</th><th>Sipariş</th><th>Sevk Edilen</th><th>Ret</th><th></th></tr></thead>
+      <tbody>
+        ${companies.map(c=>{
+          const t = companyTotals(c.id);
+          return `<tr>
+            <td style="font-weight:700;color:var(--navy-900);">${escapeHtml(c.name)}</td>
+            <td class="mono">${fmtNum(t.partCount)}</td>
+            <td class="mono">${fmtNum(t.ordered)}</td>
+            <td class="mono">${fmtNum(t.shipped)}</td>
+            <td class="mono" style="color:var(--red-700);">${fmtNum(t.rejected)}</td>
+            <td><button class="btn btn-ghost btn-sm" data-export-company="${c.id}">Excel İndir</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    `}
+  `;
+}
+
+function renderNoCompanySelected(){
+  return `
+    <div class="page-head"><div><div class="page-title">Bu bölüm için şirket seçin</div></div></div>
+    <div class="select-company-hint">
+      <div style="font-size:34px;margin-bottom:10px;">&#127970;</div>
+      <p>Devam etmek için önce Şirketler bölümünden bir şirket ekleyin veya seçin.</p>
+      <button class="btn btn-primary" data-action="gotoCompanies">Şirketlere Git</button>
+    </div>`;
+}
+
+/* ============================= MODALS ============================= */
+function renderModal(){
+  const m = state.modal;
+  if(!m) return '';
+  if(m.type==='addCompany' || m.type==='editCompany'){
+    const isEdit = m.type==='editCompany';
+    const company = isEdit ? getCompany(m.payload.id) : null;
+    return modalWrap(`
+      <h2>${isEdit?'Şirketi Düzenle':'Yeni Şirket Ekle'}</h2>
+      <div class="modal-sub">${isEdit?'Şirket bilgilerini güncelleyin.':'Şirket adını girerek sisteme ekleyin.'}</div>
+      <div class="field">
+        <label>Şirket Adı</label>
+        <input type="text" id="companyNameInput" placeholder="Örn. ABC Makina" value="${isEdit?escapeHtml(company.name):''}"/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" data-action="${isEdit?'saveEditCompany':'saveAddCompany'}" data-id="${isEdit?company.id:''}">${isEdit?'Kaydet':'Ekle'}</button>
+      </div>
+    `);
+  }
+  if(m.type==='deleteCompany'){
+    const company = getCompany(m.payload.id);
+    return modalWrap(`
+      <h2>Şirketi Sil</h2>
+      <div class="modal-sub">"<b>${escapeHtml(company.name)}</b>" şirketini ve tüm parça verilerini kalıcı olarak silmek üzeresiniz. Bu işlem geri alınamaz.</div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" style="background:var(--red-700);" data-action="confirmDeleteCompany" data-id="${company.id}">Evet, Sil</button>
+      </div>
+    `);
+  }
+  if(m.type==='addPart' || m.type==='editPart'){
+    const isEdit = m.type==='editPart';
+    const company = getCompany(state.selectedCompanyId);
+    const part = isEdit ? getParts(company.id).find(p=>p.id===m.payload.id) : null;
+    return modalWrap(`
+      <h2>${isEdit?'Parçayı Düzenle':'Yeni Parça Ekle'}</h2>
+      <div class="modal-sub">${escapeHtml(company.name)}</div>
+      <div class="field"><label>Parça No</label><input type="text" id="partNoInput" ${isEdit?'disabled':''} placeholder="Örn. P-10025" value="${isEdit?escapeHtml(part.partNo):''}"/></div>
+      <div class="field"><label>Parça Adı (opsiyonel)</label><input type="text" id="partNameInput" placeholder="Örn. Braket" value="${isEdit?escapeHtml(part.partName):''}"/></div>
+      <div class="field"><label>İstenen Adet</label><input type="number" min="0" id="partQtyInput" placeholder="Örn. 500" value="${isEdit?part.orderedQty:''}"/></div>
+      <div class="field"><label>Malzeme Rengi (opsiyonel)</label><input type="text" id="partColorInput" placeholder="Örn. RAL 9005 Siyah — boyanmıyorsa boş bırakın" value="${isEdit?escapeHtml(part.color||''):''}"/></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" data-action="${isEdit?'saveEditPart':'saveAddPart'}" data-id="${isEdit?part.id:''}">${isEdit?'Kaydet':'Ekle'}</button>
+      </div>
+    `);
+  }
+  if(m.type==='deletePart'){
+    const company = getCompany(state.selectedCompanyId);
+    const part = getParts(company.id).find(p=>p.id===m.payload.id);
+    return modalWrap(`
+      <h2>Parçayı Sil</h2>
+      <div class="modal-sub">"<b>${escapeHtml(part.partNo)} — ${escapeHtml(part.partName)}</b>" parçasını silmek istediğinize emin misiniz?</div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" style="background:var(--red-700);" data-action="confirmDeletePart" data-id="${part.id}">Evet, Sil</button>
+      </div>
+    `);
+  }
+  if(m.type==='stages'){
+    const company = getCompany(state.selectedCompanyId);
+    return modalWrap(`
+      <h2>Üretim Aşamaları</h2>
+      <div class="modal-sub">${escapeHtml(company.name)} için proses akışını düzenleyin. Sondaki aşama "sevkiyat" olarak kabul edilir.</div>
+      <div class="stage-chip-row" id="stageChipRow">
+        ${company.stages.map((s,i)=>`<span class="tag-chip">${i+1}. ${escapeHtml(s)} <span class="x" data-remove-stage="${escapeHtml(s)}">✕</span></span>`).join('')}
+      </div>
+      <div class="add-stage-row">
+        <input type="text" id="newStageInput" placeholder="Yeni aşama adı (Örn. Kalite Kontrol)"/>
+        <button class="btn btn-navy btn-sm" data-action="addStage">+ Ekle</button>
+      </div>
+      <div class="helper-text">Aşama sırası, üretim akışını (Kesim → Büküm → … → Sevkiyat) temsil eder. Bir aşamayı kaldırmak, o aşamaya ait girilmiş adetleri siler.</div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" data-action="closeModal">Tamam</button>
+      </div>
+    `, 'wide');
+  }
+  if(m.type==='import'){
+    const company = getCompany(state.selectedCompanyId);
+    return modalWrap(`
+      <h2>Excel / CSV Yükle</h2>
+      <div class="modal-sub">${escapeHtml(company.name)} için parça listesi yükleyin. Beklenen sütunlar: <b>Parça No, Parça Adı, İstenen Adet</b></div>
+      ${!state.importPreview ? `
+        <div class="drop-zone" id="dropZone">
+          <div class="dz-ico">&#128228;</div>
+          <div class="dz-text">Dosya seçmek için tıklayın</div>
+          <div class="dz-sub">.xlsx, .xls veya .csv</div>
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;"/>
+        </div>
+      ` : `
+        <div class="import-summary">
+          <div>Dosya: <b>${escapeHtml(state.importPreview.fileName)}</b></div>
+          <div>Satır: <b>${state.importPreview.rows.length}</b></div>
+        </div>
+        <table class="preview-table">
+          <thead><tr><th>Parça No</th><th>Parça Adı</th><th>İstenen Adet</th></tr></thead>
+          <tbody>
+            ${state.importPreview.rows.slice(0,6).map(r=>`<tr><td>${escapeHtml(r.partNo)}</td><td>${r.partName ? escapeHtml(r.partName) : '<span style="color:var(--red-600);font-style:italic;">— (isim sütunu bulunamadı)</span>'}</td><td>${fmtNum(r.orderedQty)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        ${state.importPreview.rows.length>6 ? `<div class="helper-text">…ve ${state.importPreview.rows.length-6} satır daha</div>` : ''}
+      `}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        ${state.importPreview ? `
+          <button class="btn btn-ghost" data-action="cancelImportPreview">Farklı Dosya Seç</button>
+          <button class="btn btn-primary" data-action="confirmImport">${state.importPreview.rows.length} Parçayı İçe Aktar</button>
+        ` : ''}
+      </div>
+    `, 'wide');
+  }
+  if(m.type==='bulkRename'){
+    const count = state.selectedPartIds.size;
+    return modalWrap(`
+      <h2>Toplu Parça Adı Değiştir</h2>
+      <div class="modal-sub">${count} parça seçili. Aşağıdaki işlem yalnızca seçili parçaların adını değiştirir.</div>
+      <div class="field">
+        <label>İşlem Türü</label>
+        <div class="radio-row-mode">
+          <label><input type="radio" name="bulkMode" value="replace" checked/> Metin içinde bul ve değiştir</label>
+          <label><input type="radio" name="bulkMode" value="prefix"/> Başa metin ekle (önek)</label>
+          <label><input type="radio" name="bulkMode" value="suffix"/> Sona metin ekle (sonek)</label>
+        </div>
+      </div>
+      <div class="field"><label>Bul</label><input type="text" id="bulkFindInput" placeholder="Örn. Braket"/></div>
+      <div class="field"><label>Değiştir</label><input type="text" id="bulkReplaceInput" placeholder="Örn. Destek Braketi"/></div>
+      <div class="field"><label>Önek / Sonek Metni</label><input type="text" id="bulkTextInput" placeholder="Örn. REV2- veya -A"/></div>
+      <div class="helper-text">"Bul ve değiştir" modunda yalnızca ilk iki alan; "önek/sonek" modunda yalnızca üçüncü alan kullanılır.</div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" data-action="applyBulkRename">Uygula (${count} parça)</button>
+      </div>
+    `);
+  }
+  if(m.type==='ncr'){
+    const isGlobal = !m.payload.partId;
+    const company = getCompany(state.selectedCompanyId);
+    let stageOptions = company ? company.stages : DEFAULT_STAGES;
+    let partOptionsHtml = '';
+    if(isGlobal){
+      partOptionsHtml = `
+        <div class="field">
+          <label>Şirket</label>
+          <select id="ncrCompanySelect">
+            ${state.companies.map(c=>`<option value="${c.id}" ${c.id===state.selectedCompanyId?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Parça</label>
+          <select id="ncrPartSelect">
+            ${getParts(state.selectedCompanyId).map(p=>`<option value="${p.id}">${escapeHtml(p.partNo)} — ${escapeHtml(p.partName)}</option>`).join('')}
+          </select>
+        </div>`;
+    }
+    return modalWrap(`
+      <h2>Uygunsuzluk Kaydı (NCR)</h2>
+      <div class="modal-sub">${isGlobal ? 'Şirket ve parça seçerek yeni bir uygunsuzluk kaydı açın.' : escapeHtml(getParts(state.selectedCompanyId).find(p=>p.id===m.payload.partId)?.partNo || '')}</div>
+      ${partOptionsHtml}
+      <div class="field">
+        <label>Aşama</label>
+        <select id="ncrStageSelect">
+          ${stageOptions.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Uygunsuzluk Açıklaması</label>
+        <textarea id="ncrDescInput" placeholder="Örn. Ölçü toleransı dışında, yüzeyde çatlak vb."></textarea>
+      </div>
+      <div class="field">
+        <label>Düzeltici Faaliyet (opsiyonel)</label>
+        <textarea id="ncrActionInput" placeholder="Alınacak / alınan aksiyon"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" data-action="saveNcr" data-part="${m.payload.partId||''}">Kaydı Aç</button>
+      </div>
+    `);
+  }
+  return '';
+}
+function modalWrap(inner, size){
+  return `<div class="modal-overlay" id="modalOverlay">
+    <div class="modal ${size==='wide'?'wide':''} modal-wrap-pos">
+      <div class="modal-close" data-action="closeModal">✕</div>
+      ${inner}
+    </div>
+  </div>`;
+}
+
+/* ============================= EVENT HANDLERS ============================= */
+function attachHandlers(){
+  const app = document.getElementById('app');
+
+  app.querySelectorAll('[data-nav]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.view = el.getAttribute('data-nav'); render(); });
+  });
+
+  app.querySelectorAll('[data-action]').forEach(el=>{
+    el.addEventListener('click', (e)=> handleAction(el.getAttribute('data-action'), el, e));
+  });
+
+  app.querySelectorAll('[data-select-company]').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-edit-company]') || e.target.closest('[data-delete-company]')) return;
+      state.selectedCompanyId = el.getAttribute('data-select-company');
+      state.selectedPartIds = new Set();
+      render();
+    });
+  });
+  app.querySelectorAll('[data-select-company-btn]').forEach(el=>{
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); state.selectedCompanyId = el.getAttribute('data-select-company-btn'); state.selectedPartIds = new Set(); render(); });
+  });
+  app.querySelectorAll('[data-edit-company]').forEach(el=>{
+    el.addEventListener('click',(e)=>{ e.stopPropagation(); state.modal = {type:'editCompany', payload:{id: el.getAttribute('data-edit-company')}}; render(); });
+  });
+  app.querySelectorAll('[data-delete-company]').forEach(el=>{
+    el.addEventListener('click',(e)=>{ e.stopPropagation(); state.modal = {type:'deleteCompany', payload:{id: el.getAttribute('data-delete-company')}}; render(); });
+  });
+
+  app.querySelectorAll('[data-edit-part]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.modal = {type:'editPart', payload:{id: el.getAttribute('data-edit-part')}}; render(); });
+  });
+  app.querySelectorAll('[data-delete-part]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.modal = {type:'deletePart', payload:{id: el.getAttribute('data-delete-part')}}; render(); });
+  });
+  app.querySelectorAll('[data-track-part]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.selectedPartId = el.getAttribute('data-track-part'); state.view='tracking'; render(); });
+  });
+
+  const selectAllCheck = document.getElementById('selectAllCheck');
+  if(selectAllCheck){
+    selectAllCheck.addEventListener('change', ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      let parts = getParts(company.id);
+      if(state.search.trim()){
+        const q = state.search.trim().toLowerCase();
+        parts = parts.filter(p => p.partNo.toLowerCase().includes(q) || p.partName.toLowerCase().includes(q));
+      }
+      if(selectAllCheck.checked){ parts.forEach(p=> state.selectedPartIds.add(p.id)); }
+      else { parts.forEach(p=> state.selectedPartIds.delete(p.id)); }
+      render();
+    });
+  }
+  app.querySelectorAll('[data-part-check]').forEach(el=>{
+    el.addEventListener('change', ()=>{
+      const id = el.getAttribute('data-part-check');
+      if(el.checked){ state.selectedPartIds.add(id); } else { state.selectedPartIds.delete(id); }
+      render();
+    });
+  });
+
+  const searchInput = document.getElementById('searchInput');
+  if(searchInput){
+    searchInput.addEventListener('input', ()=>{
+      state.search = searchInput.value; render();
+      setTimeout(()=>{ const i=document.getElementById('searchInput'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0);
+    });
+  }
+
+  const partSearchInput = document.getElementById('partSearchInput');
+  if(partSearchInput){
+    partSearchInput.addEventListener('input', ()=>{
+      const val = partSearchInput.value;
+      const company = getCompany(state.selectedCompanyId);
+      const parts = getParts(company.id);
+      const match = parts.find(p => `${p.partNo} — ${p.partName}` === val);
+      if(match){ state.selectedPartId = match.id; render(); }
+    });
+  }
+
+  const drawingDropZone = document.getElementById('drawingDropZone');
+  const drawingFileInput = document.getElementById('drawingFileInput');
+  if(drawingDropZone && drawingFileInput){
+    drawingDropZone.addEventListener('click', ()=> drawingFileInput.click());
+    drawingFileInput.addEventListener('change', (e)=>{ if(e.target.files[0]) handleDrawingUpload(e.target.files[0]); });
+  }
+  app.querySelectorAll('[data-view-drawing]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-view-drawing'));
+      if(part && part.drawing){
+        const w = window.open();
+        if(w){
+          if(part.drawing.type && part.drawing.type.startsWith('image/')){
+            w.document.write(`<title>${escapeHtml(part.drawing.name)}</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${part.drawing.data}" style="max-width:100%;max-height:100%;"/></body>`);
+          } else {
+            w.location = part.drawing.data;
+          }
+        }
+      }
+    });
+  });
+  app.querySelectorAll('[data-remove-drawing]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-remove-drawing'));
+      if(part){
+        part.drawing = null;
+        await persistParts(company.id);
+        showToast('Teknik resim kaldırıldı.');
+        render();
+      }
+    });
+  });
+
+  app.querySelectorAll('[data-remove-measurement]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+      if(!part) return;
+      part.measurements = (part.measurements||[]).filter(m=>m.id!==el.getAttribute('data-remove-measurement'));
+      part.measurements.forEach((m,i)=> m.no = i+1);
+      await persistParts(company.id);
+      render();
+    });
+  });
+  app.querySelectorAll('[data-mark-measurement]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      state.markingMeasurementId = el.getAttribute('data-mark-measurement');
+      render();
+    });
+  });
+  const measureImageEl = document.getElementById('measureImageEl');
+  if(measureImageEl && state.markingMeasurementId){
+    measureImageEl.addEventListener('click', async (e)=>{
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+      const m = part && (part.measurements||[]).find(x=>x.id===state.markingMeasurementId);
+      if(!m) return;
+      const rect = measureImageEl.getBoundingClientRect();
+      const xPct = Math.min(100, Math.max(0, ((e.clientX-rect.left)/rect.width)*100));
+      const yPct = Math.min(100, Math.max(0, ((e.clientY-rect.top)/rect.height)*100));
+      m.imgX = xPct; m.imgY = yPct;
+      state.markingMeasurementId = null;
+      await persistParts(company.id);
+      render();
+    });
+  }
+
+  const qualityFilterSelect = document.getElementById('qualityFilterSelect');
+  if(qualityFilterSelect){ qualityFilterSelect.addEventListener('change', ()=>{ state.qualityFilter = qualityFilterSelect.value; render(); }); }
+
+  const ncrCompanySelect = document.getElementById('ncrCompanySelect');
+  if(ncrCompanySelect){
+    ncrCompanySelect.addEventListener('change', ()=>{
+      state.selectedCompanyId = ncrCompanySelect.value;
+      render();
+      state.modal = {type:'ncr', payload:{partId:null}};
+      render();
+    });
+  }
+
+  app.querySelectorAll('[data-remove-stage]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      const stageName = el.getAttribute('data-remove-stage');
+      if(company.stages.length<=1){ showToast('En az bir üretim aşaması olmalı.'); return; }
+      company.stages = company.stages.filter(s=>s!==stageName);
+      persistCompanies();
+      render();
+      state.modal = {type:'stages'};
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-export-company]').forEach(el=>{
+    el.addEventListener('click', ()=> exportCompanyExcel(el.getAttribute('data-export-company')));
+  });
+
+  app.querySelectorAll('[data-close-ncr]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const [partId, ncrId] = el.getAttribute('data-close-ncr').split('|');
+      const companyId = el.getAttribute('data-company');
+      const part = getParts(companyId).find(p=>p.id===partId);
+      const ncr = (part.ncrs||[]).find(n=>n.id===ncrId);
+      if(ncr){
+        ncr.status = 'kapali';
+        ncr.closedDate = todayStr();
+        ncr.closedBy = state.currentUser;
+        await persistParts(companyId);
+        showToast('Uygunsuzluk kaydı kapatıldı.');
+        render();
+      }
+    });
+  });
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  if(dropZone && fileInput){
+    dropZone.addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', (e)=>{ if(e.target.files[0]) handleFileImport(e.target.files[0]); });
+    dropZone.addEventListener('dragover', (e)=>{ e.preventDefault(); dropZone.classList.add('drag'); });
+    dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag'));
+    dropZone.addEventListener('drop', (e)=>{
+      e.preventDefault(); dropZone.classList.remove('drag');
+      if(e.dataTransfer.files[0]) handleFileImport(e.dataTransfer.files[0]);
+    });
+  }
+
+  const newStageInput = document.getElementById('newStageInput');
+  if(newStageInput){ newStageInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAction('addStage'); }); }
+  const companyNameInput = document.getElementById('companyNameInput');
+  if(companyNameInput){
+    companyNameInput.focus();
+    companyNameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const btn = app.querySelector('[data-action="saveAddCompany"],[data-action="saveEditCompany"]'); if(btn) btn.click(); } });
+  }
+}
+
+async function handleAction(action, el){
+  switch(action){
+    case 'switchUser': state.currentUser = null; render(); break;
+    case 'openAddCompany': state.modal = {type:'addCompany'}; render(); break;
+    case 'closeModal': state.modal=null; state.importPreview=null; render(); break;
+    case 'gotoCompanies': state.view='companies'; render(); break;
+    case 'gotoParts': state.view='parts'; render(); break;
+
+    case 'saveAddCompany': {
+      const name = document.getElementById('companyNameInput').value.trim();
+      if(!name){ showToast('Şirket adı boş olamaz.'); return; }
+      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice()};
+      state.companies.push(newCo);
+      state.partsByCompany[newCo.id] = [];
+      state.selectedCompanyId = newCo.id;
+      state.modal = null;
+      await persistCompanies();
+      await storageSet('parts:'+newCo.id, []);
+      showToast('Şirket eklendi: ' + name);
+      render();
+      break;
+    }
+    case 'saveEditCompany': {
+      const id = el.getAttribute('data-id');
+      const name = document.getElementById('companyNameInput').value.trim();
+      if(!name){ showToast('Şirket adı boş olamaz.'); return; }
+      const co = getCompany(id);
+      co.name = name;
+      state.modal = null;
+      await persistCompanies();
+      showToast('Şirket güncellendi.');
+      render();
+      break;
+    }
+    case 'confirmDeleteCompany': {
+      const id = el.getAttribute('data-id');
+      state.companies = state.companies.filter(c=>c.id!==id);
+      delete state.partsByCompany[id];
+      if(state.selectedCompanyId===id) state.selectedCompanyId = state.companies[0]?.id || null;
+      state.modal = null;
+      await persistCompanies();
+      await storageDelete('parts:'+id);
+      showToast('Şirket silindi.');
+      render();
+      break;
+    }
+
+    case 'openAddPart': state.modal = {type:'addPart'}; render(); break;
+    case 'saveAddPart': {
+      const company = getCompany(state.selectedCompanyId);
+      const partNo = document.getElementById('partNoInput').value.trim();
+      const partName = document.getElementById('partNameInput').value.trim();
+      const qty = Number(document.getElementById('partQtyInput').value) || 0;
+      const colorVal = document.getElementById('partColorInput') ? document.getElementById('partColorInput').value.trim() : '';
+      if(!partNo){ showToast('Parça no zorunludur.'); return; }
+      const parts = getParts(company.id);
+      const existing = parts.find(p=>p.partNo.toLowerCase()===partNo.toLowerCase());
+      let newPartId = null;
+      if(existing){
+        existing.partName = partName;
+        existing.orderedQty = qty;
+        existing.color = colorVal;
+        existing.lastUpdate = todayStr();
+        existing.updatedBy = state.currentUser;
+        newPartId = existing.id;
+      } else {
+        newPartId = uid('pt');
+        parts.push({id: newPartId, partNo, partName, orderedQty: qty, color: colorVal, qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate: todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
+      }
+      state.partsByCompany[company.id] = parts;
+      state.modal = null;
+      state.selectedPartId = newPartId;
+      await persistParts(company.id);
+      showToast('Parça kaydedildi.');
+      render();
+      break;
+    }
+    case 'saveEditPart': {
+      const company = getCompany(state.selectedCompanyId);
+      const id = el.getAttribute('data-id');
+      const part = getParts(company.id).find(p=>p.id===id);
+      part.partName = document.getElementById('partNameInput').value.trim();
+      part.orderedQty = Number(document.getElementById('partQtyInput').value) || 0;
+      part.color = document.getElementById('partColorInput') ? document.getElementById('partColorInput').value.trim() : (part.color||'');
+      part.lastUpdate = todayStr();
+      part.updatedBy = state.currentUser;
+      state.modal = null;
+      await persistParts(company.id);
+      showToast('Parça güncellendi.');
+      render();
+      break;
+    }
+    case 'confirmDeletePart': {
+      const company = getCompany(state.selectedCompanyId);
+      const id = el.getAttribute('data-id');
+      state.partsByCompany[company.id] = getParts(company.id).filter(p=>p.id!==id);
+      state.modal = null;
+      await persistParts(company.id);
+      showToast('Parça silindi.');
+      render();
+      break;
+    }
+
+    case 'openStages': state.modal = {type:'stages'}; render(); break;
+    case 'addStage': {
+      const company = getCompany(state.selectedCompanyId);
+      const input = document.getElementById('newStageInput');
+      const val = input.value.trim();
+      if(!val){ return; }
+      if(company.stages.some(s=>s.toLowerCase()===val.toLowerCase())){ showToast('Bu aşama zaten mevcut.'); return; }
+      company.stages.push(val);
+      await persistCompanies();
+      render();
+      state.modal = {type:'stages'};
+      render();
+      break;
+    }
+
+    case 'openImport': state.importPreview = null; state.modal = {type:'import'}; render(); break;
+    case 'cancelImportPreview': state.importPreview = null; render(); break;
+    case 'confirmImport': {
+      const company = getCompany(state.selectedCompanyId);
+      const parts = getParts(company.id);
+      let added=0, updated=0;
+      state.importPreview.rows.forEach(r=>{
+        const existing = parts.find(p=>p.partNo.toLowerCase()===r.partNo.toLowerCase());
+        if(existing){
+          existing.partName = r.partName || existing.partName;
+          existing.orderedQty = r.orderedQty;
+          existing.lastUpdate = todayStr();
+          existing.updatedBy = state.currentUser;
+          updated++;
+        } else {
+          parts.push({id: uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate:todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
+          added++;
+        }
+      });
+      state.partsByCompany[company.id] = parts;
+      state.importPreview = null;
+      state.modal = null;
+      await persistParts(company.id);
+      showToast(`İçe aktarıldı: ${added} yeni, ${updated} güncellendi.`);
+      render();
+      break;
+    }
+
+    case 'saveTracking': {
+      const company = getCompany(state.selectedCompanyId);
+      const partId = el.getAttribute('data-part');
+      const part = getParts(company.id).find(p=>p.id===partId);
+      const inputs = document.querySelectorAll('[data-stage-input]');
+      const rejectInputs = document.querySelectorAll('[data-reject-input]');
+      const now = todayStr();
+      let changed = false;
+      inputs.forEach(inp=>{
+        const stage = inp.getAttribute('data-stage-input');
+        const newVal = Math.max(0, Number(inp.value)||0);
+        const oldVal = Number(part.qtys[stage]||0);
+        if(newVal !== oldVal){
+          part.qtys[stage] = newVal;
+          part.history = part.history || [];
+          part.history.push({date: now, stage, qty: newVal, reject:false, user: state.currentUser});
+          changed = true;
+        }
+      });
+      rejectInputs.forEach(inp=>{
+        const stage = inp.getAttribute('data-reject-input');
+        const newVal = Math.max(0, Number(inp.value)||0);
+        const oldVal = Number(part.rejects[stage]||0);
+        if(newVal !== oldVal){
+          part.rejects[stage] = newVal;
+          part.history = part.history || [];
+          part.history.push({date: now, stage, qty: newVal, reject:true, user: state.currentUser});
+          changed = true;
+        }
+      });
+      const noteVal = document.getElementById('partNoteInput').value;
+      if(noteVal !== (part.note||'')){ part.note = noteVal; changed = true; }
+      const colorInput = document.getElementById('partColorTrackInput');
+      if(colorInput){
+        const colorVal = colorInput.value.trim();
+        if(colorVal !== (part.color||'')){ part.color = colorVal; changed = true; }
+      }
+      // Ölçüm kontrolü değerlerini topla
+      part.measurements = part.measurements || [];
+      document.querySelectorAll('[data-meas-value]').forEach(inp=>{
+        const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-value'));
+        if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.measuredValue){ m.measuredValue=v; changed=true; } }
+      });
+      document.querySelectorAll('[data-meas-nominal]').forEach(inp=>{
+        const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-nominal'));
+        if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.nominalValue){ m.nominalValue=v; changed=true; } }
+      });
+      document.querySelectorAll('[data-meas-tol]').forEach(inp=>{
+        const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-tol'));
+        if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.tolerance){ m.tolerance=v; changed=true; } }
+      });
+      if(changed){ part.lastUpdate = now; part.updatedBy = state.currentUser; }
+      await persistParts(company.id);
+      showToast(changed ? 'Üretim verileri güncellendi.' : 'Değişiklik yok.');
+      render();
+      break;
+    }
+
+    case 'openNcr': state.modal = {type:'ncr', payload:{partId: el.getAttribute('data-part')}}; render(); break;
+    case 'openNcrGlobal': {
+      if(!state.selectedCompanyId || getParts(state.selectedCompanyId).length===0){
+        showToast('Önce bir şirket seçin ve parça ekleyin.');
+        return;
+      }
+      state.modal = {type:'ncr', payload:{partId:null}}; render(); break;
+    }
+    case 'saveNcr': {
+      let companyId = state.selectedCompanyId;
+      let partId = el.getAttribute('data-part');
+      const ncrCompanySelect = document.getElementById('ncrCompanySelect');
+      const ncrPartSelect = document.getElementById('ncrPartSelect');
+      if(ncrCompanySelect) companyId = ncrCompanySelect.value;
+      if(ncrPartSelect) partId = ncrPartSelect.value;
+      if(!partId){ showToast('Parça seçilmedi.'); return; }
+      const part = getParts(companyId).find(p=>p.id===partId);
+      if(!part){ showToast('Parça bulunamadı.'); return; }
+      const stage = document.getElementById('ncrStageSelect').value;
+      const description = document.getElementById('ncrDescInput').value.trim();
+      const correctiveAction = document.getElementById('ncrActionInput').value.trim();
+      if(!description){ showToast('Açıklama girilmelidir.'); return; }
+      part.ncrs = part.ncrs || [];
+      part.ncrs.push({id: uid('ncr'), date: todayStr(), stage, description, correctiveAction, status:'acik', user: state.currentUser});
+      state.modal = null;
+      await persistParts(companyId);
+      showToast('Uygunsuzluk kaydı açıldı.');
+      render();
+      break;
+    }
+
+    case 'clearSelection': state.selectedPartIds = new Set(); render(); break;
+    case 'openBulkRename': state.modal = {type:'bulkRename'}; render(); break;
+    case 'applyBulkRename': {
+      const company = getCompany(state.selectedCompanyId);
+      const parts = getParts(company.id);
+      const mode = document.querySelector('input[name="bulkMode"]:checked').value;
+      const findVal = (document.getElementById('bulkFindInput')||{}).value || '';
+      const replaceVal = (document.getElementById('bulkReplaceInput')||{}).value || '';
+      const textVal = (document.getElementById('bulkTextInput')||{}).value || '';
+      if(mode==='replace' && !findVal){ showToast('"Bul" alanı boş olamaz.'); return; }
+      if((mode==='prefix'||mode==='suffix') && !textVal){ showToast('Eklenecek metni girin.'); return; }
+      let changedCount = 0;
+      parts.forEach(p=>{
+        if(!state.selectedPartIds.has(p.id)) return;
+        let newName = p.partName || '';
+        if(mode==='replace'){
+          if(newName.toLowerCase().includes(findVal.toLowerCase())){
+            const re = new RegExp(findVal.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+            newName = newName.replace(re, replaceVal);
+          } else { return; }
+        } else if(mode==='prefix'){
+          newName = textVal + newName;
+        } else if(mode==='suffix'){
+          newName = newName + textVal;
+        }
+        if(newName !== p.partName){
+          p.partName = newName;
+          p.lastUpdate = todayStr();
+          p.updatedBy = state.currentUser;
+          changedCount++;
+        }
+      });
+      state.modal = null;
+      state.selectedPartIds = new Set();
+      await persistParts(company.id);
+      showToast(`${changedCount} parçanın adı güncellendi.`);
+      render();
+      break;
+    }
+
+    case 'addMeasurement': {
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      part.measurements = part.measurements || [];
+      const nextNo = part.measurements.length + 1;
+      part.measurements.push({id: uid('ms'), no: nextNo, imgX:null, imgY:null, measuredValue:'', nominalValue:'', tolerance:''});
+      await persistParts(company.id);
+      render();
+      break;
+    }
+    case 'addSuggestedMeasurements': {
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      const count = Number(el.getAttribute('data-count'))||0;
+      part.measurements = part.measurements || [];
+      while(part.measurements.length < count){
+        part.measurements.push({id: uid('ms'), no: part.measurements.length+1, imgX:null, imgY:null, measuredValue:'', nominalValue:'', tolerance:''});
+      }
+      await persistParts(company.id);
+      render();
+      break;
+    }
+
+    case 'exportAll': exportAllExcel(); break;
+  }
+}
+
+/* ============================= TEKNİK RESİM YÜKLEME ============================= */
+function handleDrawingUpload(file){
+  const MAX_BYTES = 3 * 1024 * 1024;
+  if(file.size > MAX_BYTES){
+    showToast('Dosya çok büyük. En fazla 3 MB yükleyebilirsiniz.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    const company = getCompany(state.selectedCompanyId);
+    const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+    if(!part) return;
+    const prevDrawing = part.drawing;
+    part.drawing = { name: file.name, type: file.type, data: e.target.result };
+    render();
+    const ok = await persistParts(company.id);
+    if(ok===false){
+      part.drawing = prevDrawing;
+      showToast('Dosya kaydedilemedi — depolama sınırına yaklaşılmış olabilir.');
+      render();
+    } else {
+      showToast('Teknik resim eklendi.');
+      render();
+    }
+  };
+  reader.onerror = ()=> showToast('Dosya okunamadı.');
+  reader.readAsDataURL(file);
+}
+
+/* ============================= IMPORT (CSV/XLSX) ============================= */
+function handleFileImport(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+      if(!json.length){ showToast('Dosya boş görünüyor.'); return; }
+      const header = json[0].map(h=>String(h||'').toLowerCase().trim());
+      // Parça No: başlıkta "parça no" / "parca no" geçiyorsa, yoksa "no" içeren ama "istenen" olmayan sütun
+      let noIdx = header.findIndex(h=>h.includes('parça no') || h.includes('parca no'));
+      if(noIdx===-1) noIdx = header.findIndex(h=>h.includes('no') && !h.includes('istenen'));
+      // Parça Adı: başlıkta "parça ad"/"parca ad"/"isim"/"ürün ad" gibi ifadeler geçiyorsa o sütun.
+      // Bulunamazsa isim sütunu YOK sayılır — adet sütunu isim alanına yazılmaz, isim boş bırakılır.
+      let nameIdx = header.findIndex(h=> (h.includes('parça ad') || h.includes('parca ad') || h.includes('ürün ad') || h.includes('urun ad') || h.includes('isim') || h.includes('ad ')|| h==='ad' || h==='adı' || h==='adi') && !h.includes('istenen') && !h.includes('adet'));
+      // İstenen Adet: "istenen", "adet", "miktar", "sipariş" içeren sütun.
+      let qtyIdx = header.findIndex(h=>h.includes('istenen') || h.includes('adet') || h.includes('miktar') || h.includes('siparis') || h.includes('sipariş'));
+
+      if(noIdx===-1) noIdx=0;
+      if(qtyIdx===-1){
+        // adet sütunu başlıktan tanınamadıysa, no ve isim dışındaki ilk sayısal sütunu adet kabul et
+        const candidateIdx = [0,1,2].find(i=> i!==noIdx && i!==nameIdx);
+        qtyIdx = candidateIdx!==undefined ? candidateIdx : -1;
+      }
+
+      const rows = [];
+      for(let i=1;i<json.length;i++){
+        const r = json[i];
+        if(!r || r.every(c=>c==='' || c==null)) continue;
+        const partNo = String(r[noIdx]||'').trim();
+        const partName = nameIdx!==-1 ? String(r[nameIdx]||'').trim() : '';
+        const orderedQty = qtyIdx!==-1 ? (Number(r[qtyIdx])||0) : 0;
+        if(!partNo) continue;
+        rows.push({partNo, partName, orderedQty});
+      }
+      if(!rows.length){ showToast('Geçerli satır bulunamadı.'); return; }
+      state.importPreview = {rows, fileName: file.name};
+      render();
+    }catch(err){
+      console.error(err);
+      showToast('Dosya okunamadı. Lütfen .xlsx, .xls veya .csv formatında bir dosya seçin.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ============================= EXPORT (XLSX) ============================= */
+function companySheetData(companyId){
+  const company = getCompany(companyId);
+  const stages = company.stages;
+  const parts = getParts(companyId);
+  return parts.map(p=>{
+    const row = {'Parça No': p.partNo, 'Parça Adı': p.partName, 'İstenen Adet': p.orderedQty, 'Malzeme Rengi': p.color || ''};
+    stages.forEach(s=>{ row[s] = Number(p.qtys[s]||0); row[s+' (Ret)'] = Number(p.rejects[s]||0); });
+    row['Toplam Ret'] = partTotalReject(p);
+    row['Kalan Adet'] = partRemaining(p, stages);
+    row['Not'] = p.note || '';
+    row['Son Güncelleme'] = p.lastUpdate || '';
+    row['Güncelleyen'] = p.updatedBy || '';
+    return row;
+  });
+}
+function ncrSheetData(){
+  const rows = [];
+  state.companies.forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      (p.ncrs||[]).forEach(n=>{
+        rows.push({
+          'Şirket': c.name, 'Parça No': p.partNo, 'Parça Adı': p.partName, 'Aşama': n.stage,
+          'Tarih': n.date, 'Açıklama': n.description, 'Düzeltici Faaliyet': n.correctiveAction || '',
+          'Durum': n.status==='acik' ? 'Açık' : 'Kapatıldı', 'Kaydeden': n.user,
+          'Kapatma Tarihi': n.closedDate || '', 'Kapatan': n.closedBy || ''
+        });
+      });
+    });
+  });
+  return rows;
+}
+function exportCompanyExcel(companyId){
+  const company = getCompany(companyId);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(companySheetData(companyId));
+  XLSX.utils.book_append_sheet(wb, ws, company.name.substring(0,31) || 'Sirket');
+  const companyNcrRows = ncrSheetData().filter(r=>r['Şirket']===company.name);
+  if(companyNcrRows.length){
+    const wsNcr = XLSX.utils.json_to_sheet(companyNcrRows);
+    XLSX.utils.book_append_sheet(wb, wsNcr, 'Kalite Kayitlari');
+  }
+  XLSX.writeFile(wb, `${company.name.replace(/[^a-z0-9ığüşöçİĞÜŞÖÇ_\- ]/gi,'_')}_uretim_raporu.xlsx`);
+  showToast('Excel raporu indirildi.');
+}
+function exportAllExcel(){
+  const wb = XLSX.utils.book_new();
+  state.companies.forEach(c=>{
+    const ws = XLSX.utils.json_to_sheet(companySheetData(c.id));
+    let sheetName = c.name.substring(0,31) || 'Sirket';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+  const ncrRows = ncrSheetData();
+  if(ncrRows.length){
+    const wsNcr = XLSX.utils.json_to_sheet(ncrRows);
+    XLSX.utils.book_append_sheet(wb, wsNcr, 'Kalite Kayitlari');
+  }
+  if(state.companies.length===0){ showToast('Aktarılacak veri yok.'); return; }
+  XLSX.writeFile(wb, 'tum_sirketler_uretim_raporu.xlsx');
+  showToast('Birleşik Excel raporu indirildi.');
+}
+
+/* ============================= INIT ============================= */
+loadAll();
+</script>
+</body>
+</html>
