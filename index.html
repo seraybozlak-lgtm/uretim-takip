@@ -1966,12 +1966,16 @@ function handleFileImport(file){
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
       
-      if(!currentCompanyId){
+      if(!state.activeCompanyId && !currentCompanyId){
         showToast('Lütfen önce bir şirket seçin!');
         return;
       }
+      
+      const compId = currentCompanyId || state.activeCompanyId;
 
       let importedCount = 0;
+      if(!state.partsByCompany[compId]) state.partsByCompany[compId] = [];
+
       rows.forEach(row => {
         const partCode = row['Parça Kodu'] || row['PARÇA KODU'] || row['Code'] || row['code'] || '';
         const partName = row['Parça Adı'] || row['PARÇA ADI'] || row['Name'] || row['name'] || '';
@@ -1980,7 +1984,7 @@ function handleFileImport(file){
         if(partCode || partName){
           const newPart = {
             id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            companyId: currentCompanyId,
+            companyId: compId,
             code: String(partCode),
             name: String(partName),
             orderedQty: orderedQty,
@@ -1989,22 +1993,22 @@ function handleFileImport(file){
             rejects: {}
           };
           
-          if(!state.partsByCompany[currentCompanyId]) state.partsByCompany[currentCompanyId] = [];
-          state.partsByCompany[currentCompanyId].push(newPart);
+          state.partsByCompany[compId].push(newPart);
           importedCount++;
         }
       });
 
-      persistParts(currentCompanyId);
+      if(typeof persistParts === 'function'){
+        persistParts(compId);
+      } else if(typeof saveData === 'function'){
+        saveData();
+      }
+      
       render();
       showToast(`${importedCount} adet parça başarıyla aktarıldı.`);
     }catch(err){
       console.error(err);
       showToast('Dosya okunamadı. Lütfen geçerli bir .xlsx, .xls veya .csv dosyası seçin.');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
     }
   };
   reader.readAsArrayBuffer(file);
