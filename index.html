@@ -588,11 +588,15 @@ function companyTotals(companyId){
       (p.ncrs || []).forEach(n => n && n.status === 'acik' ? openNcr++ : closedNcr++);
     });
 
-    return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
+   return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
   } catch(e) {
     return { partCount: 0, ordered: 0, shipped: 0, completed: 0, rejected: 0, openNcr: 0, closedNcr: 0, inProgress: 0 };
   }
 }
+
+function globalTotals(){
+  let totals = { partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0 };
+  state.companies.forEach(c => {
     const t = companyTotals(c.id);
     totals.partCount += t.partCount; totals.ordered += t.ordered; totals.shipped += t.shipped;
     totals.completed += t.completed; totals.inProgress += t.inProgress; totals.rejected += t.rejected;
