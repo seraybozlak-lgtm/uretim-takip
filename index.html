@@ -530,10 +530,14 @@ function getCompany(id){ return state.companies.find(c=>c.id===id); }
 function getParts(companyId){ return state.partsByCompany[companyId] || []; }
 
 /* ============================= COMPUTATIONS ============================= */
-function partRemaining(part, stages){
-  const last = stages[stages.length-1];
-  const shipped = Number(part.qtys[last]||0);
-  return Math.max(0, Number(part.orderedQty||0) - shipped);
+function partRemaining(part){
+  if (!part) return 0;
+  const company = getCompany(part.companyId);
+  const stages = (company && company.stages) ? company.stages : DEFAULT_STAGES;
+  const last = stages[stages.length - 1];
+  const qtys = part.qtys || {};
+  const shipped = Number(qtys[last] || 0);
+  return Math.max(0, Number(part.orderedQty || 0) - shipped);
 }
 function partTotalReject(part){
   return Object.values(part.rejects||{}).reduce((a,b)=>a+(Number(b)||0),0);
