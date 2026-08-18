@@ -548,18 +548,22 @@ function partStatus(part, stages){
 }
 function companyTotals(companyId){
   const company = getCompany(companyId);
-  const parts = getParts(companyId);
-  const stages = company ? company.stages : DEFAULT_STAGES;
-  const last = stages[stages.length-1];
-  const prev = stages.length>1 ? stages[stages.length-2] : last;
+  const parts = getParts(companyId) || [];
+  const stages = (company && company.stages) ? company.stages : DEFAULT_STAGES;
+  const last = stages[stages.length - 1];
+  const prev = stages.length > 1 ? stages[stages.length - 2] : last;
   let ordered=0, shipped=0, completed=0, rejected=0, openNcr=0, closedNcr=0;
-  parts.forEach(p=>{
-    ordered += Number(p.orderedQty||0);
-    shipped += Number((p.qtys && p.qtys[last]) || 0);
-    completed += Number((p.qtys && p.qtys[prev]) || 0);
+
+  parts.forEach(p => {
+    if (!p) return;
+    const qtys = p.qtys || {};
+    ordered += Number(p.orderedQty || 0);
+    shipped += Number(qtys[last] || 0);
+    completed += Number(qtys[prev] || 0);
     rejected += partTotalReject(p);
-    (p.ncrs||[]).forEach(n=> n.status==='acik' ? openNcr++ : closedNcr++);
+    (p.ncrs || []).forEach(n => n && n.status === 'acik' ? openNcr++ : closedNcr++);
   });
+
   return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
 }
 function allTotals(){
