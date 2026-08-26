@@ -259,6 +259,9 @@
   .pipeline-stage .reject-row label{font-size:10.5px;color:var(--red-700);font-weight:700;white-space:nowrap;}
   .pipeline-stage.locked{background:var(--gray-50);}
   .pipeline-stage.locked .stage-input,.pipeline-stage.locked .reject-input{background:var(--gray-100);color:var(--gray-500);cursor:not-allowed;}
+  .pipeline-stage.current{border-color:var(--red-600);border-width:2px;box-shadow:0 0 0 1px var(--red-600);}
+  .current-badge{position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--red-600);color:#fff;font-size:8.5px;font-weight:700;letter-spacing:.3px;padding:2px 7px;border-radius:10px;white-space:nowrap;}
+  .stage-meta{font-size:9.5px;color:var(--gray-500);margin-top:7px;line-height:1.4;text-align:center;font-style:italic;}
   .pipeline-stage .reject-input{
     width:100%;border:1.5px solid var(--red-100);background:var(--red-100);border-radius:6px;padding:5px 6px;
     font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--red-700);text-align:center;
@@ -493,6 +496,7 @@ let state = {
   lastSaveFailed: false,
   selectedPartIds: new Set(),
   markingMeasurementId: null,
+  bulkDrawingPreview: null,
 };
 function isAdmin(){ return state.currentUserRole === 'admin'; }
 function canEditStage(stage){ return isAdmin() || state.currentUserRole === stage; }
@@ -855,10 +859,11 @@ function renderPartsView(){
         <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span></div>
         <div class="page-sub">${fmtNum(getParts(company.id).length)} parça kayıtlı · Proses akışı: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${isAdmin() ? `
         <button class="btn btn-ghost" data-action="openStages">Proses Aşamaları</button>
         <button class="btn btn-navy" data-action="openImport">&#128228; Excel / CSV Yükle</button>
+        <button class="btn btn-navy" data-action="openBulkDrawings">&#128193; Teknik Resimleri Toplu Yükle</button>
         <button class="btn btn-primary" data-action="openAddPart">+ Parça Ekle</button>
         ` : ''}
       </div>
@@ -884,7 +889,7 @@ function renderPartsView(){
       <table class="data-table">
         <thead><tr>
           ${isAdmin() ? `<th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>` : ''}
-          <th>Parça No</th><th>Parça Adı</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
+          <th>Parça No</th><th>Parça Adı</th><th>Mevcut Aşama</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
         </tr></thead>
         <tbody>
           ${parts.map(p=>{
@@ -895,18 +900,23 @@ function renderPartsView(){
             const pct = p.orderedQty>0 ? Math.min(100, Math.round(shipped/p.orderedQty*100)) : 0;
             const statusLabel = status==='shipped'?'Sevk Edildi':status==='progress'?'Üretimde':'Başlamadı';
             const openNcr = (p.ncrs||[]).filter(n=>n.status==='acik').length;
+            const curIdx = getCurrentStageIndex(p, stages);
+            const curStage = curIdx>=0 && status!=='shipped' ? stages[curIdx] : null;
+            const curEntry = curStage ? getStageLastEntry(p, curStage) : null;
+            const curDays = curEntry ? daysSince(curEntry.date) : null;
             return `
             <tr>
               ${isAdmin() ? `<td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>` : ''}
               <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${p.drawing?` <span title="Teknik resim eklendi" class="drawing-attach-icon">&#128206;</span>`:''}</td>
               <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
+              <td>${curStage ? `<b style="color:var(--navy-800);">${escapeHtml(curStage)}</b>${curDays!=null?`<div class="helper-text" style="margin:0;">${curDays} gündür</div>`:''}` : '<span style="color:var(--gray-500);">—</span>'}</td>
               <td class="mono">${fmtNum(p.orderedQty)}</td>
               <td class="mono">${fmtNum(shipped)}</td>
               <td class="mono" style="color:${reject>0?'var(--red-700)':'var(--gray-500)'};font-weight:700;">${fmtNum(reject)}</td>
               <td class="mono" style="color:${remaining>0?'var(--red-700)':'var(--gray-500)'};font-weight:700;">${fmtNum(remaining)}</td>
               <td style="width:110px;"><div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div></td>
               <td><span class="status-badge ${status}"><span class="status-dot"></span>${statusLabel}</span></td>
-              <td style="font-size:11.5px;color:var(--gray-500);white-space:nowrap;">${p.lastUpdate||'—'}</td>
+              <td style="font-size:11.5px;color:var(--gray-500);white-space:nowrap;">${p.lastUpdate||'—'}${p.updatedBy?`<div class="helper-text" style="margin:0;">${escapeHtml(p.updatedBy)}</div>`:''}</td>
               <td>
                 <div class="row-actions">
                   <div class="icon-btn" data-track-part="${p.id}" title="Üretim Takibi">&#128295;</div>
@@ -944,6 +954,11 @@ function renderTrackingView(){
   const part = parts.find(p=>p.id===partId);
   const remaining = partRemaining(part, stages);
   const reject = partTotalReject(part);
+  const currentIdx = getCurrentStageIndex(part, stages);
+  const currentStageName = currentIdx>=0 ? stages[currentIdx] : null;
+  const currentEntry = currentStageName ? getStageLastEntry(part, currentStageName) : null;
+  const daysInStage = currentEntry ? daysSince(currentEntry.date) : null;
+  const isShippedFully = remaining===0 && Number(part.orderedQty||0)>0;
 
   return `
     <div class="page-head">
@@ -961,7 +976,7 @@ function renderTrackingView(){
     </div>
 
     <div class="card" style="padding:20px;">
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <div>
           <div style="font-family:var(--font-mono);font-size:13px;color:var(--navy-800);font-weight:700;">${escapeHtml(part.partNo)}</div>
           <div style="font-family:var(--font-display);font-size:23px;font-weight:700;color:var(--navy-900);">${part.partName ? escapeHtml(part.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim girilmedi)</span>'}</div>
@@ -971,6 +986,11 @@ function renderTrackingView(){
           <div><div class="helper-text" style="margin:0;">Toplam Ret</div><div class="mono" style="font-size:18px;font-weight:700;color:var(--red-700);">${fmtNum(reject)}</div></div>
           <div><div class="helper-text" style="margin:0;">Kalan</div><div class="mono" style="font-size:18px;font-weight:700;color:${remaining>0?'var(--red-700)':'var(--gray-500)'};">${fmtNum(remaining)}</div></div>
         </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        ${isShippedFully ? `<span class="status-badge shipped"><span class="status-dot"></span>Sevk Edildi</span>`
+          : currentStageName ? `<span class="status-badge progress"><span class="status-dot"></span>Şu an: ${escapeHtml(currentStageName)}${daysInStage!=null ? ` · ${daysInStage} gündür bu aşamada` : ''}</span>`
+          : `<span class="status-badge notstarted"><span class="status-dot"></span>Henüz üretime başlanmadı</span>`}
       </div>
 
       <div class="field">
@@ -1004,8 +1024,11 @@ function renderTrackingView(){
           const pct = part.orderedQty>0 ? Math.min(100, Math.round(val/part.orderedQty*100)) : 0;
           const isFinal = i === stages.length-1;
           const editable = canEditStage(s);
+          const lastEntry = getStageLastEntry(part, s);
+          const isCurrent = i === currentIdx && !isShippedFully;
           return `
-          <div class="pipeline-stage ${isFinal?'final':''} ${!editable?'locked':''}">
+          <div class="pipeline-stage ${isFinal?'final':''} ${!editable?'locked':''} ${isCurrent?'current':''}">
+            ${isCurrent ? `<div class="current-badge">ŞU AN BURADA</div>` : ''}
             <div class="stage-name">${escapeHtml(s)}${!editable?' 🔒':''}</div>
             <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}" ${!editable?'disabled title="Bu aşamayı sadece ilgili istasyon veya yönetici güncelleyebilir"':''}/>
             <div class="reject-row">
@@ -1013,6 +1036,7 @@ function renderTrackingView(){
               <input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/>
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
+            <div class="stage-meta">${lastEntry ? `${escapeHtml(lastEntry.date)}<br/>${escapeHtml(lastEntry.user||'—')}` : 'Henüz giriş yok'}</div>
           </div>`;
         }).join('')}
       </div>
@@ -1052,6 +1076,75 @@ function renderTrackingView(){
 }
 
 /* ============================= ÖLÇÜM KONTROLÜ ============================= */
+/* ============================= FORM -> STATE SENKRONİZASYONU (veri kaybını önler) ============================= */
+// Ekranda yazılmış ama henüz "Kaydet"e basılmamış değerleri, bir yeniden çizimden (render) önce
+// bellekteki state'e aktarır. Böylece "ölçüm ekle" gibi butonlar diğer alanlardaki yazılanları silmez.
+function syncTrackingFormToState(){
+  const company = getCompany(state.selectedCompanyId);
+  if(!company) return;
+  const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+  if(!part) return;
+  document.querySelectorAll('[data-stage-input]').forEach(inp=>{
+    if(inp.disabled) return;
+    const stage = inp.getAttribute('data-stage-input');
+    if(!part.qtys) part.qtys={};
+    part.qtys[stage] = Math.max(0, Number(inp.value)||0);
+  });
+  document.querySelectorAll('[data-reject-input]').forEach(inp=>{
+    if(inp.disabled) return;
+    const stage = inp.getAttribute('data-reject-input');
+    if(!part.rejects) part.rejects={};
+    part.rejects[stage] = Math.max(0, Number(inp.value)||0);
+  });
+  const noteEl = document.getElementById('partNoteInput');
+  if(noteEl && !noteEl.disabled) part.note = noteEl.value;
+  const colorEl = document.getElementById('partColorTrackInput');
+  if(colorEl && !colorEl.disabled) part.color = colorEl.value.trim();
+  part.measurements = part.measurements || [];
+  document.querySelectorAll('[data-meas-value]').forEach(inp=>{
+    if(inp.disabled) return;
+    const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-value'));
+    if(m) m.measuredValue = inp.value===''?'':Number(inp.value);
+  });
+  document.querySelectorAll('[data-meas-nominal]').forEach(inp=>{
+    if(inp.disabled) return;
+    const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-nominal'));
+    if(m) m.nominalValue = inp.value===''?'':Number(inp.value);
+  });
+  document.querySelectorAll('[data-meas-tol]').forEach(inp=>{
+    if(inp.disabled) return;
+    const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-tol'));
+    if(m) m.tolerance = inp.value===''?'':Number(inp.value);
+  });
+}
+
+/* ============================= TARİH / AŞAMA YARDIMCILARI ============================= */
+function parseTRDate(str){
+  if(!str) return null;
+  const datePart = String(str).split(' ')[0];
+  const bits = datePart.split('.').map(Number);
+  if(bits.length<3 || bits.some(isNaN)) return null;
+  const [d,m,y] = bits;
+  return new Date(y, m-1, d);
+}
+function daysSince(dateStr){
+  const d = parseTRDate(dateStr);
+  if(!d) return null;
+  const now = new Date();
+  const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.round((a - d) / (1000*60*60*24)));
+}
+function getStageLastEntry(part, stage){
+  const hist = (part.history||[]).filter(h=>h.stage===stage && !h.reject);
+  if(!hist.length) return null;
+  return hist[hist.length-1];
+}
+function getCurrentStageIndex(part, stages){
+  let idx = -1;
+  stages.forEach((s,i)=>{ if(Number((part.qtys||{})[s]||0) > 0) idx = i; });
+  return idx;
+}
+
 function measurementStatus(m){
   const measured = m.measuredValue!==''&&m.measuredValue!=null ? Number(m.measuredValue) : null;
   const nominal = m.nominalValue!==''&&m.nominalValue!=null ? Number(m.nominalValue) : null;
@@ -1388,6 +1481,62 @@ function renderModal(){
       </div>
     `, 'wide');
   }
+  if(m.type==='bulkDrawings'){
+    const company = getCompany(state.selectedCompanyId);
+    const preview = state.bulkDrawingPreview;
+    return modalWrap(`
+      <h2>Teknik Resimleri Toplu Yükle</h2>
+      <div class="modal-sub">${escapeHtml(company.name)} — dosya adının içinde parça numarası geçen .png/.jpg/.pdf dosyalarını otomatik eşleştirir. Örn. "P-10025 500x300mm.pdf" dosyası, parça no'su P-10025 olan parçaya otomatik atanır.</div>
+      ${!preview ? `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="drop-zone" id="bulkFolderZone" style="flex:1;min-width:180px;">
+            <div class="dz-ico">&#128193;</div>
+            <div class="dz-text">Klasör Seç</div>
+            <div class="dz-sub">Bir klasördeki tüm dosyaları tara</div>
+            <input type="file" id="bulkFolderInput" webkitdirectory directory multiple style="display:none;"/>
+          </div>
+          <div class="drop-zone" id="bulkFilesZone" style="flex:1;min-width:180px;">
+            <div class="dz-ico">&#128228;</div>
+            <div class="dz-text">Dosyaları Seç</div>
+            <div class="dz-sub">Tek tek veya birden çok dosya seç</div>
+            <input type="file" id="bulkFilesInput" multiple accept=".png,.jpg,.jpeg,.pdf" style="display:none;"/>
+          </div>
+        </div>
+      ` : `
+        <div class="import-summary">
+          <div>Eşleşen: <b style="color:var(--navy-800);">${preview.matches.length}</b></div>
+          <div>Eşleşmeyen: <b style="color:var(--red-700);">${preview.unmatched.length}</b></div>
+          <div>Toplam boyut: <b>${(preview.matches.reduce((a,m)=>a+m.file.size,0)/1024/1024).toFixed(1)} MB</b></div>
+        </div>
+        ${preview.matches.length>0 ? `
+        <table class="preview-table">
+          <thead><tr><th>Dosya</th><th>Eşleşen Parça</th></tr></thead>
+          <tbody>
+            ${preview.matches.slice(0,10).map(m=>`<tr><td>${escapeHtml(m.file.name)}</td><td><span class="part-no-tag">${escapeHtml(m.part.partNo)}</span> ${escapeHtml(m.part.partName||'')}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        ${preview.matches.length>10 ? `<div class="helper-text">…ve ${preview.matches.length-10} tane daha</div>` : ''}
+        ` : `<div class="helper-text">Eşleşen dosya bulunamadı.</div>`}
+        ${preview.unmatched.length>0 ? `
+        <div class="section-title" style="font-size:15px;margin-top:16px;">Eşleşmeyenler</div>
+        <table class="preview-table">
+          <thead><tr><th>Dosya</th><th>Sebep</th></tr></thead>
+          <tbody>
+            ${preview.unmatched.slice(0,10).map(u=>`<tr><td>${escapeHtml(u.file.name)}</td><td style="color:var(--red-700);">${escapeHtml(u.reason)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        ${preview.unmatched.length>10 ? `<div class="helper-text">…ve ${preview.unmatched.length-10} tane daha</div>` : ''}
+        ` : ''}
+      `}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        ${preview ? `
+          <button class="btn btn-ghost" data-action="cancelBulkDrawings">Farklı Dosya Seç</button>
+          ${preview.matches.length>0 ? `<button class="btn btn-primary" data-action="confirmBulkDrawings">${preview.matches.length} Teknik Resmi İçe Aktar</button>` : ''}
+        ` : ''}
+      </div>
+    `, 'wide');
+  }
   if(m.type==='bulkRename'){
     const count = state.selectedPartIds.size;
     return modalWrap(`
@@ -1584,6 +1733,7 @@ function attachHandlers(){
 
   app.querySelectorAll('[data-remove-measurement]').forEach(el=>{
     el.addEventListener('click', async ()=>{
+      syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
       if(!part) return;
@@ -1595,6 +1745,7 @@ function attachHandlers(){
   });
   app.querySelectorAll('[data-mark-measurement]').forEach(el=>{
     el.addEventListener('click', ()=>{
+      syncTrackingFormToState();
       state.markingMeasurementId = el.getAttribute('data-mark-measurement');
       render();
     });
@@ -1602,6 +1753,7 @@ function attachHandlers(){
   const measureImageEl = document.getElementById('measureImageEl');
   if(measureImageEl && state.markingMeasurementId){
     measureImageEl.addEventListener('click', async (e)=>{
+      syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
       const m = part && (part.measurements||[]).find(x=>x.id===state.markingMeasurementId);
@@ -1674,6 +1826,19 @@ function attachHandlers(){
       e.preventDefault(); dropZone.classList.remove('drag');
       if(e.dataTransfer.files[0]) handleFileImport(e.dataTransfer.files[0]);
     });
+  }
+
+  const bulkFolderZone = document.getElementById('bulkFolderZone');
+  const bulkFolderInput = document.getElementById('bulkFolderInput');
+  if(bulkFolderZone && bulkFolderInput){
+    bulkFolderZone.addEventListener('click', ()=> bulkFolderInput.click());
+    bulkFolderInput.addEventListener('change', (e)=>{ if(e.target.files.length) handleBulkDrawingFiles(e.target.files); });
+  }
+  const bulkFilesZone = document.getElementById('bulkFilesZone');
+  const bulkFilesInput = document.getElementById('bulkFilesInput');
+  if(bulkFilesZone && bulkFilesInput){
+    bulkFilesZone.addEventListener('click', ()=> bulkFilesInput.click());
+    bulkFilesInput.addEventListener('change', (e)=>{ if(e.target.files.length) handleBulkDrawingFiles(e.target.files); });
   }
 
   const newStageInput = document.getElementById('newStageInput');
@@ -1811,6 +1976,9 @@ async function handleAction(action, el){
     }
 
     case 'openImport': state.importPreview = null; state.modal = {type:'import'}; render(); break;
+    case 'openBulkDrawings': state.bulkDrawingPreview = null; state.modal = {type:'bulkDrawings'}; render(); break;
+    case 'cancelBulkDrawings': state.bulkDrawingPreview = null; render(); break;
+    case 'confirmBulkDrawings': await confirmBulkDrawings(); break;
     case 'cancelImportPreview': state.importPreview = null; render(); break;
     case 'confirmImport': {
       const company = getCompany(state.selectedCompanyId);
@@ -1976,6 +2144,7 @@ async function handleAction(action, el){
     }
 
     case 'addMeasurement': {
+      syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
       part.measurements = part.measurements || [];
@@ -1986,6 +2155,7 @@ async function handleAction(action, el){
       break;
     }
     case 'addSuggestedMeasurements': {
+      syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
       const count = Number(el.getAttribute('data-count'))||0;
@@ -2029,6 +2199,73 @@ function handleDrawingUpload(file){
   };
   reader.onerror = ()=> showToast('Dosya okunamadı.');
   reader.readAsDataURL(file);
+}
+
+/* ============================= TOPLU TEKNİK RESİM YÜKLEME ============================= */
+function readFileAsDataURL(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+function handleBulkDrawingFiles(fileList){
+  const company = getCompany(state.selectedCompanyId);
+  if(!company){ showToast('Önce bir şirket seçin.'); return; }
+  const parts = getParts(company.id);
+  const files = Array.from(fileList).filter(f=> f.type.startsWith('image/') || f.type==='application/pdf' || /\.(png|jpe?g|pdf)$/i.test(f.name));
+  if(!files.length){ showToast('Uygun dosya bulunamadı (.png, .jpg, .pdf).'); return; }
+
+  const matches = [];
+  const unmatched = [];
+  files.forEach(file=>{
+    const nameNoExt = file.name.replace(/\.[^.\/\\]+$/, '');
+    let best = null;
+    parts.forEach(p=>{
+      const no = (p.partNo||'').trim();
+      if(!no) return;
+      if(nameNoExt.toLowerCase().includes(no.toLowerCase())){
+        if(!best || no.length > best.partNo.length) best = p;
+      }
+    });
+    if(best){
+      if(file.size > 3*1024*1024){
+        unmatched.push({file, reason:'Dosya çok büyük (3 MB üzeri)'});
+      } else {
+        matches.push({file, part: best});
+      }
+    } else {
+      unmatched.push({file, reason:'Dosya adında eşleşen parça no bulunamadı'});
+    }
+  });
+
+  state.bulkDrawingPreview = {matches, unmatched};
+  render();
+}
+async function confirmBulkDrawings(){
+  const company = getCompany(state.selectedCompanyId);
+  const preview = state.bulkDrawingPreview;
+  if(!company || !preview) return;
+  let ok = 0, fail = 0;
+  for(const m of preview.matches){
+    try{
+      const dataUrl = await readFileAsDataURL(m.file);
+      const parts = getParts(company.id);
+      const livePart = parts.find(p=>p.id===m.part.id);
+      if(livePart){ livePart.drawing = { name: m.file.name, type: m.file.type, data: dataUrl }; ok++; }
+    }catch(e){ fail++; }
+  }
+  state.bulkDrawingPreview = null;
+  state.modal = null;
+  render();
+  const saved = await persistParts(company.id);
+  if(saved===false){
+    showToast('Kaydedilemedi — toplam dosya boyutu depolama sınırını aşmış olabilir. Daha az dosyayla tekrar deneyin.');
+  } else {
+    showToast(`${ok} teknik resim eklendi${fail?`, ${fail} tanesi okunamadı`:''}.`);
+  }
+  render();
 }
 
 /* ============================= IMPORT (CSV/XLSX) ============================= */
@@ -2085,10 +2322,13 @@ function companySheetData(companyId){
   const stages = company.stages;
   const parts = getParts(companyId);
   return parts.map(p=>{
-    const row = {'Parça No': p.partNo, 'Parça Adı': p.partName, 'İstenen Adet': p.orderedQty, 'Malzeme Rengi': p.color || ''};
+    const curIdx = getCurrentStageIndex(p, stages);
+    const remaining = partRemaining(p, stages);
+    const curStage = curIdx>=0 && remaining>0 ? stages[curIdx] : (remaining===0 && p.orderedQty>0 ? 'Sevk Edildi' : '');
+    const row = {'Parça No': p.partNo, 'Parça Adı': p.partName, 'Mevcut Aşama': curStage, 'İstenen Adet': p.orderedQty, 'Malzeme Rengi': p.color || ''};
     stages.forEach(s=>{ row[s] = Number((p.qtys||{})[s]||0); row[s+' (Ret)'] = Number((p.rejects||{})[s]||0); });
     row['Toplam Ret'] = partTotalReject(p);
-    row['Kalan Adet'] = partRemaining(p, stages);
+    row['Kalan Adet'] = remaining;
     row['Not'] = p.note || '';
     row['Son Güncelleme'] = p.lastUpdate || '';
     row['Güncelleyen'] = p.updatedBy || '';
