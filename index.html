@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Üretim ve Kalite Takip Sistemi</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <style>
   :root{
     --navy-950:#081226;
@@ -255,6 +257,8 @@
   .pipeline-stage .stage-input:focus{outline:none;border-color:var(--red-600);}
   .pipeline-stage .reject-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
   .pipeline-stage .reject-row label{font-size:10.5px;color:var(--red-700);font-weight:700;white-space:nowrap;}
+  .pipeline-stage.locked{background:var(--gray-50);}
+  .pipeline-stage.locked .stage-input,.pipeline-stage.locked .reject-input{background:var(--gray-100);color:var(--gray-500);cursor:not-allowed;}
   .pipeline-stage .reject-input{
     width:100%;border:1.5px solid var(--red-100);background:var(--red-100);border-radius:6px;padding:5px 6px;
     font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--red-700);text-align:center;
@@ -366,13 +370,33 @@
 <div id="app"><div class="loading-screen">Yükleniyor…</div></div>
 
 <script>
-/* ============================= STORAGE HELPERS (Firebase Realtime Database) ============================= */
-const FIREBASE_URL = 'https://seria-6efb4-default-rtdb.firebaseio.com';
-const FIREBASE_SECRET = 'pke4NlY8pW2uF4BNTWn23BVeAgLA7yMWuzprQS8G';
+/* ============================= FIREBASE INIT (Auth + Realtime Database) ============================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyDLSeefkn2FcBIuDgVQr9fh35VuxqBJVy0",
+  authDomain: "seria-6efb4.firebaseapp.com",
+  databaseURL: "https://seria-6efb4-default-rtdb.firebaseio.com",
+  projectId: "seria-6efb4",
+  storageBucket: "seria-6efb4.firebasestorage.app",
+  messagingSenderId: "1084990408616",
+  appId: "1:1084990408616:web:1cb7b53b392794fae3ff9d",
+  measurementId: "G-M9J9HG6NNH"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const FIREBASE_URL = firebaseConfig.databaseURL;
 
+// Yönetici (Kalite Kontrol) rolüyle kayıt olabilmek için gereken kod.
+const ADMIN_SIGNUP_CODE = 'formak1907';
+
+async function getIdToken(){
+  const user = fbAuth.currentUser;
+  if(!user) return null;
+  try{ return await user.getIdToken(); }catch(e){ return null; }
+}
 async function firebaseFetch(path, options){
+  const token = await getIdToken();
   const sep = path.includes('?') ? '&' : '?';
-  const url = `${FIREBASE_URL}/${path}.json${sep}auth=${FIREBASE_SECRET}`;
+  const url = `${FIREBASE_URL}/${path}.json${token ? sep+'auth='+token : ''}`;
   const res = await fetch(url, options);
   if(!res.ok) throw new Error('Firebase request failed: ' + res.status);
   return res;
@@ -412,8 +436,6 @@ async function storageDelete(key){
 }
 
 const DEFAULT_STAGES = ['Kesim','Büküm','Kaynak','Taşlama','Boya','Montaj','Paketleme','Sevkiyat'];
-const APP_PASSWORD = 'formak1907';
-
 // Örnekleme / kontrol sıklığı tablosu (kullanıcının verdiği tabloya göre)
 const SAMPLING_TABLE = [
   {min:1,   max:3,     full:true},           // 1-3 arası -> %100 kontrol
@@ -448,8 +470,12 @@ function fmtNum(n){
 }
 
 /* ============================= STATE ============================= */
+const ROLE_LIST = [...DEFAULT_STAGES]; // istasyon rolleri; ayrıca 'admin' özel rolü var
 let state = {
-  currentUser: null,        // identification only — not a secured login
+  currentUser: null,        // görünen ad (kayıtlarda "kim güncelledi")
+  currentUserUid: null,
+  currentUserRole: null,    // 'admin' veya bir aşama adı (örn. 'Büküm')
+  authView: 'login',        // login | signup
   companies: [],
   partsByCompany: {},
   selectedCompanyId: null,
@@ -460,6 +486,7 @@ let state = {
   modal: null,
   toast: null,
   loading: true,
+  authChecking: true,
   importPreview: null,
   knownUsers: [],
   storageUnavailable: false,
@@ -467,6 +494,8 @@ let state = {
   selectedPartIds: new Set(),
   markingMeasurementId: null,
 };
+function isAdmin(){ return state.currentUserRole === 'admin'; }
+function canEditStage(stage){ return isAdmin() || state.currentUserRole === stage; }
 
 function setState(patch){ Object.assign(state, patch); render(); }
 function showToast(msg){
@@ -481,11 +510,6 @@ function asArray(v){ return Array.isArray(v) ? v : []; }
 
 async function loadAll(){
   try{
-    try{
-      await firebaseFetch('companies');
-    }catch(e){
-      state.storageUnavailable = true;
-    }
     const companiesRaw = await storageGet('companies');
     const companies = asArray(companiesRaw);
     state.companies = companies;
@@ -495,7 +519,7 @@ async function loadAll(){
       if(!c || !c.id) continue;
       const partsRaw = await storageGet('parts:'+c.id);
       const parts = asArray(partsRaw);
-      parts.forEach(p=>{ if(!p) return; if(!p.rejects) p.rejects={}; if(!p.ncrs) p.ncrs=[]; if(!p.history) p.history=[]; if(p.drawing===undefined) p.drawing=null; if(p.color===undefined) p.color=''; if(!Array.isArray(p.measurements)) p.measurements=[]; });
+      parts.forEach(p=>{ if(!p) return; if(!p.qtys) p.qtys={}; if(!p.rejects) p.rejects={}; if(!p.ncrs) p.ncrs=[]; if(!p.history) p.history=[]; if(p.drawing===undefined) p.drawing=null; if(p.color===undefined) p.color=''; if(!Array.isArray(p.measurements)) p.measurements=[]; if(!p.orderedQty) p.orderedQty = Number(p.orderedQty)||0; });
       partsMap[c.id] = parts;
     }
     state.partsByCompany = partsMap;
@@ -528,75 +552,43 @@ async function persistKnownUsers(){ await storageSet('known-users', state.knownU
 
 function getCompany(id){ return state.companies.find(c=>c.id===id); }
 function getParts(companyId){ return state.partsByCompany[companyId] || []; }
-/* ================================= COMPUTATIONS ================================= */
 
-function partRemaining(part){
-  try {
-    if (!part) return 0;
-    const company = getCompany(part.companyId);
-    const stages = (company && Array.isArray(company.stages)) ? company.stages : DEFAULT_STAGES;
-    const last = stages[stages.length - 1];
-    const qtys = (part && typeof part.qtys === 'object' && part.qtys !== null) ? part.qtys : {};
-    const shipped = Number(qtys[last] || 0);
-    return Math.max(0, Number(part.orderedQty || 0) - shipped);
-  } catch(e) {
-    return 0;
-  }
+/* ============================= COMPUTATIONS ============================= */
+function partRemaining(part, stages){
+  const last = stages[stages.length-1];
+  const shipped = Number((part.qtys||{})[last]||0);
+  return Math.max(0, Number(part.orderedQty||0) - shipped);
 }
-
 function partTotalReject(part){
-  try {
-    if (!part) return 0;
-    return Object.values(part.rejects || {}).reduce((a,b) => a + (Number(b) || 0), 0);
-  } catch(e) {
-    return 0;
-  }
+  return Object.values(part.rejects||{}).reduce((a,b)=>a+(Number(b)||0),0);
 }
-
 function partStatus(part, stages){
-  try {
-    if (!part) return 'notstarted';
-    const st = (stages && Array.isArray(stages)) ? stages : DEFAULT_STAGES;
-    const last = st[st.length - 1];
-    const qtys = (part && typeof part.qtys === 'object' && part.qtys !== null) ? part.qtys : {};
-    const shipped = Number(qtys[last] || 0);
-    const anyProgress = st.some(s => Number(qtys[s] || 0) > 0);
-    if(shipped >= Number(part.orderedQty || 0) && Number(part.orderedQty || 0) > 0) return 'shipped';
-    if(anyProgress) return 'progress';
-    return 'notstarted';
-  } catch(e) {
-    return 'notstarted';
-  }
+  const last = stages[stages.length-1];
+  const shipped = Number((part.qtys||{})[last]||0);
+  const anyProgress = stages.some(s => Number((part.qtys||{})[s]||0) > 0);
+  if(shipped >= Number(part.orderedQty||0) && Number(part.orderedQty||0) > 0) return 'shipped';
+  if(anyProgress) return 'progress';
+  return 'notstarted';
 }
-
 function companyTotals(companyId){
-  try {
-    const company = getCompany(companyId);
-    const parts = getParts(companyId) || [];
-    const stages = (company && Array.isArray(company.stages)) ? company.stages : DEFAULT_STAGES;
-    const last = stages[stages.length - 1];
-    const prev = stages.length > 1 ? stages[stages.length - 2] : last;
-    let ordered=0, shipped=0, completed=0, rejected=0, openNcr=0, closedNcr=0;
-
-    parts.forEach(p => {
-      if (!p) return;
-      const qtys = (p && typeof p.qtys === 'object' && p.qtys !== null) ? p.qtys : {};
-      ordered += Number(p.orderedQty || 0);
-      shipped += Number(qtys[last] || 0);
-      completed += Number(qtys[prev] || 0);
-      rejected += partTotalReject(p);
-      (p.ncrs || []).forEach(n => n && n.status === 'acik' ? openNcr++ : closedNcr++);
-    });
-
-   return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
-  } catch(e) {
-    return { partCount: 0, ordered: 0, shipped: 0, completed: 0, rejected: 0, openNcr: 0, closedNcr: 0, inProgress: 0 };
-  }
+  const company = getCompany(companyId);
+  const parts = getParts(companyId);
+  const stages = company ? company.stages : DEFAULT_STAGES;
+  const last = stages[stages.length-1];
+  const prev = stages.length>1 ? stages[stages.length-2] : last;
+  let ordered=0, shipped=0, completed=0, rejected=0, openNcr=0, closedNcr=0;
+  parts.forEach(p=>{
+    ordered += Number(p.orderedQty||0);
+    shipped += Number((p.qtys||{})[last]||0);
+    completed += Number((p.qtys||{})[prev]||0);
+    rejected += partTotalReject(p);
+    (p.ncrs||[]).forEach(n=> n.status==='acik' ? openNcr++ : closedNcr++);
+  });
+  return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
 }
-
-function globalTotals(){
-  let totals = { partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0 };
-  state.companies.forEach(c => {
+function allTotals(){
+  let totals = {companyCount: state.companies.length, partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0};
+  state.companies.forEach(c=>{
     const t = companyTotals(c.id);
     totals.partCount += t.partCount; totals.ordered += t.ordered; totals.shipped += t.shipped;
     totals.completed += t.completed; totals.inProgress += t.inProgress; totals.rejected += t.rejected;
@@ -613,12 +605,13 @@ function allOpenNcrCount(){
 /* ============================= RENDER ROOT ============================= */
 function render(){
   const app = document.getElementById('app');
-  if(state.loading){ app.innerHTML = '<div class="loading-screen">Veriler yükleniyor…</div>'; return; }
+  if(state.authChecking){ app.innerHTML = '<div class="loading-screen">Oturum kontrol ediliyor…</div>'; return; }
   if(!state.currentUser){
-    app.innerHTML = renderLogin();
-    attachLoginHandlers();
+    app.innerHTML = renderAuthScreen();
+    attachAuthHandlers();
     return;
   }
+  if(state.loading){ app.innerHTML = '<div class="loading-screen">Veriler yükleniyor…</div>'; return; }
   app.innerHTML = `
     ${renderSidebar()}
     <div class="main">
@@ -632,65 +625,121 @@ function render(){
   attachHandlers();
 }
 
-/* ============================= LOGIN ============================= */
-function renderLogin(){
+/* ============================= LOGIN / SIGNUP (Firebase Authentication) ============================= */
+function roleLabel(role){
+  if(role==='admin') return 'Kalite Kontrol (Yönetici)';
+  return role;
+}
+function renderAuthScreen(){
+  const isSignup = state.authView === 'signup';
   return `
   <div class="login-overlay">
-    <div class="login-box">
+    <div class="login-box" style="max-width:420px;">
       <div class="login-brand">ÜRETİM<span>.</span>TAKİP</div>
-      <div class="login-sub">Devam etmek için adınızı ve şifreyi girin</div>
-      <div class="field">
-        <label>Kullanıcı Adı</label>
-        <input type="text" id="loginNameInput" list="knownUsersList" placeholder="Örn. Ahmet Yılmaz" autocomplete="off" autocapitalize="words"/>
-        <datalist id="knownUsersList">
-          ${state.knownUsers.map(u=>`<option value="${escapeHtml(u)}"></option>`).join('')}
-        </datalist>
-      </div>
-      <div class="field">
-        <label>Şifre</label>
-        <input type="password" id="loginPassInput" placeholder="Şifre" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"/>
-        <div id="loginErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin-top:6px;min-height:16px;"></div>
-      </div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;" id="loginBtn">Sisteme Gir</button>
-      <div class="login-note">Kullanıcı adı, kayıtlara "kim güncelledi" bilgisini eklemek için kullanılır. Şifre ise sisteme sadece yetkili ekibin girmesini sağlar.</div>
+      <div class="login-sub">${isSignup ? 'Yeni hesap oluşturun' : 'Hesabınızla giriş yapın'}</div>
+
+      ${isSignup ? `
+        <div class="field"><label>Ad Soyad</label><input type="text" id="authNameInput" placeholder="Örn. Ahmet Yılmaz" autocomplete="off"/></div>
+        <div class="field"><label>E-posta</label><input type="email" id="authEmailInput" placeholder="ornek@sirket.com" autocomplete="off"/></div>
+        <div class="field"><label>Şifre</label><input type="password" id="authPassInput" placeholder="En az 6 karakter" autocomplete="off"/></div>
+        <div class="field">
+          <label>İstasyon / Rol</label>
+          <select id="authRoleInput">
+            ${DEFAULT_STAGES.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+            <option value="admin">Kalite Kontrol (Yönetici)</option>
+          </select>
+        </div>
+        <div class="field" id="adminCodeField" style="display:none;">
+          <label>Yönetici Kodu</label>
+          <input type="password" id="authAdminCodeInput" placeholder="Yönetici kaydı için gerekli kod" autocomplete="off"/>
+        </div>
+        <div id="authErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin:-4px 0 14px 0;min-height:16px;"></div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" id="authSubmitBtn">Hesap Oluştur ve Gir</button>
+        <div class="login-note">Zaten hesabın var mı? <a href="#" id="switchToLogin" style="color:var(--navy-700);font-weight:700;">Giriş yap</a></div>
+      ` : `
+        <div class="field"><label>E-posta</label><input type="email" id="authEmailInput" placeholder="ornek@sirket.com" autocomplete="off"/></div>
+        <div class="field"><label>Şifre</label><input type="password" id="authPassInput" placeholder="Şifre" autocomplete="off"/></div>
+        <div id="authErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin:-4px 0 14px 0;min-height:16px;"></div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" id="authSubmitBtn">Giriş Yap</button>
+        <div class="login-note">Hesabın yok mu? <a href="#" id="switchToSignup" style="color:var(--navy-700);font-weight:700;">Kayıt ol</a></div>
+      `}
     </div>
   </div>`;
 }
-function attachLoginHandlers(){
-  const btn = document.getElementById('loginBtn');
-  const input = document.getElementById('loginNameInput');
-  const passInput = document.getElementById('loginPassInput');
-  input.focus();
-  const doLogin = async ()=>{
-    const name = input.value.trim();
-    const pass = passInput.value.trim();
-    const errEl = document.getElementById('loginErrorMsg');
-    if(errEl) errEl.textContent = '';
-    if(!name){ input.style.borderColor = 'var(--red-600)'; if(errEl) errEl.textContent=''; input.focus(); return; }
-    if(pass !== APP_PASSWORD){
-      passInput.style.borderColor = 'var(--red-600)';
-      passInput.value='';
-      passInput.focus();
-      if(errEl) errEl.textContent = 'Şifre hatalı. Lütfen tekrar deneyin.';
-      return;
-    }
-    state.currentUser = name;
-    render(); // önce ekranı geçir, kayıt arka planda denensin
+function attachAuthHandlers(){
+  const isSignup = state.authView === 'signup';
+  const emailInput = document.getElementById('authEmailInput');
+  const passInput = document.getElementById('authPassInput');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  const errEl = document.getElementById('authErrorMsg');
+  if(emailInput) emailInput.focus();
+
+  const switchLink = document.getElementById(isSignup ? 'switchToLogin' : 'switchToSignup');
+  if(switchLink){
+    switchLink.addEventListener('click', (e)=>{ e.preventDefault(); state.authView = isSignup ? 'login' : 'signup'; render(); });
+  }
+
+  const roleInput = document.getElementById('authRoleInput');
+  const adminCodeField = document.getElementById('adminCodeField');
+  if(roleInput && adminCodeField){
+    roleInput.addEventListener('change', ()=>{
+      adminCodeField.style.display = roleInput.value === 'admin' ? 'block' : 'none';
+    });
+  }
+
+  const showErr = (msg)=>{ if(errEl) errEl.textContent = msg; };
+
+  const friendlyError = (code)=>{
+    if(code==='auth/email-already-in-use') return 'Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.';
+    if(code==='auth/invalid-email') return 'Geçerli bir e-posta adresi girin.';
+    if(code==='auth/weak-password') return 'Şifre en az 6 karakter olmalı.';
+    if(code==='auth/user-not-found' || code==='auth/wrong-password' || code==='auth/invalid-credential') return 'E-posta veya şifre hatalı.';
+    if(code==='auth/too-many-requests') return 'Çok fazla deneme yapıldı, biraz sonra tekrar deneyin.';
+    return 'Bir hata oluştu, tekrar deneyin.';
+  };
+
+  const doSubmit = async ()=>{
+    showErr('');
+    const email = (emailInput.value||'').trim();
+    const pass = passInput.value||'';
+    if(!email || !pass){ showErr('E-posta ve şifre zorunludur.'); return; }
+    submitBtn.disabled = true;
     try{
-      if(!Array.isArray(state.knownUsers)) state.knownUsers = [];
-      if(!state.knownUsers.includes(name)){
-        state.knownUsers.push(name);
-        await persistKnownUsers();
+      if(isSignup){
+        const name = (document.getElementById('authNameInput').value||'').trim();
+        const role = document.getElementById('authRoleInput').value;
+        const adminCode = (document.getElementById('authAdminCodeInput')?.value)||'';
+        if(!name){ showErr('Ad soyad zorunludur.'); submitBtn.disabled=false; return; }
+        if(role==='admin' && adminCode !== ADMIN_SIGNUP_CODE){ showErr('Yönetici kodu hatalı.'); submitBtn.disabled=false; return; }
+        const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
+        await cred.user.updateProfile({ displayName: name });
+        // Profil/rol bilgisini veritabanına yaz
+        const token = await cred.user.getIdToken();
+        await fetch(`${FIREBASE_URL}/users/${cred.user.uid}.json?auth=${token}`, {
+          method: 'PUT', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name, email, role, createdAt: todayStr() })
+        });
+        state.currentUser = name; state.currentUserUid = cred.user.uid; state.currentUserRole = role;
+      } else {
+        const cred = await fbAuth.signInWithEmailAndPassword(email, pass);
+        const token = await cred.user.getIdToken();
+        const res = await fetch(`${FIREBASE_URL}/users/${cred.user.uid}.json?auth=${token}`);
+        const profile = await res.json();
+        state.currentUser = (profile && profile.name) || cred.user.displayName || email;
+        state.currentUserUid = cred.user.uid;
+        state.currentUserRole = (profile && profile.role) || null;
       }
+      state.loading = true;
+      render();
+      await loadAll();
     }catch(e){
-      console.error('knownUsers kayıt hatası', e);
+      console.error('auth error', e);
+      showErr(friendlyError(e.code));
+      submitBtn.disabled = false;
     }
   };
-  btn.addEventListener('click', doLogin);
-  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') passInput.focus(); });
-  passInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
-  passInput.addEventListener('input', ()=>{ passInput.style.borderColor=''; const errEl=document.getElementById('loginErrorMsg'); if(errEl) errEl.textContent=''; });
-  input.addEventListener('input', ()=>{ input.style.borderColor=''; });
+  submitBtn.addEventListener('click', doSubmit);
+  passInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doSubmit(); });
 }
 
 function renderSidebar(){
@@ -710,8 +759,8 @@ function renderSidebar(){
       <div class="brand-sub">Şirket, Üretim &amp; Kalite Sistemi</div>
     </div>
     <div class="user-pill">
-      <div class="who"><div class="label">Kullanıcı</div><div class="value">${escapeHtml(state.currentUser)}</div></div>
-      <div class="switch-user" data-action="switchUser">değiştir</div>
+      <div class="who"><div class="label">${state.currentUserRole ? roleLabel(state.currentUserRole) : 'Kullanıcı'}</div><div class="value">${escapeHtml(state.currentUser)}</div></div>
+      <div class="switch-user" data-action="switchUser">çıkış</div>
     </div>
     <div class="company-pill">
       <div class="label">Aktif Şirket</div>
@@ -749,14 +798,14 @@ function renderCompaniesView(){
         <div class="page-title">Şirketler</div>
         <div class="page-sub">Her şirketin parça verileri birbirinden tamamen bağımsızdır.</div>
       </div>
-      <button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>
+      ${isAdmin() ? `<button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>` : ''}
     </div>
     ${companies.length===0 ? `
       <div class="empty-state">
         <div class="ico">&#127970;</div>
         <h3>Henüz şirket eklenmedi</h3>
-        <p>Başlamak için ilk şirketinizi ekleyin, ardından parça listesini yükleyin.</p>
-        <button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>
+        <p>${isAdmin() ? 'Başlamak için ilk şirketinizi ekleyin, ardından parça listesini yükleyin.' : 'Henüz şirket eklenmemiş. Bu işlemi yalnızca Kalite Kontrol yetkilisi yapabilir.'}</p>
+        ${isAdmin() ? `<button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>` : ''}
       </div>
     ` : `
       <div class="company-grid">
@@ -765,11 +814,11 @@ function renderCompaniesView(){
           const isSel = c.id === state.selectedCompanyId;
           return `
           <div class="card company-card ${isSel?'selected':''}" data-select-company="${c.id}">
-            ${isSel ? '<div class="badge-selected">Seçili</div>' : `
+            ${isSel ? '<div class="badge-selected">Seçili</div>' : (isAdmin() ? `
             <div class="actions">
               <div class="icon-btn" data-edit-company="${c.id}" title="Düzenle">&#9998;</div>
               <div class="icon-btn danger" data-delete-company="${c.id}" title="Sil">&#128465;</div>
-            </div>`}
+            </div>` : '')}
             <h3>${escapeHtml(c.name)}</h3>
             <div class="meta">Eklendi: ${c.createdAt}</div>
             <div class="stats">
@@ -778,11 +827,11 @@ function renderCompaniesView(){
               <div class="stat">Sevk<b>${fmtNum(t.shipped)}</b></div>
               <div class="stat">Ret<b style="color:var(--red-700);">${fmtNum(t.rejected)}</b></div>
             </div>
-            ${!isSel ? `<div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" data-select-company-btn="${c.id}">Seç ve Çalış</button></div>` : `
+            ${!isSel ? `<div style="margin-top:12px;"><button class="btn btn-ghost btn-sm" data-select-company-btn="${c.id}">Seç ve Çalış</button></div>` : (isAdmin() ? `
             <div style="display:flex;gap:6px;margin-top:12px;">
               <button class="btn btn-ghost btn-sm" data-edit-company="${c.id}">Düzenle</button>
               <button class="btn btn-danger-ghost btn-sm" data-delete-company="${c.id}">Sil</button>
-            </div>`}
+            </div>` : '')}
           </div>`;
         }).join('')}
       </div>
@@ -807,9 +856,11 @@ function renderPartsView(){
         <div class="page-sub">${fmtNum(getParts(company.id).length)} parça kayıtlı · Proses akışı: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;">
+        ${isAdmin() ? `
         <button class="btn btn-ghost" data-action="openStages">Proses Aşamaları</button>
         <button class="btn btn-navy" data-action="openImport">&#128228; Excel / CSV Yükle</button>
         <button class="btn btn-primary" data-action="openAddPart">+ Parça Ekle</button>
+        ` : ''}
       </div>
     </div>
     <div class="toolbar">
@@ -819,11 +870,11 @@ function renderPartsView(){
       <div class="empty-state">
         <div class="ico">&#128230;</div>
         <h3>${getParts(company.id).length===0 ? 'Henüz parça eklenmedi' : 'Sonuç bulunamadı'}</h3>
-        <p>${getParts(company.id).length===0 ? 'Excel/CSV dosyası yükleyerek veya manuel olarak parça ekleyin.' : 'Arama kriterlerinizi değiştirin.'}</p>
-        ${getParts(company.id).length===0 ? `<button class="btn btn-primary" data-action="openImport">Excel / CSV Yükle</button>` : ''}
+        <p>${getParts(company.id).length===0 ? (isAdmin() ? 'Excel/CSV dosyası yükleyerek veya manuel olarak parça ekleyin.' : 'Bu şirkete henüz parça eklenmemiş.') : 'Arama kriterlerinizi değiştirin.'}</p>
+        ${getParts(company.id).length===0 && isAdmin() ? `<button class="btn btn-primary" data-action="openImport">Excel / CSV Yükle</button>` : ''}
       </div>
     ` : `
-      ${state.selectedPartIds.size>0 ? `
+      ${state.selectedPartIds.size>0 && isAdmin() ? `
       <div class="bulk-bar">
         <span class="bulk-count"><b>${state.selectedPartIds.size}</b> parça seçili</span>
         <div class="spacer"></div>
@@ -832,21 +883,21 @@ function renderPartsView(){
       </div>` : ''}
       <table class="data-table">
         <thead><tr>
-          <th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>
+          ${isAdmin() ? `<th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>` : ''}
           <th>Parça No</th><th>Parça Adı</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
         </tr></thead>
         <tbody>
           ${parts.map(p=>{
             const remaining = partRemaining(p, stages);
             const status = partStatus(p, stages);
-            const shipped = Number(p.qtys[stages[stages.length-1]]||0);
+            const shipped = Number((p.qtys||{})[stages[stages.length-1]]||0);
             const reject = partTotalReject(p);
             const pct = p.orderedQty>0 ? Math.min(100, Math.round(shipped/p.orderedQty*100)) : 0;
             const statusLabel = status==='shipped'?'Sevk Edildi':status==='progress'?'Üretimde':'Başlamadı';
             const openNcr = (p.ncrs||[]).filter(n=>n.status==='acik').length;
             return `
             <tr>
-              <td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>
+              ${isAdmin() ? `<td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>` : ''}
               <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${p.drawing?` <span title="Teknik resim eklendi" class="drawing-attach-icon">&#128206;</span>`:''}</td>
               <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
               <td class="mono">${fmtNum(p.orderedQty)}</td>
@@ -859,8 +910,10 @@ function renderPartsView(){
               <td>
                 <div class="row-actions">
                   <div class="icon-btn" data-track-part="${p.id}" title="Üretim Takibi">&#128295;</div>
+                  ${isAdmin() ? `
                   <div class="icon-btn" data-edit-part="${p.id}" title="Düzenle">&#9998;</div>
                   <div class="icon-btn danger" data-delete-part="${p.id}" title="Sil">&#128465;</div>
+                  ` : ''}
                 </div>
               </td>
             </tr>`;
@@ -903,7 +956,7 @@ function renderTrackingView(){
         <datalist id="trackPartList">
           ${parts.map(p=>`<option data-id="${p.id}" value="${escapeHtml(p.partNo)} — ${escapeHtml(p.partName)}"></option>`).join('')}
         </datalist>
-        <button class="btn btn-primary btn-sm" data-action="openAddPart" style="white-space:nowrap;">+ Parça Ekle</button>
+        <button class="btn btn-primary btn-sm" data-action="openAddPart" style="white-space:nowrap;" ${!isAdmin()?'disabled':''}>+ Parça Ekle</button>
       </div>
     </div>
 
@@ -928,35 +981,36 @@ function renderTrackingView(){
               `<img src="${part.drawing.data}" class="drawing-thumb" data-view-drawing="${part.id}"/>` :
               `<div class="drawing-file-icon" data-view-drawing="${part.id}">&#128196;</div>`}
             <div class="drawing-info"><div class="fname">${escapeHtml(part.drawing.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">Görüntülemek için tıklayın</div></div>
-            <button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}">Kaldır</button>
+            ${isAdmin() ? `<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}">Kaldır</button>` : ''}
           </div>
-        ` : `
+        ` : (isAdmin() ? `
           <div class="drop-zone" id="drawingDropZone" style="padding:16px;">
             <div class="dz-text">Teknik resim yüklemek için tıklayın</div>
             <div class="dz-sub">.png, .jpg veya .pdf — en fazla 3 MB</div>
             <input type="file" id="drawingFileInput" accept=".png,.jpg,.jpeg,.pdf" style="display:none;"/>
           </div>
-        `}
+        ` : `<div class="helper-text" style="margin:0;">Henüz teknik resim eklenmedi.</div>`)}
       </div>
 
       <div class="field">
         <label>Malzeme Rengi (opsiyonel)</label>
-        <input type="text" id="partColorTrackInput" placeholder="Örn. RAL 9005 Siyah — boyanmıyorsa boş bırakın" value="${escapeHtml(part.color||'')}"/>
+        <input type="text" id="partColorTrackInput" placeholder="Örn. RAL 9005 Siyah — boyanmıyorsa boş bırakın" value="${escapeHtml(part.color||'')}" ${!isAdmin()?'disabled':''}/>
       </div>
 
       <div class="pipeline" id="pipelineWrap">
         ${stages.map((s,i)=>{
-          const val = Number(part.qtys[s]||0);
-          const rej = Number(part.rejects[s]||0);
+          const val = Number((part.qtys||{})[s]||0);
+          const rej = Number((part.rejects||{})[s]||0);
           const pct = part.orderedQty>0 ? Math.min(100, Math.round(val/part.orderedQty*100)) : 0;
           const isFinal = i === stages.length-1;
+          const editable = canEditStage(s);
           return `
-          <div class="pipeline-stage ${isFinal?'final':''}">
-            <div class="stage-name">${escapeHtml(s)}</div>
-            <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}"/>
+          <div class="pipeline-stage ${isFinal?'final':''} ${!editable?'locked':''}">
+            <div class="stage-name">${escapeHtml(s)}${!editable?' 🔒':''}</div>
+            <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}" ${!editable?'disabled title="Bu aşamayı sadece ilgili istasyon veya yönetici güncelleyebilir"':''}/>
             <div class="reject-row">
               <label>Ret</label>
-              <input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}"/>
+              <input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/>
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
           </div>`;
@@ -965,13 +1019,13 @@ function renderTrackingView(){
 
       <div class="field" style="margin-top:18px;">
         <label>Not</label>
-        <textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…">${escapeHtml(part.note||'')}</textarea>
+        <textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea>
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
         <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>
+          ${isAdmin() ? `<button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>` : ''}
           <button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button>
         </div>
       </div>
@@ -1009,17 +1063,19 @@ function renderMeasurementSection(part){
   const measurements = part.measurements || [];
   const suggested = calcSampleCount(part.orderedQty);
   const hasImageDrawing = part.drawing && part.drawing.type && part.drawing.type.startsWith('image/');
+  const admin = isAdmin();
   return `
     <div class="section-title">Ölçüm Kontrolü</div>
     <div class="helper-text" style="margin-bottom:10px;">Sipariş adedine (${fmtNum(part.orderedQty)}) göre örnekleme tablosuna göre önerilen ölçüm sayısı: <b style="color:var(--navy-800);font-style:normal;">${suggested}</b> ${measurements.length ? `· şu an ${measurements.length} ölçüm noktası tanımlı` : ''}</div>
+    ${admin ? `
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <button class="btn btn-navy btn-sm" data-action="addMeasurement" data-part="${part.id}">+ Ölçüm Noktası Ekle</button>
       ${suggested > measurements.length ? `<button class="btn btn-ghost btn-sm" data-action="addSuggestedMeasurements" data-part="${part.id}" data-count="${suggested}">Önerilen Sayıya Tamamla (+${suggested-measurements.length})</button>` : ''}
-    </div>
+    </div>` : ''}
 
     ${hasImageDrawing ? `
       <div class="card" style="padding:14px;margin-bottom:14px;">
-        <div class="helper-text" style="margin:0 0 8px 0;">${state.markingMeasurementId ? 'Resme tıklayarak ölçüm noktasının yerini işaretleyin.' : 'Bir ölçüm satırındaki "Resimde İşaretle" butonuna basıp resme tıklayarak konumunu belirleyebilirsiniz.'}</div>
+        ${admin ? `<div class="helper-text" style="margin:0 0 8px 0;">${state.markingMeasurementId ? 'Resme tıklayarak ölçüm noktasının yerini işaretleyin.' : 'Bir ölçüm satırındaki "Resimde İşaretle" butonuna basıp resme tıklayarak konumunu belirleyebilirsiniz.'}</div>` : ''}
         <div class="drawing-image-wrap" id="measureImageWrap" style="position:relative;display:inline-block;max-width:100%;cursor:${state.markingMeasurementId?'crosshair':'default'};">
           <img src="${part.drawing.data}" id="measureImageEl" style="max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--gray-300);display:block;"/>
           ${measurements.filter(m=>m.imgX!=null && m.imgY!=null).map(m=>`<div class="meas-marker ${measurementStatus(m)}" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
@@ -1033,7 +1089,7 @@ function renderMeasurementSection(part){
       </div>
     ` : `
       <table class="data-table">
-        <thead><tr><th>No</th>${hasImageDrawing?'<th>Konum</th>':''}<th>Ölçülen Değer</th><th>Nominal Değer</th><th>Tolerans (±)</th><th>Durum</th><th></th></tr></thead>
+        <thead><tr><th>No</th>${hasImageDrawing?'<th>Konum</th>':''}<th>Ölçülen Değer</th><th>Nominal Değer</th><th>Tolerans (±)</th><th>Durum</th>${admin?'<th></th>':''}</tr></thead>
         <tbody>
           ${measurements.map(m=>{
             const status = measurementStatus(m);
@@ -1042,12 +1098,12 @@ function renderMeasurementSection(part){
             return `
             <tr>
               <td class="mono">${m.no}</td>
-              ${hasImageDrawing ? `<td>${m.imgX!=null ? `<span style="color:var(--red-600);font-weight:700;">&#128204; işaretli</span>` : `<button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Resimde İşaretle</button>`}</td>` : ''}
-              <td><input type="number" step="any" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-value="${m.id}" value="${m.measuredValue!=null?m.measuredValue:''}"/></td>
-              <td><input type="number" step="any" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-nominal="${m.id}" value="${m.nominalValue!=null?m.nominalValue:''}"/></td>
-              <td><input type="number" step="any" class="stage-input" style="width:80px;font-size:13px;padding:6px 8px;" data-meas-tol="${m.id}" value="${m.tolerance!=null?m.tolerance:''}"/></td>
+              ${hasImageDrawing ? `<td>${m.imgX!=null ? `<span style="color:var(--red-600);font-weight:700;">&#128204; işaretli</span>` : (admin ? `<button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Resimde İşaretle</button>` : '—')}</td>` : ''}
+              <td><input type="number" step="any" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-value="${m.id}" value="${m.measuredValue!=null?m.measuredValue:''}" ${!admin?'disabled':''}/></td>
+              <td><input type="number" step="any" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-nominal="${m.id}" value="${m.nominalValue!=null?m.nominalValue:''}" ${!admin?'disabled':''}/></td>
+              <td><input type="number" step="any" class="stage-input" style="width:80px;font-size:13px;padding:6px 8px;" data-meas-tol="${m.id}" value="${m.tolerance!=null?m.tolerance:''}" ${!admin?'disabled':''}/></td>
               <td><span class="status-badge ${statusClass}"><span class="status-dot"></span>${statusLabel}</span></td>
-              <td><div class="icon-btn danger" data-remove-measurement="${m.id}" title="Sil">&#128465;</div></td>
+              ${admin ? `<td><div class="icon-btn danger" data-remove-measurement="${m.id}" title="Sil">&#128465;</div></td>` : ''}
             </tr>`;
           }).join('')}
         </tbody>
@@ -1075,7 +1131,7 @@ function renderQualityView(){
   return `
     <div class="page-head">
       <div><div class="page-title">Kalite Kontrol</div><div class="page-sub">Ret adetleri ve uygunsuzluk kayıtları — tüm şirketler</div></div>
-      <button class="btn btn-primary" data-action="openNcrGlobal">+ Uygunsuzluk Kaydı Aç</button>
+      ${isAdmin() ? `<button class="btn btn-primary" data-action="openNcrGlobal">+ Uygunsuzluk Kaydı Aç</button>` : ''}
     </div>
     <div class="kpi-grid">
       <div class="kpi-card accent"><div class="kpi-label">Toplam Ret Adedi</div><div class="kpi-value">${fmtNum(totals.rejected)}</div></div>
@@ -1105,7 +1161,7 @@ function renderQualityView(){
         ${n.correctiveAction ? `<div class="ncr-action"><b>Düzeltici Faaliyet:</b> ${escapeHtml(n.correctiveAction)}</div>` : ''}
         <div class="ncr-foot">
           <span class="helper-text" style="margin:0;">${n.status==='kapali' && n.closedDate ? 'Kapatıldı: '+n.closedDate : ''}</span>
-          ${n.status==='acik' ? `<button class="btn btn-ghost btn-sm" data-close-ncr="${n.partId}|${n.id}" data-company="${n.companyId}">Kapat</button>` : ''}
+          ${n.status==='acik' && isAdmin() ? `<button class="btn btn-ghost btn-sm" data-close-ncr="${n.partId}|${n.id}" data-company="${n.companyId}">Kapat</button>` : ''}
         </div>
       </div>
     `).join('')}
@@ -1123,7 +1179,7 @@ function renderNcrList(ncrs, companyId, partId){
       </div>
       <div class="ncr-desc">${escapeHtml(n.description)}</div>
       ${n.correctiveAction ? `<div class="ncr-action"><b>Düzeltici Faaliyet:</b> ${escapeHtml(n.correctiveAction)}</div>` : ''}
-      ${n.status==='acik' ? `<div class="ncr-foot"><span></span><button class="btn btn-ghost btn-sm" data-close-ncr="${partId}|${n.id}" data-company="${companyId}">Kapat</button></div>` : ''}
+      ${n.status==='acik' && isAdmin() ? `<div class="ncr-foot"><span></span><button class="btn btn-ghost btn-sm" data-close-ncr="${partId}|${n.id}" data-company="${companyId}">Kapat</button></div>` : ''}
     </div>
   `).join('');
 }
@@ -1631,7 +1687,14 @@ function attachHandlers(){
 
 async function handleAction(action, el){
   switch(action){
-    case 'switchUser': state.currentUser = null; render(); break;
+    case 'switchUser': {
+      fbAuth.signOut().catch(()=>{});
+      state.currentUser = null; state.currentUserUid = null; state.currentUserRole = null;
+      state.companies = []; state.partsByCompany = {}; state.selectedCompanyId = null;
+      state.authView = 'login';
+      render();
+      break;
+    }
     case 'openAddCompany': state.modal = {type:'addCompany'}; render(); break;
     case 'closeModal': state.modal=null; state.importPreview=null; render(); break;
     case 'gotoCompanies': state.view='companies'; render(); break;
@@ -1785,7 +1848,9 @@ async function handleAction(action, el){
       let changed = false;
       inputs.forEach(inp=>{
         const stage = inp.getAttribute('data-stage-input');
+        if(!canEditStage(stage)) return; // yetkisiz alan — istemci tarafında da engelle
         const newVal = Math.max(0, Number(inp.value)||0);
+        if(!part.qtys) part.qtys={};
         const oldVal = Number(part.qtys[stage]||0);
         if(newVal !== oldVal){
           part.qtys[stage] = newVal;
@@ -1796,7 +1861,9 @@ async function handleAction(action, el){
       });
       rejectInputs.forEach(inp=>{
         const stage = inp.getAttribute('data-reject-input');
+        if(!canEditStage(stage)) return;
         const newVal = Math.max(0, Number(inp.value)||0);
+        if(!part.rejects) part.rejects={};
         const oldVal = Number(part.rejects[stage]||0);
         if(newVal !== oldVal){
           part.rejects[stage] = newVal;
@@ -1805,27 +1872,31 @@ async function handleAction(action, el){
           changed = true;
         }
       });
-      const noteVal = document.getElementById('partNoteInput').value;
-      if(noteVal !== (part.note||'')){ part.note = noteVal; changed = true; }
-      const colorInput = document.getElementById('partColorTrackInput');
-      if(colorInput){
-        const colorVal = colorInput.value.trim();
-        if(colorVal !== (part.color||'')){ part.color = colorVal; changed = true; }
+      if(isAdmin()){
+        const noteVal = document.getElementById('partNoteInput').value;
+        if(noteVal !== (part.note||'')){ part.note = noteVal; changed = true; }
+        const colorInput = document.getElementById('partColorTrackInput');
+        if(colorInput){
+          const colorVal = colorInput.value.trim();
+          if(colorVal !== (part.color||'')){ part.color = colorVal; changed = true; }
+        }
       }
-      // Ölçüm kontrolü değerlerini topla
+      // Ölçüm kontrolü değerlerini topla (yalnızca yönetici)
       part.measurements = part.measurements || [];
-      document.querySelectorAll('[data-meas-value]').forEach(inp=>{
-        const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-value'));
-        if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.measuredValue){ m.measuredValue=v; changed=true; } }
-      });
-      document.querySelectorAll('[data-meas-nominal]').forEach(inp=>{
-        const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-nominal'));
-        if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.nominalValue){ m.nominalValue=v; changed=true; } }
-      });
-      document.querySelectorAll('[data-meas-tol]').forEach(inp=>{
-        const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-tol'));
-        if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.tolerance){ m.tolerance=v; changed=true; } }
-      });
+      if(isAdmin()){
+        document.querySelectorAll('[data-meas-value]').forEach(inp=>{
+          const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-value'));
+          if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.measuredValue){ m.measuredValue=v; changed=true; } }
+        });
+        document.querySelectorAll('[data-meas-nominal]').forEach(inp=>{
+          const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-nominal'));
+          if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.nominalValue){ m.nominalValue=v; changed=true; } }
+        });
+        document.querySelectorAll('[data-meas-tol]').forEach(inp=>{
+          const m = part.measurements.find(x=>x.id===inp.getAttribute('data-meas-tol'));
+          if(m){ const v = inp.value===''?'':Number(inp.value); if(v!==m.tolerance){ m.tolerance=v; changed=true; } }
+        });
+      }
       if(changed){ part.lastUpdate = now; part.updatedBy = state.currentUser; }
       await persistParts(company.id);
       showToast(changed ? 'Üretim verileri güncellendi.' : 'Değişiklik yok.');
@@ -1968,51 +2039,41 @@ function handleFileImport(file){
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, {type:'array'});
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-      
-      if(!state.activeCompanyId && !currentCompanyId){
-        showToast('Lütfen önce bir şirket seçin!');
-        return;
+      const json = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+      if(!json.length){ showToast('Dosya boş görünüyor.'); return; }
+      const header = json[0].map(h=>String(h||'').toLowerCase().trim());
+      // Parça No: başlıkta "parça no" / "parca no" geçiyorsa, yoksa "no" içeren ama "istenen" olmayan sütun
+      let noIdx = header.findIndex(h=>h.includes('parça no') || h.includes('parca no'));
+      if(noIdx===-1) noIdx = header.findIndex(h=>h.includes('no') && !h.includes('istenen'));
+      // Parça Adı: başlıkta "parça ad"/"parca ad"/"isim"/"ürün ad" gibi ifadeler geçiyorsa o sütun.
+      // Bulunamazsa isim sütunu YOK sayılır — adet sütunu isim alanına yazılmaz, isim boş bırakılır.
+      let nameIdx = header.findIndex(h=> (h.includes('parça ad') || h.includes('parca ad') || h.includes('ürün ad') || h.includes('urun ad') || h.includes('isim') || h.includes('ad ')|| h==='ad' || h==='adı' || h==='adi') && !h.includes('istenen') && !h.includes('adet'));
+      // İstenen Adet: "istenen", "adet", "miktar", "sipariş" içeren sütun.
+      let qtyIdx = header.findIndex(h=>h.includes('istenen') || h.includes('adet') || h.includes('miktar') || h.includes('siparis') || h.includes('sipariş'));
+
+      if(noIdx===-1) noIdx=0;
+      if(qtyIdx===-1){
+        // adet sütunu başlıktan tanınamadıysa, no ve isim dışındaki ilk sayısal sütunu adet kabul et
+        const candidateIdx = [0,1,2].find(i=> i!==noIdx && i!==nameIdx);
+        qtyIdx = candidateIdx!==undefined ? candidateIdx : -1;
       }
-      
-      const compId = currentCompanyId || state.activeCompanyId;
 
-      let importedCount = 0;
-      if(!state.partsByCompany[compId]) state.partsByCompany[compId] = [];
-
-      rows.forEach(row => {
-        const partCode = row['Parça Kodu'] || row['PARÇA KODU'] || row['Code'] || row['code'] || '';
-        const partName = row['Parça Adı'] || row['PARÇA ADI'] || row['Name'] || row['name'] || '';
-        const orderedQty = Number(row['Sipariş Adedi'] || row['SİPARİŞ ADEDİ'] || row['OrderedQty'] || row['qty'] || 0);
-
-        if(partCode || partName){
-          const newPart = {
-            id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            companyId: compId,
-            code: String(partCode),
-            name: String(partName),
-            orderedQty: orderedQty,
-            qtys: {},
-            ncrs: [],
-            rejects: {}
-          };
-          
-          state.partsByCompany[compId].push(newPart);
-          importedCount++;
-        }
-      });
-
-      if(typeof persistParts === 'function'){
-        persistParts(compId);
-      } else if(typeof saveData === 'function'){
-        saveData();
+      const rows = [];
+      for(let i=1;i<json.length;i++){
+        const r = json[i];
+        if(!r || r.every(c=>c==='' || c==null)) continue;
+        const partNo = String(r[noIdx]||'').trim();
+        const partName = nameIdx!==-1 ? String(r[nameIdx]||'').trim() : '';
+        const orderedQty = qtyIdx!==-1 ? (Number(r[qtyIdx])||0) : 0;
+        if(!partNo) continue;
+        rows.push({partNo, partName, orderedQty});
       }
-      
+      if(!rows.length){ showToast('Geçerli satır bulunamadı.'); return; }
+      state.importPreview = {rows, fileName: file.name};
       render();
-      showToast(`${importedCount} adet parça başarıyla aktarıldı.`);
     }catch(err){
       console.error(err);
-      showToast('Dosya okunamadı. Lütfen geçerli bir .xlsx, .xls veya .csv dosyası seçin.');
+      showToast('Dosya okunamadı. Lütfen .xlsx, .xls veya .csv formatında bir dosya seçin.');
     }
   };
   reader.readAsArrayBuffer(file);
@@ -2025,7 +2086,7 @@ function companySheetData(companyId){
   const parts = getParts(companyId);
   return parts.map(p=>{
     const row = {'Parça No': p.partNo, 'Parça Adı': p.partName, 'İstenen Adet': p.orderedQty, 'Malzeme Rengi': p.color || ''};
-    stages.forEach(s=>{ row[s] = Number(p.qtys[s]||0); row[s+' (Ret)'] = Number(p.rejects[s]||0); });
+    stages.forEach(s=>{ row[s] = Number((p.qtys||{})[s]||0); row[s+' (Ret)'] = Number((p.rejects||{})[s]||0); });
     row['Toplam Ret'] = partTotalReject(p);
     row['Kalan Adet'] = partRemaining(p, stages);
     row['Not'] = p.note || '';
@@ -2081,7 +2142,31 @@ function exportAllExcel(){
 }
 
 /* ============================= INIT ============================= */
-loadAll();
+fbAuth.onAuthStateChanged(async (user)=>{
+  state.authChecking = false;
+  if(user){
+    try{
+      const token = await user.getIdToken();
+      const res = await fetch(`${FIREBASE_URL}/users/${user.uid}.json?auth=${token}`);
+      const profile = await res.json();
+      state.currentUser = (profile && profile.name) || user.displayName || user.email;
+      state.currentUserUid = user.uid;
+      state.currentUserRole = (profile && profile.role) || null;
+      render();
+      await loadAll();
+    }catch(e){
+      console.error('Oturum bilgisi okunamadı', e);
+      state.currentUser = null;
+      render();
+    }
+  } else {
+    state.currentUser = null;
+    state.currentUserUid = null;
+    state.currentUserRole = null;
+    render();
+  }
+});
+render();
 </script>
 </body>
 </html>
