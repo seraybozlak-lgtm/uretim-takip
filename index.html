@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Üretim ve Kalite Takip Sistemi</title>
+<link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjogIsOccmV0aW0gdmUgS2FsaXRlIFRha2lwIFNpc3RlbWkiLCAic2hvcnRfbmFtZSI6ICLDnHJldGltIFRha2lwIiwgInN0YXJ0X3VybCI6ICIuLyIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAiYmFja2dyb3VuZF9jb2xvciI6ICIjRjVGNkY4IiwgInRoZW1lX2NvbG9yIjogIiMwRDFGNDIiLCAib3JpZW50YXRpb24iOiAicG9ydHJhaXQtcHJpbWFyeSIsICJpY29ucyI6IFt7InNyYyI6ICJkYXRhOmltYWdlL3BuZztiYXNlNjQsaVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQU1BQUFBREFDQUlBQUFEZHZ2dFFBQUFHTVVsRVFWUjRuTzNkZTB5VmRSekg4WWVMWUFvQ29wRTV3MHRxREcrdFduTTVNbXRERGRKS2JSNUxTOHUwcERiRlMwNjdiTmJTcUhSek9ZM1daVlpXdWpuVHlzc012S2Q0SlZHWUNwdVllVUZGNUhvT2gvN3duN1pZZTU3bkF6d1BQTy9Ybi9BOXovZjN4M3VQaDNNT0dCS2RPTUlBN0FwMStnQm8zUWdJRWdLQ2hJQWdJU0JJQ0FnU0FvS0VnQ0FoSUVnSUNCSUNnb1NBSUNFZ1NBZ0lFZ0tDaElBZ0lTQklDQWdTQW9LRWdDQWhJRWdJQ0JJQ2dvU0FJQ0VnU0FnSUVnS0NoSUFnSVNCSUNBZ1NBb0tFZ0NBaElFZ0lDQklDZ29TQUlDRWdTQWdJRWdLQ2hJQWdJU0JJQ0FnU0FvS0VnQ0FoSUVnSUNCSUNnb1NBSUNFZ1NBZ0lFZ0tDSk56cEE1aTE5OWMxQTVQNk5QcXRtWm5MdmwyLzlkOWZtVFF1ZFZYV3ZFYUhqK1VYcGFUUGJQcnplUlYzSUVnSUNCSUNnb1NBSUNFZ1NBZ0lFZ0tDaElBZ0lTQklRcUlUUnpoOUJyUmkzSUVnSVNCSUNBZ1NBb0tFZ0NBaElFaWMvMERabHlzWFA1czIzT1J3eG9LUHYxNzNpNzFGMDZlTXpYb3Z3K1R3ZHh1MnpaaXo5TDlmWDdrMGMvSnpvK3dkb0dVTUdUNzVYTW1GRmx2SEhRZ1NBb0tFZ0NBaElFZ0lDQklDZ29TQUlDRWdTQWdJRWdLQ3hQbTNNbHFYV2ZPelpzM1BzdkhBb1E4TjJQclRDcFBEK2FmT1BqSnF1bzB0TFk4N0VDUUVCQWtCUVVKQWtCQVFKQVFFQ1FGQlFrQ1FFQkFrQkFRSkFVRkNRSkFRRUNRRUJBa0JRVUpBa0JBUUpBUUVDUUZCUWtDUUVCQWtCQVNKOHdFMU5EUTRmWVJHdVBOVUx1UjhRQUYvd1B4d1dLajlBN2NMdC9CTGNMVjFmdHVMUE1YNWdHcHE2OHdQUjdhUHNMMG9NcUtkK2VIYUdndW44akxuQTZxdXJqVS9ITnNweXZhaTJKaG84OE5WTlRXMkYzbUs4d0Zkdm5yZC9IRENuZkcyRnlWMGpUTS9iT2xVWHVaOFFIOWR1bXArdUZlUGJyWVg5VXE4Mi96d3hiOHRuTXJMbkEvb2ZPa2w4OE1Eay92WTJ4SVNFcEo4WDIvejgrY3ZYTGEzeUd1Y0QraGs0VG56dzEwNngvYS85eDRiV3dZUDZCc2QxY0hrY0REWVVGQlViR09MQnprZjBQVWJGYVVYcjVpZlQwOGRabU9McFVlZExTbTE5TlRleTV3UHlEQ00vUWRQbUI5K3laZG02UlVkd3pEYVIwYThNR0drK2ZsOUIvTXRYZC9MWEJIUTl0eEQ1b2Q3ZEUvSWVHVzhwZXZQZnMxM2w1VWYzM1pZT1kvSHVTT2duSVArZ0lYWG94ZG5UaDMzbE5uLzZuWFN1TlI1R2MrYnYzaDFUZTNPM1hubTV6M09GUUdWWFN2ZnNtMmYrZm13c05EUFAzM3I3Ym5Ub2pyKzMvUGltRTVSU3hhKyt0bEhjME5EUTh4ZmZPT1czSXBiVmViblBjNHRmeVB4aTdXYnhvNU9NVDhmRmhhYSticnZ4WW1qTi8yMlorZXV2SUxDNHJMcjVSVzNxanBGZDR5UGl4bVExUHV4WVErTUdaVVNGMnZoMWVmYnN0ZitiUFVoWHVhV2dITDNIZDN6eC9GaER3KzI5S2d1bldPbit0S20rdEthNmhoYmR4NDRkTFNncWE3bUJhNzRKK3kyeFIrc0NRYWQvQkNGUHhCNGQxbTJnd2RvalZ3VTBPSGpwNWV2WHVmZ0FUNWMvczNKMDd4K2FJMkxBaklNNC8yUHZ6cVE5NmNqcTMvZmZmaVRWZDg3c3JwVmMxZEEva0Jnd3JSRkJZVXRmUnM0bGwva20vRk9mWDJ3aGZlMkFlNEt5RENNRytVVlQwNmMwNUwzb1p5OVI5SW56YTJzckc2eGpXMko2d0l5REtQc1dubTZMek43N2FibS9tQnlNTml3TW52OU0xTVdsTis4MWF5TDJqQTNCbVFZUm0yZGYvYWlGZW0rekZORkpjMjA0a1RCbWRUeGJ5NWNzaW9RcUcrbUZWN2dsdGVCR3JWci83R2hJMTkrZXZTamIweWZjUCtnL2sxMTJZTkhDbGFzL21IenRyMzg2b1hPMVFFWmhoRU1ObXpZbkxOaGMwNVN2NTdqeHp6K1JNcURnNUw3V25wcjRyYjYrdURSL01JZHVYay9idHh4cHJpME9ZN3FUU0hSaVdiZmxYU0p1TmpvSVFQN0pmZnZsZFN2Wi9kdVhSTzZ4bmVKaitsd1Ivdkl5SWgyNFdGMS9rQmRuYit5cXZwSzJZMUxsNjlkdUhqbFZGRkpRV0h4a1JPRk55c3FuVDU3RzlUNkFvS3J1UFJKTkZvTEFvS0VnQ0FoSUVnSUNCSUNnb1NBSUNFZ1NBZ0lFZ0tDaElBZ0lTQklDQWdTQW9LRWdDQWhJRWdJQ0JJQ2dvU0FJQ0VnU0FnSUVnS0NoSUFnSVNCSUNBZ1NBb0tFZ0NBaElFZ0lDQklDZ29TQUlDRWdTQWdJRWdLQ2hJQWdJU0JJQ0FnU0FvS0VnQ0FoSUVnSUNCSUNnb1NBSUNFZ1NNSzNOOVE0ZlFhMFl0eUJJQ0VnU0FnSUVnS0NoSUFnSVNCSUNBZ1NBb0tFZ0NBaElFZ0lDQklDZ29TQUlDRWdTQWdJRWdLQ2hJQWdJU0JJL2dFNEpGYm5sZWgrZWdBQUFBQkpSVTVFcmtKZ2dnPT0iLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyIsICJwdXJwb3NlIjogImFueSBtYXNrYWJsZSJ9LCB7InNyYyI6ICJkYXRhOmltYWdlL3BuZztiYXNlNjQsaVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQWdBQUFBSUFDQUlBQUFCN0drT3RBQUFST1VsRVFWUjRuTzNkZTVUWGRaM0hjY2I1d1FBakY3SENFc0x5VW1oRVhraHRTUTlZdVd1WHJXeVROYmRFYlkzalpiT0wzVGN6Vy9OU3NzZU9aYWFGNnlVdEV3WEwwaEpMVFRRdklCSW8zZ0JSQkxrTURNUEFETE4vMU9uWXlYUk1mdlA1RHEvSDQvLzV2ZC93UGVmN25PLzhmci92dDJIUXFJbDlBTWl6WGVrRkFDaERBQUJDQ1FCQUtBRUFDQ1VBQUtFRUFDQ1VBQUNFRWdDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlKUUFBb1FRQUlKUUFBSVFTQUlCUUFnQVFTZ0FBUWdrQVFDZ0JBQWdsQUFDaEJBQWdsQUFBaEJJQWdGQUNBQkJLQUFCQ0NRQkFLQUVBQ0NVQUFLRUVBQ0NVQUFDRUVnQ0FVQUlBRUVvQUFFSUpBRUFvQVFBSUpRQUFvUVFBSUpRQUFJUVNBSUJRQWdBUVNnQUFRZ2tBUUNnQkFBZ2xBQUNoQkFBZ2xBQUFoQklBZ0ZBQ0FCQktBQUJDQ1FCQUtBRUFDQ1VBQUtFRUFDQ1VBQUNFRWdDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlKUUFBb1FRQUlKUUFBSVFTQUlCUUFnQVFTZ0FBUWdrQVFDZ0JBQWdsQUFDaEJBQWdsQUFBaEJJQWdGQUNBQkJLQUFCQ0NRQkFLQUVBQ0NVQUFLRUVBQ0NVQUFDRUVnQ0FVQUlBRUVvQUFFSUpBRUFvQVFBSUpRQUFvUVFBSUpRQUFJUVNBSUJRQWdBUVNnQUFRZ2tBUUtoYTZRVjR1YTY5OUp1SEhEVHU1YjlPeTdyV0VXUGU5NUorWk1MNGZhNjc3SnlYUDdwUG56Nm5mR25xeFpmUDJDb3ZCWFNUS3dDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUEyRFJrMHN2UU1BQmJnQ0FBZ2xBQUNoQkFBZ2xBQUFoQklBZ0ZBQ0FCQktBQUJDQ1FCQUtBRUFDQ1VBQUtFRUFDQ1VBQUNFRWdDQVVBSUFFRW9BQUVMVlNpK3d6Wm93ZnAvckxqdW55T2o5RHBuODBDT0xpNHp1cG5OUFAvay9QL3F2UFQvMzRVZVg3RHZ4NkgvNHg1K2VmOFBBZ2YyMzNqclUxNWxUTHoxejZyVFNXMVNhS3dDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlWU3U5QVBRYU8rMzU3dElyL0YwUDNuN0Z5SjJIOS96Yzg3Nzc0NitlZFZIUHoyV3JjQVVBRUVvQUFFSUpBRUFvQVFBSUpRQUFvUVFBSUpRQUFJUVNBSUJRQWdBUVNnQUFRZ2tBUUNnQkFBZ2xBQUNoQkFBZ2xBQUFoQklBZ0ZBQ0FCQktBQUJDQ1FCQUtBRUFDQ1VBQUtFRUFDQ1VBQUNFRWdDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlKUUFBb1FRQUlKUUFBSVFTQUlCUUFnQVFTZ0FBUWdrQVFDZ0JBQWdsQUFDaEJBQWdsQUFRcEt1cnEvUUtVQ0VDVUM5YnRoUTcxMnkzWFVPcDBkMVVxelVXbVZ2d29FQUZDVUM5ZEhSMGxocmRyMi9mVXFPN3FXK2hBSFIwRmpzb1VFRUNVQzhGenpXMXZtVk9yOTFYS2xHZDVhb01GU1FBOVZMd0NxQnZyVlpxZERmVitwYlowQlVBUEpjQTFFdDcrNlpTbzV2NlZmMVBRUDBLQmFCdFkzdVJ1VkJOQWxBdjZ6ZTBsUm85ZUZCenFkSGROR1R3OWtYbXRyWVdPeWhRUVFKUUwrdlhGenZYN0RCMGNLblIzYlREMEVGRjVxNFRBSGdPQWFpWDlhMGJTbzBlT3FUTTc5ZmR0OE9RTWdGWXY3N1lRWUVLRW9CNjJkaSthV09odHdHcWZ3VlFLbEZyMXE0dk1oZXFTUURxYU9XcXRVWG12bnI0amtYbWRsTno4NER0bXdjV0diMXkxWm9pYzZHYUJLQ09WcTVjWFdUdWEwZnNWR1J1TisweXN0aDZLNTVkVTJvMFZKQUExTkV6aFFJd2FzVHdJbk83cVdDZlZoUTZJbEJOQWxCSFR6NjFvc2pjMSt6MHlzYkc2aDdaa1RzWDYxT3BJd0xWVk4zVHhEWmd5WlBMaTh5dDFScDMzV1ZFa2RIZDhjYmRSNVVhdmJqUUVZRnFFb0E2ZW1KcHNkUE5tL2ZhcmRUb0Z6VzIwRzZyVnJmNEloZzhsd0RVMFJOTG5pbzF1dFJKOWtWdHQxM0RtOTY0YTVIUmk1YytYV1F1VkpZQTFORkRqeXdwTmZvdFkvWW9OZnFGdldHM1VRTUdOQlVaWGZCd1FEVUpRQjJ0V2J1dTFBZUI5dDkzci81Ti9ZcU1mbUVIdlczdlVxTVhQUHg0cWRGUVRRSlFYd3NlZnFMSTNQNU4vUTRjOTZZaW8xL1lJVy9mcjlUb1VzY0NLa3NBNm12ZUh4OHBOWHBpdVZQdDM5TzNWbnY3QVdOTFRYK2czTEdBYWhLQStycG56c0pTbzk5LzJNRU5EZFY2T1BBN0o3eTF1WGxBa2RHclZyYzhzY1Nid1BCWEJLQys3cDI3b05Ub1VTTjNldHU0TWFXbVA2OGpEMzlYcWRIM3ppMVdZcWdzQWFpdlJ4OWZ0bnJOdWxMVGoveFFzUlB1M3hxMncrQi9QdVRBVXRQdnZ1K1BwVVpEWlFsQWZYVjFkZDF4OTl4UzB6LzgvbmRVNTg2Z1V5Wi9zTlNUSVB2MDZYUDc3RG1sUmtObENVRGQzWHJIL2FWR04vWHIrOG5qSjVXYS9seERCbTgvWmZJSFMwM2YyTDVwOWowUGxwb09sU1VBZGZmYk8rNHJPSDN5Ujk1VGhidERuekpsVXNFbkZjKys1OEgyVFp0TFRZZktFb0M2bTcvd3NhWExuaWsxdlg5VHYvTy8rZWxTMC85azdGNjduZnp4RHhkYzRLWlpkeFdjRHBVbEFEM2g1emZkVVhENmhQSDdIUHVSOTVhYTNyK3Azd1hubmxxck5aWmFvRStmUGpmY2RIdkI2VkJaQXRBVGlwK0F6djdhaVFlWHVBZERRMFBEOTgvN3dwalJaZTcrOWljTEZ5MSs1TEVuQ3k0QWxTVUFQZUYzZDg0cCt6VGF2clhhNVJkK3JZZHZFZHJRMEhEMlYwOTQvMkVIOWVUUXYzWHREYmVXWFFBcVN3QjZRa2RINXpYWDMxSjJoOEdEbW0rOGV1cTdKdXpmTStPYSt2VzkrSCsvZVB6UkgraVpjUy9ncXVrM2xWNEJLa29BZXNpVjE1WS9EVFUzRDdqcUIyZWNldEpSZld2MS9Ueis3cThmK1l1cnovdlEreWJXZFVwMzNIM2ZmSC8vZ2I5SEFIckl2WE1Xemx2d2FPa3QralEyYnZmbFQwK2VOZU9DY1h2dldZL1hIOUMvNmJNbmZ1U09HeS9hN3kyajYvSDZMOVcwSC8rODlBcFFYUUxRYzc0L2JYcnBGZjVzek9oZGYzM3QrZGRkZHM1V2ZHZDQ4S0RtVDAzNTkzbTNYL0dWenh6VDFLL3YxbnJabDJQMW1uVS91ZTQzcGJlQTZpcjIxZnhBVjAyLytmVFBmM3pva0VHbEYvbXpDZVAzbVRCK255ZVdQUDJ6bWJPdXUvRzNjK1k5M05tNTVhVyt5TEFkQmg5eTBMZ1B2dWZnZHh6ODFvcWM5Ly9pUjFmZTBMYXh2ZlFXVUYwQzBIUGEydG92bkRiOWN5Zi9SK2xGL3Nxb2tUdWRNbVhTS1ZNbWJkaXc4WjY1QysrNWY4RmppNWN0WHJwODZiTGxhMXRhMnphMnQ3VnQ3T2pzN04rL2FXRC8vZ01HTk8zMHFoMWZ1L09yUm80WXZ1Y2VyeHUzOTU2N3ZtN24wditDNTllK2FmT0YwNjR0dlFWVW1nRDBxQXN1dWVhRVl3L2Z2bmxnNlVXZXg4Q0IvZDkrd05pQ0Qyelp1aTY5NnVmTG5sNVplZ3VvTk84QjlLalZhOVo5NzBmVFMyK3g3ZHUwdWVPOEM2NHN2UVZVblFEMHRLbmYrM0haTDRVbCtPNGwxeXg5YWtYcExhRHFCS0NudGF4ci9aOXZUeXU5eGJaczVhbzE1M3puOHRKYlFDOGdBQVg4OE1xWkhsQmVQMTg3KytLV2RhMmx0NEJlUUFBSzZPemNjc0twNS80RG43bmtSZjN1emptWFh2V0wwbHRBN3lBQVpkei93RVBuWC9TVDBsdHNhOW8ydHAvMCtXOTFkWFdWWGdSNkJ3RW81aHZmL3VIYytZdEtiN0ZOK2NMcEZ6ejZ1RHYvUUhjSlFESHRtellmZmNMWFcxdmJTaSt5amZqWnpGbVhYREd6OUJiUW13aEFTWXNlVzNyaTU4NHR2Y1cyWU9HaXhTZDkvbHVsdDRCZVJnQUt1MmJtckRPblhscDZpOTd0MlZWci8rMllMNjVidjZIMEl0RExDRUI1WjA2ZGR2WDBYNWZlb3JkcTI5aCs1UEgvL2ZqaXAwb3ZBcjJQQUZUQ0p6NXoxc3hmZVhENVM3WnBjOGRSbnpqdDkzZlBLNzBJOUVvQ1VBa2RIWjFIbjNENlRiUHVLcjFJYjdLNW8yUHlpVi8zbndiL01BR29pazJiT3lZZDk1VnJaczRxdlVqdjBOYldmc1N4WDU3eHk5dEtMd0s5bUFCVXlPYU9qbU5QUHVQQ0g3bUwvWXQ0ZHRYYTl4ejVtWnR2dmJ2MEl0QzdDVUMxYk5uUzlkblR2dk5mWHp4djArYU8wcnRVMU56NWl3NTY3NVM3NzV0ZmVoSG85UVNnaW41NHhjeDNUL3FVR3hyL3JTdXYrZFU3RHo5NXlaUExTeThDMndJQnFLalo5eng0NEtISGVVdmdMOWEyckQvbXBET08vL1JaYlcwZTh3dGJod0JVMTlxVzlaTlAvUG94SjUzeHpNclZwWGNwN0JjMy8vN0FRNC83Nll4YlNpOEMyeFFCcUxxZnpyaGwzNGxIWDN6NWpDMWJFbTl5dWZTcEZVZDk0clFqanZ1eVA0akJWaWNBdmNEYWx2V25mR25xUHgzMjhhalB2TGVzYXozdHJCL3NPK0ZqMTkvNHU5Szd3TGFwVm5vQnV1dkJCWThkZnZRWHh1OC85ck1uSFRWaC9ENmwxNm1qdFMzckwvcS82OCsvNk9yVmE5YVYzZ1cyWlFMUXk5dzJlODV0cytmcy9lWTNmUEw0STk1NzZQaGFyYkgwUmx2VDBtWFBmUC9TNlJkZk5zT2QzYUFIQ0VDdmROL2NoUjg3NGZUaHJ4ejJzVW1IZmZTSWYzbnRpSjFLYi9TeWRIWnV1Zm5XdXk2NVl1WXZmM05uNWxzZFVJUUE5R0xMVjZ3Nisvekx6dm5PNWZ2dnU5ZUgzamZ4QSs4KytKVTdEaTI5MUV2UTFkVjExNzN6ZjNMOWI2NmRPV3ZGczJ0S3J3TnhCS0RYNitycXV2TVA4Kzc4dzd4VFR6dC92N2VNUG5UaUFZZE8zSC9NNkYwYkdocEtyL2I4V3RhMXpycjkzaHQvZmVldmJwbnRFNjVRVU1PZ1VSTkw3OERXTjJ5SHdXOGJOMmI4QVdQMzMzZXZ2ZDc0K3Y1Ti9jcnVzK3pwbGZmT1hYakhYWE52bXozM2dmbUxPanUzbE4wSDZDTUFDV3ExeHRHNzd6TDJUYnVQM21PWFBYWWQrWWJkUm8zY2VYaGpZeDAvQWR5eXJ2WGhSNWM4dEdqeHdrV0w1eTE0OVA0SEh2S2JQbFNRQUNUcVc2dTk1dFd2R1BtYTRTTjJmdFdyaCsvNGltRkRYekZzeUk3RGhnd2RNcWg1NElEdG13YzBOL2R2NnRldlZtdXMxUnByalkwTkRRMmRuVnM2T2pzN096bzNiZDY4b2EyOWRVTmJhMnRieS9vTnExYTNyRnkxNXRsVmExZXNYUDNrVXl1WFBMbDh5YkxsUHI0SnZZSUFBSVR5VFdDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlKUUFBb1FRQUlKUUFBSVFTQUlCUUFnQVFTZ0FBUWdrQVFDZ0JBQWdsQUFDaEJBQWdsQUFBaEJJQWdGQUNBQkJLQUFCQ0NRQkFLQUVBQ0NVQUFLRUVBQ0NVQUFDRUVnQ0FVQUlBRUVvQUFFSUpBRUFvQVFBSUpRQUFvUVFBSUpRQUFJUVNBSUJRQWdBUVNnQUFRZ2tBUUNnQkFBZ2xBQUNoQkFBZ2xBQUFoQklBZ0ZBQ0FCQktBQUJDQ1FCQUtBRUFDQ1VBQUtFRUFDQ1VBQUNFRWdDQVVBSUFFRW9BQUVJSkFFQW9BUUFJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlKUUFBb1FRQUlKUUFBSVFTQUlCUUFnQVFTZ0FBUWdrQVFDZ0JBQWdsQUFDaEJBQWdsQUFBaEJJQWdGQUNBQkJLQUFCQ0NRQkFLQUVBQ0NVQUFLRnFOM1Z0TEwwREFBVzRBZ0FJSlFBQW9RUUFJSlFBQUlRU0FJQlFBZ0FRU2dBQVFna0FRQ2dCQUFnbEFBQ2hCQUFnbEFBQWhCSUFnRkFDQUJCS0FBQkNDUUJBS0FFQUNDVUFBS0VFQUNDVUFBQ0VFZ0NBVUFJQUVFb0FBRUlKQUVBb0FRQUlKUUFBb1FRQUlKUUFBSVFTQUlCUUFnQVFTZ0FBUWdrQVFDZ0JBQWdsQUFDaEJBQWdsQUFBaEJJQWdGQUNBQkJLQUFCQ0NRQkFLQUVBQ0NVQUFLRUVBQ0NVQUFDRUVnQ0FVQUlBRUVvQUFFSUpBRUFvQVFBSUpRQUFvZjRmRHFGS2NZb0QreGNBQUFBQVNVVk9SSzVDWUlJPSIsICJzaXplcyI6ICI1MTJ4NTEyIiwgInR5cGUiOiAiaW1hZ2UvcG5nIiwgInB1cnBvc2UiOiAiYW55IG1hc2thYmxlIn1dfQ==">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAFxUlEQVR4nO3de2iVdRzH8edsZ81d3HBqaoIbM0XKFAsEy8tQM1fDTLxQXsiSWv1hopJ4ocRQGJlFJiJdVAon5SQtqSY58YKpKambS7wXOre5s8vZ3XPpD/+J3Md+52Ge5+yc9+vP7fv8fr+x9x62c7YzV/fM8RbQkTinD4DIRRyQiAMScUAiDkjEAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJLfTB7if9LTUv8/u6fBdH2/e+X7B5/9+y2cFS+fNyu1wOC1rQucfLgZw54BEHJCIAxJxQCIOSMQBiTggEQckF/+RGgp3DkjEAYk4IBEHJOKA5NhT9v379S4/ttNk0u8P9Bj4rI0temakXz2923A449FJPp//P2/84pMVM6dG3NP9R46feX7W4jBsxJ0DEnFAIg5IxAGJOCARByTigEQckIgDEnFAiui/eHPcgkXrFixaF+pVi996efWyBSaTO4qK85cUhH6uMOHOAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJOKARByQiAMScUAiDkjEAYk4IBEHJOKA5FgcwWDQcNLlctnbwmWFcGEgELC3SxRzLI72dp/hZFyc66EEO78ln5zczXDS5/MHAqaxxg7H4mhtazcfTklJsrFFinEcbaEcJnY4FkdLa6v5F2tqSrKNLcyvamxusbF+1HMsDr8/cNtTZzicnfmIjS2ys0yvulXlsbF+1HPyp5WKyhrDycEDB9hY3/yqW5W3bawf9ZyM48q1G4aTI4YNtrH+iCdMr7p6/aaN9aOek3GU/XnFcDJ3wqj4+NCO2j01eezTIwyHz5WbniSmOBnHmbJLhpM9M9InjhsZ0uLT8nLMfwA+W3YxpMVjhJNxHD1+9o7P9NGOD5a/4XbHGw6npCStXPyq4bCntuFc+WXD4ZjiZByNTc0nTp83HB4yKHP9moUmj5YmuN1bPlrW9+GehisfOHKKR8A65PBzK0V7S8yHX3slb+vGVf363O+znp3V/7uta6dMHvOAzhBTHH7xlm/3/Lp2VX5St0TD+Wl5ObkTRhX9WHLg0O9/lF6sqa33Njanp6X2ykh/aviQiTkjX8wdk+AO4YOqrPb8UvKbrbNHP4fjaPA2bS/clz9/mvklSUmJc2ZMnjNjcqccYNOXu+59PXzc5fxT9us37WhubnVk68pqz5bt3zuydZfgfBxVt2vXrP/Kka2XvrexpaXNka27BOfjsCxr89bdB4+eDvOmhUXFe346FOZNu5aIiCMYDM57e82FS3+FbcdjJ0sXLt8Qtu26qIiIw7Ksunrv1Lnvnr9wNQx7HTtZOvP1lW3td8KwV5cWKXFYlnWjonrS9HeKS44/0F0Ki4qnzF5a39D4QHeJDhEUh2VZDd6m6fNXLFy+oa7e2+mL36qqmZO/+s0lBdwzDEVWHHdtK9w3dPTsgk+/9tQ2dMqCFZU1q9ZtGT527t6fD3fKgjEiQl/eusHbtHbDtg83fpP33OiXXhiX88yT6WmpoS5SXVNXcvjUrh8O7D94wu/nl8tD5uqeOd7pM/y/+Pi4YY8PGvbYwKFDsrMG9Ovbp1ef3j1SkpMSEx9KcMe33/G1tbV7G5urqj0VlTVXrt8sLb98puzi+QvXzP8AAvfqGnHAEZH4PQciBHFAIg5IxAGJOCARByTigEQckIgDEnFAIg5IxAGJOCARByTigEQckIgDEnFAIg5IxAGJOCARByTigEQckIgDEnFAIg5IxAGJOCARByTigEQckIgDEnFAIg5IxAGJOCARByTigEQckIgDknt/0Jn/r4bIx50DEnFAIg5IxAGJOCARByTigEQckIgDEnFAIg5IxAGJOCARByTigEQckIgD0j/7vEhZ95BrVgAAAABJRU5ErkJggg==">
+<meta name="theme-color" content="#0D1F42">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Üretim Takip">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
@@ -335,6 +341,21 @@
 
   .storage-warning{background:var(--red-100);color:var(--red-800);border:1px solid var(--red-500);padding:10px 16px;border-radius:9px;font-size:12.5px;font-weight:600;margin-bottom:16px;}
 
+  .alert-panel{background:linear-gradient(135deg,var(--navy-900),var(--navy-800));border-radius:12px;padding:18px 20px;margin-bottom:22px;}
+  .alert-panel-title{color:#fff;font-family:var(--font-display);font-size:18px;font-weight:700;margin-bottom:12px;}
+  .alert-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
+  .alert-box{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 14px;}
+  .alert-box-title{color:var(--red-500);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;}
+  .alert-row{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.08);flex-wrap:wrap;}
+  .alert-row:last-child{border-bottom:none;}
+  .alert-row:hover{opacity:0.8;}
+  .alert-row-mid{flex:1;color:#E7ECF6;font-size:12px;}
+  .alert-row-days{color:var(--red-500);font-weight:700;font-size:12px;white-space:nowrap;}
+
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:10px;}
+  .chart-card{padding:16px;}
+  .chart-card-title{font-size:12.5px;font-weight:700;color:var(--gray-700);margin-bottom:10px;}
+
   .drawing-box{border:1.5px dashed var(--gray-300);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;background:var(--gray-50);}
   .drawing-thumb{width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--gray-300);background:var(--white);cursor:pointer;}
   .drawing-file-icon{width:64px;height:64px;border-radius:7px;border:1px solid var(--gray-300);background:var(--white);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;}
@@ -477,7 +498,8 @@ const ROLE_LIST = [...DEFAULT_STAGES]; // istasyon rolleri; ayrıca 'admin' öze
 let state = {
   currentUser: null,        // görünen ad (kayıtlarda "kim güncelledi")
   currentUserUid: null,
-  currentUserRole: null,    // 'admin' veya bir aşama adı (örn. 'Büküm')
+  currentUserRole: null,    // 'admin' veya bir aşama adı (örn. 'Büküm') veya 'client'
+  clientCompanyId: null,    // 'client' rolündeki kullanıcının bağlı olduğu tek şirket
   authView: 'login',        // login | signup
   companies: [],
   partsByCompany: {},
@@ -493,13 +515,28 @@ let state = {
   importPreview: null,
   knownUsers: [],
   storageUnavailable: false,
+  isOffline: (typeof navigator !== 'undefined' && 'onLine' in navigator) ? !navigator.onLine : false,
   lastSaveFailed: false,
   selectedPartIds: new Set(),
   markingMeasurementId: null,
   bulkDrawingPreview: null,
 };
 function isAdmin(){ return state.currentUserRole === 'admin'; }
-function canEditStage(stage){ return isAdmin() || state.currentUserRole === stage; }
+function isClient(){ return state.currentUserRole === 'client'; }
+function canEditStage(stage){ if(isClient()) return false; return isAdmin() || state.currentUserRole === stage; }
+function visibleCompanies(){
+  if(isClient()){
+    const c = getCompany(state.clientCompanyId);
+    return c ? [c] : [];
+  }
+  return state.companies;
+}
+function genClientCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0;i<7;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
 
 function setState(patch){ Object.assign(state, patch); render(); }
 function showToast(msg){
@@ -517,7 +554,7 @@ async function loadAll(){
     const companiesRaw = await storageGet('companies');
     const companies = asArray(companiesRaw);
     state.companies = companies;
-    companies.forEach(c => { if(c && (!c.stages || !c.stages.length)) c.stages = DEFAULT_STAGES.slice(); });
+    companies.forEach(c => { if(c && (!c.stages || !c.stages.length)) c.stages = DEFAULT_STAGES.slice(); if(c && !c.clientCode) c.clientCode = genClientCode(); });
     const partsMap = {};
     for(const c of companies){
       if(!c || !c.id) continue;
@@ -529,7 +566,12 @@ async function loadAll(){
     state.partsByCompany = partsMap;
     const knownUsersRaw = await storageGet('known-users');
     state.knownUsers = asArray(knownUsersRaw).filter(u=>typeof u==='string');
-    if(companies.length && !state.selectedCompanyId) state.selectedCompanyId = companies[0].id;
+    if(isClient()){
+      state.selectedCompanyId = state.clientCompanyId;
+      if(state.view==='companies') state.view = 'parts';
+    } else if(companies.length && !state.selectedCompanyId){
+      state.selectedCompanyId = companies[0].id;
+    }
   }catch(e){
     console.error('loadAll fatal error', e);
     state.storageUnavailable = true;
@@ -591,8 +633,9 @@ function companyTotals(companyId){
   return { partCount: parts.length, ordered, shipped, completed, rejected, openNcr, closedNcr, inProgress: Math.max(0, ordered - shipped) };
 }
 function allTotals(){
-  let totals = {companyCount: state.companies.length, partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0};
-  state.companies.forEach(c=>{
+  const vc = visibleCompanies();
+  let totals = {companyCount: vc.length, partCount:0, ordered:0, shipped:0, completed:0, inProgress:0, rejected:0, openNcr:0, closedNcr:0};
+  vc.forEach(c=>{
     const t = companyTotals(c.id);
     totals.partCount += t.partCount; totals.ordered += t.ordered; totals.shipped += t.shipped;
     totals.completed += t.completed; totals.inProgress += t.inProgress; totals.rejected += t.rejected;
@@ -602,7 +645,7 @@ function allTotals(){
 }
 function allOpenNcrCount(){
   let n=0;
-  state.companies.forEach(c=> getParts(c.id).forEach(p=> (p.ncrs||[]).forEach(x=> { if(x.status==='acik') n++; })));
+  visibleCompanies().forEach(c=> getParts(c.id).forEach(p=> (p.ncrs||[]).forEach(x=> { if(x.status==='acik') n++; })));
   return n;
 }
 
@@ -619,6 +662,7 @@ function render(){
   app.innerHTML = `
     ${renderSidebar()}
     <div class="main">
+      ${state.isOffline ? `<div class="storage-warning">&#128246; Çevrimdışısınız — bu ekranda gördükleriniz son bilinen veriler. İnternet gelene kadar değişiklik kaydedilemez.</div>` : ''}
       ${state.storageUnavailable ? `<div class="storage-warning">&#9888; Firebase veritabanına bağlanılamadı — internet bağlantınızı kontrol edin veya veritabanı kurallarının (Rules) açık olduğundan emin olun.</div>` : ''}
       ${state.lastSaveFailed ? `<div class="storage-warning">&#9888; Son değişiklik kaydedilemedi. Lütfen tekrar deneyin veya sayfayı yenileyip son işlemi tekrar yapın.</div>` : ''}
       ${renderView()}
@@ -632,6 +676,7 @@ function render(){
 /* ============================= LOGIN / SIGNUP (Firebase Authentication) ============================= */
 function roleLabel(role){
   if(role==='admin') return 'Kalite Kontrol (Yönetici)';
+  if(role==='client') return 'Müşteri (Salt Okunur)';
   return role;
 }
 function renderAuthScreen(){
@@ -651,11 +696,16 @@ function renderAuthScreen(){
           <select id="authRoleInput">
             ${DEFAULT_STAGES.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
             <option value="admin">Kalite Kontrol (Yönetici)</option>
+            <option value="client">Müşteri (Salt Okunur)</option>
           </select>
         </div>
         <div class="field" id="adminCodeField" style="display:none;">
           <label>Yönetici Kodu</label>
           <input type="password" id="authAdminCodeInput" placeholder="Yönetici kaydı için gerekli kod" autocomplete="off"/>
+        </div>
+        <div class="field" id="clientCodeField" style="display:none;">
+          <label>Müşteri Takip Kodu</label>
+          <input type="text" id="authClientCodeInput" placeholder="Şirketinizden aldığınız kod" autocomplete="off"/>
         </div>
         <div id="authErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin:-4px 0 14px 0;min-height:16px;"></div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;" id="authSubmitBtn">Hesap Oluştur ve Gir</button>
@@ -685,9 +735,11 @@ function attachAuthHandlers(){
 
   const roleInput = document.getElementById('authRoleInput');
   const adminCodeField = document.getElementById('adminCodeField');
-  if(roleInput && adminCodeField){
+  const clientCodeField = document.getElementById('clientCodeField');
+  if(roleInput){
     roleInput.addEventListener('change', ()=>{
-      adminCodeField.style.display = roleInput.value === 'admin' ? 'block' : 'none';
+      if(adminCodeField) adminCodeField.style.display = roleInput.value === 'admin' ? 'block' : 'none';
+      if(clientCodeField) clientCodeField.style.display = roleInput.value === 'client' ? 'block' : 'none';
     });
   }
 
@@ -713,17 +765,38 @@ function attachAuthHandlers(){
         const name = (document.getElementById('authNameInput').value||'').trim();
         const role = document.getElementById('authRoleInput').value;
         const adminCode = (document.getElementById('authAdminCodeInput')?.value)||'';
+        const clientCode = (document.getElementById('authClientCodeInput')?.value||'').trim().toUpperCase();
         if(!name){ showErr('Ad soyad zorunludur.'); submitBtn.disabled=false; return; }
         if(role==='admin' && adminCode !== ADMIN_SIGNUP_CODE){ showErr('Yönetici kodu hatalı.'); submitBtn.disabled=false; return; }
+        if(role==='client' && !clientCode){ showErr('Müşteri kodu zorunludur.'); submitBtn.disabled=false; return; }
         const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
         await cred.user.updateProfile({ displayName: name });
-        // Profil/rol bilgisini veritabanına yaz
         const token = await cred.user.getIdToken();
+
+        let matchedCompanyId = null;
+        if(role==='client'){
+          const compRes = await fetch(`${FIREBASE_URL}/companies.json?auth=${token}`);
+          const compData = await compRes.json();
+          const compList = asArray(compData);
+          const match = compList.find(c=> c && (c.clientCode||'').toUpperCase() === clientCode);
+          if(!match){
+            await cred.user.delete().catch(()=>{});
+            showErr('Müşteri kodu geçersiz. Şirketinizden aldığınız kodu kontrol edin.');
+            submitBtn.disabled = false;
+            return;
+          }
+          matchedCompanyId = match.id;
+        }
+
+        // Profil/rol bilgisini veritabanına yaz
+        const profileData = { name, email, role, createdAt: todayStr() };
+        if(matchedCompanyId) profileData.companyId = matchedCompanyId;
         await fetch(`${FIREBASE_URL}/users/${cred.user.uid}.json?auth=${token}`, {
           method: 'PUT', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ name, email, role, createdAt: todayStr() })
+          body: JSON.stringify(profileData)
         });
         state.currentUser = name; state.currentUserUid = cred.user.uid; state.currentUserRole = role;
+        state.clientCompanyId = matchedCompanyId;
       } else {
         const cred = await fbAuth.signInWithEmailAndPassword(email, pass);
         const token = await cred.user.getIdToken();
@@ -732,6 +805,7 @@ function attachAuthHandlers(){
         state.currentUser = (profile && profile.name) || cred.user.displayName || email;
         state.currentUserUid = cred.user.uid;
         state.currentUserRole = (profile && profile.role) || null;
+        state.clientCompanyId = (profile && profile.companyId) || null;
       }
       state.loading = true;
       render();
@@ -754,7 +828,7 @@ function renderSidebar(){
     {id:'quality', icon:'&#9878;', label:'Kalite Kontrol', badge: allOpenNcrCount()},
     {id:'dashboard', icon:'&#128202;', label:'Dashboard'},
     {id:'reports', icon:'&#128196;', label:'Raporlar'},
-  ];
+  ].filter(it => !(isClient() && it.id==='companies'));
   const sel = getCompany(state.selectedCompanyId);
   return `
   <div class="sidebar">
@@ -767,7 +841,7 @@ function renderSidebar(){
       <div class="switch-user" data-action="switchUser">çıkış</div>
     </div>
     <div class="company-pill">
-      <div class="label">Aktif Şirket</div>
+      <div class="label">${isClient() ? 'Şirketiniz' : 'Aktif Şirket'}</div>
       <div class="value">${sel ? escapeHtml(sel.name) : 'Seçilmedi'}</div>
     </div>
     <div class="nav">
@@ -889,7 +963,7 @@ function renderPartsView(){
       <table class="data-table">
         <thead><tr>
           ${isAdmin() ? `<th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>` : ''}
-          <th>Parça No</th><th>Parça Adı</th><th>Mevcut Aşama</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
+          <th>Parça No</th><th>Parça Adı</th><th>Mevcut Aşama</th><th>Termin</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
         </tr></thead>
         <tbody>
           ${parts.map(p=>{
@@ -910,6 +984,7 @@ function renderPartsView(){
               <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${p.drawing?` <span title="Teknik resim eklendi" class="drawing-attach-icon">&#128206;</span>`:''}</td>
               <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
               <td>${curStage ? `<b style="color:var(--navy-800);">${escapeHtml(curStage)}</b>${curDays!=null?`<div class="helper-text" style="margin:0;">${curDays} gündür</div>`:''}` : '<span style="color:var(--gray-500);">—</span>'}</td>
+              <td>${p.dueDate ? `<span style="font-size:12px;font-weight:700;color:${dueDateStatus(p.dueDate)==='overdue'?'var(--red-700)':dueDateStatus(p.dueDate)==='soon'?'var(--red-600)':'var(--gray-700)'};">${fmtDueDate(p.dueDate)}</span>` : '<span style="color:var(--gray-500);">—</span>'}</td>
               <td class="mono">${fmtNum(p.orderedQty)}</td>
               <td class="mono">${fmtNum(shipped)}</td>
               <td class="mono" style="color:${reject>0?'var(--red-700)':'var(--gray-500)'};font-weight:700;">${fmtNum(reject)}</td>
@@ -987,10 +1062,11 @@ function renderTrackingView(){
           <div><div class="helper-text" style="margin:0;">Kalan</div><div class="mono" style="font-size:18px;font-weight:700;color:${remaining>0?'var(--red-700)':'var(--gray-500)'};">${fmtNum(remaining)}</div></div>
         </div>
       </div>
-      <div style="margin-bottom:16px;">
+      <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         ${isShippedFully ? `<span class="status-badge shipped"><span class="status-dot"></span>Sevk Edildi</span>`
           : currentStageName ? `<span class="status-badge progress"><span class="status-dot"></span>Şu an: ${escapeHtml(currentStageName)}${daysInStage!=null ? ` · ${daysInStage} gündür bu aşamada` : ''}</span>`
           : `<span class="status-badge notstarted"><span class="status-dot"></span>Henüz üretime başlanmadı</span>`}
+        ${part.dueDate ? `<span class="status-badge ${dueDateStatus(part.dueDate)==='overdue'?'progress':dueDateStatus(part.dueDate)==='soon'?'progress':'notstarted'}"><span class="status-dot"></span>Termin: ${fmtDueDate(part.dueDate)}</span>` : ''}
       </div>
 
       <div class="field">
@@ -1145,6 +1221,111 @@ function getCurrentStageIndex(part, stages){
   return idx;
 }
 
+/* ============================= TERMİN TARİHİ ============================= */
+const STUCK_DAYS_THRESHOLD = 3; // bu süreden fazla aynı aşamada kalan parça "takıldı" sayılır
+function daysUntilDue(dueDateStr){
+  if(!dueDateStr) return null;
+  const due = new Date(dueDateStr + 'T00:00:00');
+  if(isNaN(due.getTime())) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((due - today) / (1000*60*60*24));
+}
+function dueDateStatus(dueDateStr){
+  const d = daysUntilDue(dueDateStr);
+  if(d===null) return null;
+  if(d < 0) return 'overdue';
+  if(d <= 3) return 'soon';
+  return 'ok';
+}
+function fmtDueDate(dueDateStr){
+  const d = daysUntilDue(dueDateStr);
+  if(d===null) return '';
+  if(d < 0) return `${Math.abs(d)} gün gecikti`;
+  if(d === 0) return 'Bugün';
+  return `${d} gün kaldı`;
+}
+
+/* ============================= UYARI / ANALİZ TOPLAMA ============================= */
+function collectStuckParts(){
+  const out = [];
+  visibleCompanies().forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      const stages = c.stages;
+      const status = partStatus(p, stages);
+      if(status==='shipped') return;
+      const idx = getCurrentStageIndex(p, stages);
+      if(idx<0) return;
+      const stage = stages[idx];
+      const entry = getStageLastEntry(p, stage);
+      const days = entry ? daysSince(entry.date) : null;
+      if(days!=null && days >= STUCK_DAYS_THRESHOLD){
+        out.push({company:c, part:p, stage, days});
+      }
+    });
+  });
+  return out.sort((a,b)=> b.days - a.days);
+}
+function collectDueSoonParts(){
+  const out = [];
+  visibleCompanies().forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      if(!p.dueDate) return;
+      const status = partStatus(p, c.stages);
+      if(status==='shipped') return;
+      const d = daysUntilDue(p.dueDate);
+      if(d!=null && d<=3){
+        out.push({company:c, part:p, days:d});
+      }
+    });
+  });
+  return out.sort((a,b)=> a.days - b.days);
+}
+function collectUserActivity(){
+  const map = {};
+  visibleCompanies().forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      (p.history||[]).forEach(h=>{
+        const user = h.user || 'Bilinmiyor';
+        if(!map[user]) map[user] = {count:0, qty:0, lastDate:''};
+        map[user].count++;
+        if(!h.reject) map[user].qty += Number(h.qty)||0;
+        if(!map[user].lastDate || h.date > map[user].lastDate) map[user].lastDate = h.date;
+      });
+    });
+  });
+  return Object.entries(map).map(([user,v])=>({user, ...v})).sort((a,b)=> b.count - a.count);
+}
+function collectRejectTrend(days){
+  // Son N gün için toplam ret adedi (history'deki reject:true kayıtlarından, günlük toplam)
+  const byDate = {};
+  visibleCompanies().forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      (p.history||[]).forEach(h=>{
+        if(!h.reject) return;
+        const dateOnly = String(h.date).split(' ')[0];
+        byDate[dateOnly] = (byDate[dateOnly]||0) + (Number(h.qty)||0);
+      });
+    });
+  });
+  const dates = Object.keys(byDate).sort((a,b)=>{
+    const da = parseTRDate(a), db = parseTRDate(b);
+    return (da||0) - (db||0);
+  });
+  return dates.slice(-days).map(d=>({date:d, value: byDate[d]}));
+}
+function collectRejectByStage(){
+  const totals = {};
+  visibleCompanies().forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      c.stages.forEach(s=>{
+        totals[s] = (totals[s]||0) + Number((p.rejects||{})[s]||0);
+      });
+    });
+  });
+  return Object.entries(totals).map(([stage,value])=>({stage,value})).sort((a,b)=>b.value-a.value);
+}
+
 function measurementStatus(m){
   const measured = m.measuredValue!==''&&m.measuredValue!=null ? Number(m.measuredValue) : null;
   const nominal = m.nominalValue!==''&&m.nominalValue!=null ? Number(m.nominalValue) : null;
@@ -1208,7 +1389,7 @@ function renderMeasurementSection(part){
 /* ============================= QUALITY VIEW ============================= */
 function collectAllNcrs(){
   const all = [];
-  state.companies.forEach(c=>{
+  visibleCompanies().forEach(c=>{
     getParts(c.id).forEach(p=>{
       (p.ncrs||[]).forEach(n=> all.push({...n, companyId:c.id, companyName:c.name, partId:p.id, partNo:p.partNo, partName:p.partName}));
     });
@@ -1280,11 +1461,48 @@ function renderNcrList(ncrs, companyId, partId){
 /* ============================= DASHBOARD VIEW ============================= */
 function renderDashboardView(){
   const totals = allTotals();
-  const companies = state.companies;
+  const companies = visibleCompanies();
+  const stuck = collectStuckParts();
+  const dueSoon = collectDueSoonParts();
+  const userActivity = collectUserActivity();
+  const rejectTrend = collectRejectTrend(14);
+  const rejectByStage = collectRejectByStage();
+
   return `
     <div class="page-head">
       <div><div class="page-title">Dashboard</div><div class="page-sub">Tüm şirketler genelinde özet üretim ve kalite durumu</div></div>
+      ${(!('Notification' in window) || Notification.permission==='default') && 'Notification' in window ? `<button class="btn btn-ghost btn-sm" data-action="enableNotifications">&#128276; Bildirimleri Aç</button>` : ''}
     </div>
+
+    ${(stuck.length>0 || dueSoon.length>0) ? `
+    <div class="alert-panel">
+      <div class="alert-panel-title">&#9888; Dikkat Gerektiren Parçalar</div>
+      <div class="alert-grid">
+        ${stuck.length>0 ? `
+        <div class="alert-box">
+          <div class="alert-box-title">Aşamada Takılı Kalanlar (${stuck.length})</div>
+          ${stuck.slice(0,6).map(s=>`
+            <div class="alert-row" data-goto-part="${s.part.id}" data-goto-company="${s.company.id}">
+              <span class="part-no-tag">${escapeHtml(s.part.partNo)}</span>
+              <span class="alert-row-mid">${escapeHtml(s.stage)} · ${escapeHtml(s.company.name)}</span>
+              <span class="alert-row-days">${s.days} gün</span>
+            </div>`).join('')}
+          ${stuck.length>6 ? `<div class="helper-text">…ve ${stuck.length-6} tane daha</div>` : ''}
+        </div>` : ''}
+        ${dueSoon.length>0 ? `
+        <div class="alert-box">
+          <div class="alert-box-title">Termini Yaklaşan / Geçen (${dueSoon.length})</div>
+          ${dueSoon.slice(0,6).map(s=>`
+            <div class="alert-row" data-goto-part="${s.part.id}" data-goto-company="${s.company.id}">
+              <span class="part-no-tag">${escapeHtml(s.part.partNo)}</span>
+              <span class="alert-row-mid">${escapeHtml(s.company.name)}</span>
+              <span class="alert-row-days" style="color:${s.days<0?'var(--red-700)':'var(--red-600)'};">${fmtDueDate(s.part.dueDate)}</span>
+            </div>`).join('')}
+          ${dueSoon.length>6 ? `<div class="helper-text">…ve ${dueSoon.length-6} tane daha</div>` : ''}
+        </div>` : ''}
+      </div>
+    </div>` : ''}
+
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">Toplam Şirket</div><div class="kpi-value">${fmtNum(totals.companyCount)}</div></div>
       <div class="kpi-card"><div class="kpi-label">Toplam Parça</div><div class="kpi-value">${fmtNum(totals.partCount)}</div></div>
@@ -1322,12 +1540,98 @@ function renderDashboardView(){
         }).join('')}
       </tbody>
     </table>`}
+
+    ${(rejectTrend.length>0 || rejectByStage.some(r=>r.value>0)) ? `
+    <div class="section-title">Kalite Analizi</div>
+    <div class="chart-grid">
+      ${rejectTrend.length>0 ? `
+      <div class="card chart-card">
+        <div class="chart-card-title">Son 14 Gün — Günlük Ret Adedi</div>
+        ${renderLineChartSVG(rejectTrend)}
+      </div>` : ''}
+      ${rejectByStage.some(r=>r.value>0) ? `
+      <div class="card chart-card">
+        <div class="chart-card-title">Aşama Bazında Toplam Ret</div>
+        ${renderBarChartSVG(rejectByStage.filter(r=>r.value>0))}
+      </div>` : ''}
+    </div>` : ''}
+
+    ${userActivity.length>0 ? `
+    <div class="section-title">Ekip Aktivitesi</div>
+    <table class="data-table">
+      <thead><tr><th>Kullanıcı</th><th>Toplam Güncelleme</th><th>Girilen Toplam Adet</th><th>Son İşlem</th></tr></thead>
+      <tbody>
+        ${userActivity.map(u=>`<tr>
+          <td style="font-weight:700;color:var(--navy-900);">${escapeHtml(u.user)}</td>
+          <td class="mono">${fmtNum(u.count)}</td>
+          <td class="mono">${fmtNum(u.qty)}</td>
+          <td style="font-size:11.5px;color:var(--gray-500);">${escapeHtml(u.lastDate)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : ''}
   `;
+}
+function renderLineChartSVG(data){
+  if(!data.length) return '<div class="helper-text">Veri yok.</div>';
+  const W=560,H=180,padL=34,padR=14,padT=14,padB=28;
+  const max = Math.max(1, ...data.map(d=>d.value));
+  const stepX = data.length>1 ? (W-padL-padR)/(data.length-1) : 0;
+  const pts = data.map((d,i)=>{
+    const x = padL + i*stepX;
+    const y = padT + (1 - d.value/max) * (H-padT-padB);
+    return {x,y,...d};
+  });
+  const pathD = pts.map((p,i)=> (i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  const areaD = pathD + ` L${pts[pts.length-1].x.toFixed(1)},${H-padB} L${pts[0].x.toFixed(1)},${H-padB} Z`;
+  return `
+  <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+    <line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#DFE2E9" stroke-width="1"/>
+    <path d="${areaD}" fill="rgba(200,30,58,0.08)" stroke="none"/>
+    <path d="${pathD}" fill="none" stroke="#C81E3A" stroke-width="2"/>
+    ${pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.5" fill="#C81E3A"/>`).join('')}
+    ${pts.filter((p,i)=> i===0 || i===pts.length-1 || i===Math.floor(pts.length/2)).map(p=>`<text x="${p.x.toFixed(1)}" y="${H-8}" font-size="9" fill="#7C8494" text-anchor="middle">${escapeHtml(p.date.slice(0,5))}</text>`).join('')}
+    <text x="${padL-6}" y="${padT+4}" font-size="9" fill="#7C8494" text-anchor="end">${max}</text>
+    <text x="${padL-6}" y="${H-padB}" font-size="9" fill="#7C8494" text-anchor="end">0</text>
+  </svg>`;
+}
+function renderBarChartSVG(data){
+  if(!data.length) return '<div class="helper-text">Veri yok.</div>';
+  const W=560, barH=26, gap=10, padL=90, padR=50;
+  const H = data.length*(barH+gap)+gap;
+  const max = Math.max(1, ...data.map(d=>d.value));
+  return `
+  <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+    ${data.map((d,i)=>{
+      const y = gap + i*(barH+gap);
+      const w = (d.value/max) * (W-padL-padR);
+      return `
+      <text x="${padL-8}" y="${y+barH*0.65}" font-size="11" fill="#3A4152" text-anchor="end" font-weight="600">${escapeHtml(d.stage)}</text>
+      <rect x="${padL}" y="${y}" width="${Math.max(2,w)}" height="${barH}" rx="4" fill="#C81E3A"/>
+      <text x="${padL+Math.max(2,w)+8}" y="${y+barH*0.65}" font-size="11" fill="#7C8494" font-weight="700">${fmtNum(d.value)}</text>
+      `;
+    }).join('')}
+  </svg>`;
+}
+
+/* ============================= TARAYICI BİLDİRİMİ (Notification API) ============================= */
+// Not: Bu, uygulama açıkken/son zamanlarda ziyaret edilmişken çalışan bir bildirimdir.
+// Uygulama tamamen kapalıyken gerçek "push" bildirim göndermek ayrı bir sunucu altyapısı gerektirir.
+function checkAndNotify(){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const stuck = collectStuckParts();
+  const dueSoon = collectDueSoonParts();
+  if(stuck.length===0 && dueSoon.length===0) return;
+  const parts = [];
+  if(stuck.length) parts.push(`${stuck.length} parça aşamada takıldı`);
+  if(dueSoon.length) parts.push(`${dueSoon.length} parçanın termini yaklaştı/geçti`);
+  try{
+    new Notification('Üretim Takip — Dikkat', { body: parts.join(' · '), icon: undefined });
+  }catch(e){ console.error('notification error', e); }
 }
 
 /* ============================= REPORTS VIEW ============================= */
 function renderReportsView(){
-  const companies = state.companies;
+  const companies = visibleCompanies();
   return `
     <div class="page-head">
       <div><div class="page-title">Raporlar</div><div class="page-sub">Üretim ve kalite verilerini Excel olarak dışa aktarın</div></div>
@@ -1383,6 +1687,15 @@ function renderModal(){
         <label>Şirket Adı</label>
         <input type="text" id="companyNameInput" placeholder="Örn. ABC Makina" value="${isEdit?escapeHtml(company.name):''}"/>
       </div>
+      ${isEdit ? `
+      <div class="field">
+        <label>Müşteri Takip Kodu</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="companyClientCodeInput" value="${escapeHtml(company.clientCode||'')}" readonly style="font-family:var(--font-mono);letter-spacing:1px;background:var(--gray-50);"/>
+          <button class="btn btn-ghost btn-sm" data-action="regenClientCode" data-id="${company.id}" type="button">Yenile</button>
+        </div>
+        <div class="helper-text">Bu kodu müşteriye verirsen, "Müşteri (Salt Okunur)" rolüyle kayıt olup sadece kendi siparişlerini görebilir. Kodu yenilersen eski kod geçersiz olur. <b style="color:var(--red-700);font-style:normal;">Not:</b> bu kısıtlama uygulama ekranında uygulanır; çok teknik bir kullanıcı yine de veritabanına doğrudan erişmeye çalışabilir. Hassas/rakip firmalarla paylaşmadan önce bunu bilerek karar verin.</div>
+      </div>` : ''}
       <div class="modal-actions">
         <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
         <button class="btn btn-primary" data-action="${isEdit?'saveEditCompany':'saveAddCompany'}" data-id="${isEdit?company.id:''}">${isEdit?'Kaydet':'Ekle'}</button>
@@ -1411,6 +1724,7 @@ function renderModal(){
       <div class="field"><label>Parça Adı (opsiyonel)</label><input type="text" id="partNameInput" placeholder="Örn. Braket" value="${isEdit?escapeHtml(part.partName):''}"/></div>
       <div class="field"><label>İstenen Adet</label><input type="number" min="0" id="partQtyInput" placeholder="Örn. 500" value="${isEdit?part.orderedQty:''}"/></div>
       <div class="field"><label>Malzeme Rengi (opsiyonel)</label><input type="text" id="partColorInput" placeholder="Örn. RAL 9005 Siyah — boyanmıyorsa boş bırakın" value="${isEdit?escapeHtml(part.color||''):''}"/></div>
+      <div class="field"><label>Termin Tarihi (opsiyonel)</label><input type="date" id="partDueDateInput" value="${isEdit?escapeHtml(part.dueDate||''):''}"/></div>
       <div class="modal-actions">
         <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
         <button class="btn btn-primary" data-action="${isEdit?'saveEditPart':'saveAddPart'}" data-id="${isEdit?part.id:''}">${isEdit?'Kaydet':'Ekle'}</button>
@@ -1798,6 +2112,15 @@ function attachHandlers(){
     el.addEventListener('click', ()=> exportCompanyExcel(el.getAttribute('data-export-company')));
   });
 
+  app.querySelectorAll('[data-goto-part]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      state.selectedCompanyId = el.getAttribute('data-goto-company');
+      state.selectedPartId = el.getAttribute('data-goto-part');
+      state.view = 'tracking';
+      render();
+    });
+  });
+
   app.querySelectorAll('[data-close-ncr]').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const [partId, ncrId] = el.getAttribute('data-close-ncr').split('|');
@@ -1868,7 +2191,7 @@ async function handleAction(action, el){
     case 'saveAddCompany': {
       const name = document.getElementById('companyNameInput').value.trim();
       if(!name){ showToast('Şirket adı boş olamaz.'); return; }
-      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice()};
+      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice(), clientCode: genClientCode()};
       state.companies.push(newCo);
       state.partsByCompany[newCo.id] = [];
       state.selectedCompanyId = newCo.id;
@@ -1891,6 +2214,18 @@ async function handleAction(action, el){
       render();
       break;
     }
+    case 'regenClientCode': {
+      const id = el.getAttribute('data-id');
+      const co = getCompany(id);
+      if(co){
+        co.clientCode = genClientCode();
+        await persistCompanies();
+        showToast('Müşteri kodu yenilendi.');
+        state.modal = {type:'editCompany', payload:{id}};
+        render();
+      }
+      break;
+    }
     case 'confirmDeleteCompany': {
       const id = el.getAttribute('data-id');
       state.companies = state.companies.filter(c=>c.id!==id);
@@ -1911,6 +2246,7 @@ async function handleAction(action, el){
       const partName = document.getElementById('partNameInput').value.trim();
       const qty = Number(document.getElementById('partQtyInput').value) || 0;
       const colorVal = document.getElementById('partColorInput') ? document.getElementById('partColorInput').value.trim() : '';
+      const dueDateVal = document.getElementById('partDueDateInput') ? document.getElementById('partDueDateInput').value : '';
       if(!partNo){ showToast('Parça no zorunludur.'); return; }
       const parts = getParts(company.id);
       const existing = parts.find(p=>p.partNo.toLowerCase()===partNo.toLowerCase());
@@ -1919,12 +2255,13 @@ async function handleAction(action, el){
         existing.partName = partName;
         existing.orderedQty = qty;
         existing.color = colorVal;
+        existing.dueDate = dueDateVal;
         existing.lastUpdate = todayStr();
         existing.updatedBy = state.currentUser;
         newPartId = existing.id;
       } else {
         newPartId = uid('pt');
-        parts.push({id: newPartId, partNo, partName, orderedQty: qty, color: colorVal, qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate: todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
+        parts.push({id: newPartId, partNo, partName, orderedQty: qty, color: colorVal, dueDate: dueDateVal, qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate: todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
       }
       state.partsByCompany[company.id] = parts;
       state.modal = null;
@@ -1941,6 +2278,7 @@ async function handleAction(action, el){
       part.partName = document.getElementById('partNameInput').value.trim();
       part.orderedQty = Number(document.getElementById('partQtyInput').value) || 0;
       part.color = document.getElementById('partColorInput') ? document.getElementById('partColorInput').value.trim() : (part.color||'');
+      part.dueDate = document.getElementById('partDueDateInput') ? document.getElementById('partDueDateInput').value : (part.dueDate||'');
       part.lastUpdate = todayStr();
       part.updatedBy = state.currentUser;
       state.modal = null;
@@ -1993,7 +2331,7 @@ async function handleAction(action, el){
           existing.updatedBy = state.currentUser;
           updated++;
         } else {
-          parts.push({id: uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate:todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
+          parts.push({id: uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', dueDate:'', qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate:todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
           added++;
         }
       });
@@ -2169,6 +2507,16 @@ async function handleAction(action, el){
     }
 
     case 'exportAll': exportAllExcel(); break;
+
+    case 'enableNotifications': {
+      if(!('Notification' in window)){ showToast('Bu tarayıcı bildirimleri desteklemiyor.'); return; }
+      Notification.requestPermission().then(perm=>{
+        if(perm==='granted'){ showToast('Bildirimler açıldı.'); checkAndNotify(); }
+        else { showToast('Bildirim izni verilmedi.'); }
+        render();
+      });
+      break;
+    }
   }
 }
 
@@ -2337,7 +2685,7 @@ function companySheetData(companyId){
 }
 function ncrSheetData(){
   const rows = [];
-  state.companies.forEach(c=>{
+  visibleCompanies().forEach(c=>{
     getParts(c.id).forEach(p=>{
       (p.ncrs||[]).forEach(n=>{
         rows.push({
@@ -2366,7 +2714,8 @@ function exportCompanyExcel(companyId){
 }
 function exportAllExcel(){
   const wb = XLSX.utils.book_new();
-  state.companies.forEach(c=>{
+  const vc = visibleCompanies();
+  vc.forEach(c=>{
     const ws = XLSX.utils.json_to_sheet(companySheetData(c.id));
     let sheetName = c.name.substring(0,31) || 'Sirket';
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
@@ -2376,7 +2725,7 @@ function exportAllExcel(){
     const wsNcr = XLSX.utils.json_to_sheet(ncrRows);
     XLSX.utils.book_append_sheet(wb, wsNcr, 'Kalite Kayitlari');
   }
-  if(state.companies.length===0){ showToast('Aktarılacak veri yok.'); return; }
+  if(vc.length===0){ showToast('Aktarılacak veri yok.'); return; }
   XLSX.writeFile(wb, 'tum_sirketler_uretim_raporu.xlsx');
   showToast('Birleşik Excel raporu indirildi.');
 }
@@ -2392,8 +2741,10 @@ fbAuth.onAuthStateChanged(async (user)=>{
       state.currentUser = (profile && profile.name) || user.displayName || user.email;
       state.currentUserUid = user.uid;
       state.currentUserRole = (profile && profile.role) || null;
+      state.clientCompanyId = (profile && profile.companyId) || null;
       render();
       await loadAll();
+      checkAndNotify();
     }catch(e){
       console.error('Oturum bilgisi okunamadı', e);
       state.currentUser = null;
@@ -2407,6 +2758,15 @@ fbAuth.onAuthStateChanged(async (user)=>{
   }
 });
 render();
+
+/* ============================= ÇEVRİMDIŞI DESTEĞİ (Service Worker) ============================= */
+window.addEventListener('online', ()=>{ state.isOffline = false; render(); });
+window.addEventListener('offline', ()=>{ state.isOffline = true; render(); });
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=> console.error('Service worker kaydedilemedi', e));
+  });
+}
 </script>
 </body>
 </html>
