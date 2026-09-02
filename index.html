@@ -492,6 +492,20 @@ function todayStr(){
 function escapeHtml(str){
   return String(str==null?'':str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+// Base64 data URI'yi gerçek bir Blob'a çevirir — tarayıcıların "data:" linklerine
+// doğrudan yönlendirmeyi engelleyen güvenlik kısıtlamasını aşmak için kullanılır.
+function dataURLtoBlob(dataURL){
+  const commaIdx = dataURL.indexOf(',');
+  const meta = dataURL.slice(0, commaIdx);
+  const isBase64 = meta.includes('base64');
+  const mimeMatch = meta.match(/data:([^;]+)/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+  const rawData = dataURL.slice(commaIdx+1);
+  const raw = isBase64 ? atob(rawData) : decodeURIComponent(rawData);
+  const arr = new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+  return new Blob([arr], {type: mime});
+}
 function fmtNum(n){
   n = Number(n)||0;
   return n.toLocaleString('tr-TR');
@@ -2044,13 +2058,23 @@ function attachHandlers(){
       const idx = Number(el.getAttribute('data-drawing-idx'));
       const drawing = part && part.drawings && part.drawings[idx];
       if(drawing){
-        const w = window.open();
-        if(w){
+        try{
+          const blob = dataURLtoBlob(drawing.data);
+          const blobUrl = URL.createObjectURL(blob);
           if(drawing.type && drawing.type.startsWith('image/')){
-            w.document.write(`<title>${escapeHtml(drawing.name)}</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${drawing.data}" style="max-width:100%;max-height:100%;"/></body>`);
+            const w = window.open();
+            if(w){
+              w.document.write(`<title>${escapeHtml(drawing.name)}</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${blobUrl}" style="max-width:100%;max-height:100%;"/></body>`);
+            } else {
+              showToast('Yeni sekme açılamadı — tarayıcınız pop-up engelliyor olabilir.');
+            }
           } else {
-            w.location = drawing.data;
+            const w = window.open(blobUrl, '_blank');
+            if(!w) showToast('Yeni sekme açılamadı — tarayıcınız pop-up engelliyor olabilir.');
           }
+        }catch(e){
+          console.error('drawing view error', e);
+          showToast('Dosya açılamadı.');
         }
       }
     });
