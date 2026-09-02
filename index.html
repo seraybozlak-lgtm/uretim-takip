@@ -439,18 +439,21 @@ async function storageGet(key){
 async function storageSet(key, value){
   try{
     const json = JSON.stringify(value);
-    if(json.length > 9000000){
-      showToast('Kayıt boyutu çok büyük. Teknik resim dosyalarını küçültün.');
+    if(json.length > 40000000){
+      state.lastSaveErrorDetail = `Kayıt çok büyük (${(json.length/1024/1024).toFixed(1)} MB). Bu şirketteki toplam teknik resim/veri boyutu 40 MB sınırını aştı — bazı eski/gereksiz teknik resimleri silmeniz gerekebilir.`;
+      showToast('Kayıt boyutu çok büyük. Teknik resim dosyalarını küçültün veya bazılarını silin.');
       return false;
     }
-    await firebaseFetch(encodeURIComponent(key), {
+    const res = await firebaseFetch(encodeURIComponent(key), {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: json
     });
+    state.lastSaveErrorDetail = null;
     return true;
   }catch(e){
     console.error('storage set error', e);
+    state.lastSaveErrorDetail = 'Hata: ' + (e && e.message ? e.message : String(e));
     return false;
   }
 }
@@ -518,6 +521,7 @@ let state = {
   storageUnavailable: false,
   isOffline: (typeof navigator !== 'undefined' && 'onLine' in navigator) ? !navigator.onLine : false,
   lastSaveFailed: false,
+  lastSaveErrorDetail: null,
   selectedPartIds: new Set(),
   markingMeasurementId: null,
   bulkDrawingPreview: null,
@@ -676,7 +680,7 @@ function render(){
     <div class="main">
       ${state.isOffline ? `<div class="storage-warning">&#128246; Çevrimdışısınız — bu ekranda gördükleriniz son bilinen veriler. İnternet gelene kadar değişiklik kaydedilemez.</div>` : ''}
       ${state.storageUnavailable ? `<div class="storage-warning">&#9888; Firebase veritabanına bağlanılamadı — internet bağlantınızı kontrol edin veya veritabanı kurallarının (Rules) açık olduğundan emin olun.</div>` : ''}
-      ${state.lastSaveFailed ? `<div class="storage-warning">&#9888; Son değişiklik kaydedilemedi. Lütfen tekrar deneyin veya sayfayı yenileyip son işlemi tekrar yapın.</div>` : ''}
+      ${state.lastSaveFailed ? `<div class="storage-warning">&#9888; Son değişiklik kaydedilemedi.${state.lastSaveErrorDetail ? ' '+escapeHtml(state.lastSaveErrorDetail) : ''} Lütfen tekrar deneyin veya sayfayı yenileyip son işlemi tekrar yapın.</div>` : ''}
       ${renderView()}
     </div>
     ${state.modal ? renderModal() : ''}
