@@ -356,6 +356,7 @@
   .chart-card{padding:16px;}
   .chart-card-title{font-size:12.5px;font-weight:700;color:var(--gray-700);margin-bottom:10px;}
 
+  .drawing-gallery{display:flex;flex-direction:column;gap:8px;margin-bottom:4px;}
   .drawing-box{border:1.5px dashed var(--gray-300);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;background:var(--gray-50);}
   .drawing-thumb{width:64px;height:64px;object-fit:cover;border-radius:7px;border:1px solid var(--gray-300);background:var(--white);cursor:pointer;}
   .drawing-file-icon{width:64px;height:64px;border-radius:7px;border:1px solid var(--gray-300);background:var(--white);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;}
@@ -560,7 +561,18 @@ async function loadAll(){
       if(!c || !c.id) continue;
       const partsRaw = await storageGet('parts:'+c.id);
       const parts = asArray(partsRaw);
-      parts.forEach(p=>{ if(!p) return; if(!p.qtys) p.qtys={}; if(!p.rejects) p.rejects={}; if(!p.ncrs) p.ncrs=[]; if(!p.history) p.history=[]; if(p.drawing===undefined) p.drawing=null; if(p.color===undefined) p.color=''; if(!Array.isArray(p.measurements)) p.measurements=[]; if(!p.orderedQty) p.orderedQty = Number(p.orderedQty)||0; });
+      parts.forEach(p=>{
+        if(!p) return;
+        if(!p.qtys) p.qtys={};
+        if(!p.rejects) p.rejects={};
+        if(!p.ncrs) p.ncrs=[];
+        if(!p.history) p.history=[];
+        if(!Array.isArray(p.drawings)) p.drawings = [];
+        if(p.drawing){ p.drawings.push(p.drawing); p.drawing = undefined; } // eski tekli resimden yeni diziye taşı
+        if(p.color===undefined) p.color='';
+        if(!Array.isArray(p.measurements)) p.measurements=[];
+        if(!p.orderedQty) p.orderedQty = Number(p.orderedQty)||0;
+      });
       partsMap[c.id] = parts;
     }
     state.partsByCompany = partsMap;
@@ -981,7 +993,7 @@ function renderPartsView(){
             return `
             <tr>
               ${isAdmin() ? `<td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>` : ''}
-              <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${p.drawing?` <span title="Teknik resim eklendi" class="drawing-attach-icon">&#128206;</span>`:''}</td>
+              <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${(p.drawings&&p.drawings.length)?` <span title="${p.drawings.length} teknik resim eklendi" class="drawing-attach-icon">&#128206; ${p.drawings.length}</span>`:''}</td>
               <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
               <td>${curStage ? `<b style="color:var(--navy-800);">${escapeHtml(curStage)}</b>${curDays!=null?`<div class="helper-text" style="margin:0;">${curDays} gündür</div>`:''}` : '<span style="color:var(--gray-500);">—</span>'}</td>
               <td>${p.dueDate ? `<span style="font-size:12px;font-weight:700;color:${dueDateStatus(p.dueDate)==='overdue'?'var(--red-700)':dueDateStatus(p.dueDate)==='soon'?'var(--red-600)':'var(--gray-700)'};">${fmtDueDate(p.dueDate)}</span>` : '<span style="color:var(--gray-500);">—</span>'}</td>
@@ -1070,22 +1082,26 @@ function renderTrackingView(){
       </div>
 
       <div class="field">
-        <label>Teknik Resim</label>
-        ${part.drawing ? `
-          <div class="drawing-box">
-            ${part.drawing.type && part.drawing.type.startsWith('image/') ?
-              `<img src="${part.drawing.data}" class="drawing-thumb" data-view-drawing="${part.id}"/>` :
-              `<div class="drawing-file-icon" data-view-drawing="${part.id}">&#128196;</div>`}
-            <div class="drawing-info"><div class="fname">${escapeHtml(part.drawing.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">Görüntülemek için tıklayın</div></div>
-            ${isAdmin() ? `<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}">Kaldır</button>` : ''}
+        <label>Teknik Resimler ${part.drawings&&part.drawings.length?`(${part.drawings.length})`:''}</label>
+        ${part.drawings && part.drawings.length ? `
+          <div class="drawing-gallery">
+            ${part.drawings.map((d,i)=> `
+              <div class="drawing-box">
+                ${d.type && d.type.startsWith('image/') ?
+                  `<img src="${d.data}" class="drawing-thumb" data-view-drawing="${part.id}" data-drawing-idx="${i}"/>` :
+                  `<div class="drawing-file-icon" data-view-drawing="${part.id}" data-drawing-idx="${i}">&#128196;</div>`}
+                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">Görüntülemek için tıklayın</div></div>
+                ${isAdmin() ? `<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button>` : ''}
+              </div>`).join('')}
           </div>
-        ` : (isAdmin() ? `
-          <div class="drop-zone" id="drawingDropZone" style="padding:16px;">
-            <div class="dz-text">Teknik resim yüklemek için tıklayın</div>
-            <div class="dz-sub">.png, .jpg veya .pdf — en fazla 3 MB</div>
-            <input type="file" id="drawingFileInput" accept=".png,.jpg,.jpeg,.pdf" style="display:none;"/>
+        ` : (!isAdmin() ? `<div class="helper-text" style="margin:0 0 8px 0;">Henüz teknik resim eklenmedi.</div>` : '')}
+        ${isAdmin() ? `
+          <div class="drop-zone" id="drawingDropZone" style="padding:16px;margin-top:${part.drawings&&part.drawings.length?'10px':'0'};">
+            <div class="dz-text">${part.drawings&&part.drawings.length ? 'Başka teknik resim eklemek için tıklayın' : 'Teknik resim yüklemek için tıklayın'}</div>
+            <div class="dz-sub">.png, .jpg veya .pdf — dosya başına en fazla 3 MB, istediğin kadar dosya ekleyebilirsin</div>
+            <input type="file" id="drawingFileInput" accept=".png,.jpg,.jpeg,.pdf" multiple style="display:none;"/>
           </div>
-        ` : `<div class="helper-text" style="margin:0;">Henüz teknik resim eklenmedi.</div>`)}
+        ` : ''}
       </div>
 
       <div class="field">
@@ -1336,7 +1352,8 @@ function measurementStatus(m){
 function renderMeasurementSection(part){
   const measurements = part.measurements || [];
   const suggested = calcSampleCount(part.orderedQty);
-  const hasImageDrawing = part.drawing && part.drawing.type && part.drawing.type.startsWith('image/');
+  const primaryImageDrawing = (part.drawings||[]).find(d=> d.type && d.type.startsWith('image/'));
+  const hasImageDrawing = !!primaryImageDrawing;
   const admin = isAdmin();
   return `
     <div class="section-title">Ölçüm Kontrolü</div>
@@ -1349,9 +1366,9 @@ function renderMeasurementSection(part){
 
     ${hasImageDrawing ? `
       <div class="card" style="padding:14px;margin-bottom:14px;">
-        ${admin ? `<div class="helper-text" style="margin:0 0 8px 0;">${state.markingMeasurementId ? 'Resme tıklayarak ölçüm noktasının yerini işaretleyin.' : 'Bir ölçüm satırındaki "Resimde İşaretle" butonuna basıp resme tıklayarak konumunu belirleyebilirsiniz.'}</div>` : ''}
+        ${admin ? `<div class="helper-text" style="margin:0 0 8px 0;">${state.markingMeasurementId ? 'Resme tıklayarak ölçüm noktasının yerini işaretleyin.' : 'Bir ölçüm satırındaki "Resimde İşaretle" butonuna basıp resme tıklayarak konumunu belirleyebilirsiniz.'}${(part.drawings||[]).filter(d=>d.type&&d.type.startsWith('image/')).length>1 ? ' (Birden fazla resim var, işaretleme ilk resim üzerinde yapılır.)' : ''}</div>` : ''}
         <div class="drawing-image-wrap" id="measureImageWrap" style="position:relative;display:inline-block;max-width:100%;cursor:${state.markingMeasurementId?'crosshair':'default'};">
-          <img src="${part.drawing.data}" id="measureImageEl" style="max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--gray-300);display:block;"/>
+          <img src="${primaryImageDrawing.data}" id="measureImageEl" style="max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--gray-300);display:block;"/>
           ${measurements.filter(m=>m.imgX!=null && m.imgY!=null).map(m=>`<div class="meas-marker ${measurementStatus(m)}" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
         </div>
       </div>
@@ -1800,7 +1817,7 @@ function renderModal(){
     const preview = state.bulkDrawingPreview;
     return modalWrap(`
       <h2>Teknik Resimleri Toplu Yükle</h2>
-      <div class="modal-sub">${escapeHtml(company.name)} — dosya adının içinde parça numarası geçen .png/.jpg/.pdf dosyalarını otomatik eşleştirir. Örn. "P-10025 500x300mm.pdf" dosyası, parça no'su P-10025 olan parçaya otomatik atanır.</div>
+      <div class="modal-sub">${escapeHtml(company.name)} — her parça için istediğin kadar teknik resim ekleyebilirsin. Eğer "Klasör Seç" ile yüklersen, önce klasör adının (örn. bir "P-10025" klasörü) parça no'suyla eşleşip eşleşmediğine bakar — klasör içindeki TÜM dosyalar (isimleri ne olursa olsun) o parçaya eklenir. Klasör kullanmazsan, dosya adının içinde geçen parça no'suna göre eşleştirir.</div>
       ${!preview ? `
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <div class="drop-zone" id="bulkFolderZone" style="flex:1;min-width:180px;">
@@ -2014,19 +2031,21 @@ function attachHandlers(){
   const drawingFileInput = document.getElementById('drawingFileInput');
   if(drawingDropZone && drawingFileInput){
     drawingDropZone.addEventListener('click', ()=> drawingFileInput.click());
-    drawingFileInput.addEventListener('change', (e)=>{ if(e.target.files[0]) handleDrawingUpload(e.target.files[0]); });
+    drawingFileInput.addEventListener('change', (e)=>{ if(e.target.files.length) handleDrawingUpload(e.target.files); });
   }
   app.querySelectorAll('[data-view-drawing]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-view-drawing'));
-      if(part && part.drawing){
+      const idx = Number(el.getAttribute('data-drawing-idx'));
+      const drawing = part && part.drawings && part.drawings[idx];
+      if(drawing){
         const w = window.open();
         if(w){
-          if(part.drawing.type && part.drawing.type.startsWith('image/')){
-            w.document.write(`<title>${escapeHtml(part.drawing.name)}</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${part.drawing.data}" style="max-width:100%;max-height:100%;"/></body>`);
+          if(drawing.type && drawing.type.startsWith('image/')){
+            w.document.write(`<title>${escapeHtml(drawing.name)}</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${drawing.data}" style="max-width:100%;max-height:100%;"/></body>`);
           } else {
-            w.location = part.drawing.data;
+            w.location = drawing.data;
           }
         }
       }
@@ -2036,8 +2055,9 @@ function attachHandlers(){
     el.addEventListener('click', async ()=>{
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-remove-drawing'));
-      if(part){
-        part.drawing = null;
+      const idx = Number(el.getAttribute('data-drawing-idx'));
+      if(part && part.drawings && part.drawings[idx]!==undefined){
+        part.drawings.splice(idx, 1);
         await persistParts(company.id);
         showToast('Teknik resim kaldırıldı.');
         render();
@@ -2261,7 +2281,7 @@ async function handleAction(action, el){
         newPartId = existing.id;
       } else {
         newPartId = uid('pt');
-        parts.push({id: newPartId, partNo, partName, orderedQty: qty, color: colorVal, dueDate: dueDateVal, qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate: todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
+        parts.push({id: newPartId, partNo, partName, orderedQty: qty, color: colorVal, dueDate: dueDateVal, qtys:{}, rejects:{}, note:'', drawings:[], measurements:[], lastUpdate: todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
       }
       state.partsByCompany[company.id] = parts;
       state.modal = null;
@@ -2331,7 +2351,7 @@ async function handleAction(action, el){
           existing.updatedBy = state.currentUser;
           updated++;
         } else {
-          parts.push({id: uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', dueDate:'', qtys:{}, rejects:{}, note:'', drawing:null, measurements:[], lastUpdate:todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
+          parts.push({id: uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', dueDate:'', qtys:{}, rejects:{}, note:'', drawings:[], measurements:[], lastUpdate:todayStr(), updatedBy: state.currentUser, history:[], ncrs:[]});
           added++;
         }
       });
@@ -2521,32 +2541,35 @@ async function handleAction(action, el){
 }
 
 /* ============================= TEKNİK RESİM YÜKLEME ============================= */
-function handleDrawingUpload(file){
+async function handleDrawingUpload(fileList){
+  const files = Array.from(fileList);
   const MAX_BYTES = 3 * 1024 * 1024;
-  if(file.size > MAX_BYTES){
-    showToast('Dosya çok büyük. En fazla 3 MB yükleyebilirsiniz.');
-    return;
+  const company = getCompany(state.selectedCompanyId);
+  const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+  if(!part) return;
+  if(!Array.isArray(part.drawings)) part.drawings = [];
+  const prevDrawings = part.drawings.slice();
+  let added = 0, tooBig = 0;
+  for(const file of files){
+    if(file.size > MAX_BYTES){ tooBig++; continue; }
+    try{
+      const dataUrl = await readFileAsDataURL(file);
+      part.drawings.push({ name: file.name, type: file.type, data: dataUrl });
+      added++;
+    }catch(e){ /* atla */ }
   }
-  const reader = new FileReader();
-  reader.onload = async (e)=>{
-    const company = getCompany(state.selectedCompanyId);
-    const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
-    if(!part) return;
-    const prevDrawing = part.drawing;
-    part.drawing = { name: file.name, type: file.type, data: e.target.result };
-    render();
+  render();
+  if(added>0){
     const ok = await persistParts(company.id);
     if(ok===false){
-      part.drawing = prevDrawing;
-      showToast('Dosya kaydedilemedi — depolama sınırına yaklaşılmış olabilir.');
+      part.drawings = prevDrawings;
+      showToast('Dosyalar kaydedilemedi — depolama sınırına yaklaşılmış olabilir.');
       render();
-    } else {
-      showToast('Teknik resim eklendi.');
-      render();
+      return;
     }
-  };
-  reader.onerror = ()=> showToast('Dosya okunamadı.');
-  reader.readAsDataURL(file);
+  }
+  showToast(`${added} teknik resim eklendi${tooBig?`, ${tooBig} dosya 3 MB sınırını aştığı için atlandı`:''}.`);
+  render();
 }
 
 /* ============================= TOPLU TEKNİK RESİM YÜKLEME ============================= */
@@ -2558,6 +2581,41 @@ function readFileAsDataURL(file){
     r.readAsDataURL(file);
   });
 }
+function findMatchingPart(file, parts){
+  const relPath = file.webkitRelativePath || '';
+  const pathParts = relPath.split('/').filter(Boolean);
+  const nameNoExt = file.name.replace(/\.[^.\/\\]+$/, '');
+
+  // 1) Klasör yapısı varsa: dosyanın bulunduğu klasörün adı parça no'suyla TAM eşleşiyor mu (en güvenilir yöntem)
+  if(pathParts.length >= 2){
+    const folderName = pathParts[pathParts.length-2].trim().toLowerCase();
+    const exact = parts.find(p=> (p.partNo||'').trim().toLowerCase() === folderName);
+    if(exact) return exact;
+  }
+  // 2) Klasör adının İÇİNDE parça no geçiyor mu (klasör ismi ekstra açıklama içeriyor olabilir)
+  if(pathParts.length >= 2){
+    const folderName = pathParts[pathParts.length-2].toLowerCase();
+    let best = null;
+    parts.forEach(p=>{
+      const no = (p.partNo||'').trim();
+      if(!no) return;
+      if(folderName.includes(no.toLowerCase())){
+        if(!best || no.length > best.partNo.length) best = p;
+      }
+    });
+    if(best) return best;
+  }
+  // 3) Klasör yoksa veya eşleşmediyse: dosya adının içinde parça no geçiyor mu (eski yöntem, yedek olarak)
+  let best = null;
+  parts.forEach(p=>{
+    const no = (p.partNo||'').trim();
+    if(!no) return;
+    if(nameNoExt.toLowerCase().includes(no.toLowerCase())){
+      if(!best || no.length > best.partNo.length) best = p;
+    }
+  });
+  return best;
+}
 function handleBulkDrawingFiles(fileList){
   const company = getCompany(state.selectedCompanyId);
   if(!company){ showToast('Önce bir şirket seçin.'); return; }
@@ -2568,15 +2626,7 @@ function handleBulkDrawingFiles(fileList){
   const matches = [];
   const unmatched = [];
   files.forEach(file=>{
-    const nameNoExt = file.name.replace(/\.[^.\/\\]+$/, '');
-    let best = null;
-    parts.forEach(p=>{
-      const no = (p.partNo||'').trim();
-      if(!no) return;
-      if(nameNoExt.toLowerCase().includes(no.toLowerCase())){
-        if(!best || no.length > best.partNo.length) best = p;
-      }
-    });
+    const best = findMatchingPart(file, parts);
     if(best){
       if(file.size > 3*1024*1024){
         unmatched.push({file, reason:'Dosya çok büyük (3 MB üzeri)'});
@@ -2584,7 +2634,7 @@ function handleBulkDrawingFiles(fileList){
         matches.push({file, part: best});
       }
     } else {
-      unmatched.push({file, reason:'Dosya adında eşleşen parça no bulunamadı'});
+      unmatched.push({file, reason:'Ne klasör adında ne dosya adında eşleşen parça no bulundu'});
     }
   });
 
@@ -2601,7 +2651,11 @@ async function confirmBulkDrawings(){
       const dataUrl = await readFileAsDataURL(m.file);
       const parts = getParts(company.id);
       const livePart = parts.find(p=>p.id===m.part.id);
-      if(livePart){ livePart.drawing = { name: m.file.name, type: m.file.type, data: dataUrl }; ok++; }
+      if(livePart){
+        if(!Array.isArray(livePart.drawings)) livePart.drawings = [];
+        livePart.drawings.push({ name: m.file.name, type: m.file.type, data: dataUrl });
+        ok++;
+      }
     }catch(e){ fail++; }
   }
   state.bulkDrawingPreview = null;
@@ -2680,6 +2734,7 @@ function companySheetData(companyId){
     row['Not'] = p.note || '';
     row['Son Güncelleme'] = p.lastUpdate || '';
     row['Güncelleyen'] = p.updatedBy || '';
+    row['Teknik Resim Sayısı'] = (p.drawings||[]).length;
     return row;
   });
 }
