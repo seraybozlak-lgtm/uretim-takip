@@ -172,6 +172,36 @@
   .icon-btn:hover{background:var(--gray-100);}
   .icon-btn.danger:hover{background:var(--red-100);color:var(--red-700);border-color:var(--red-100);}
   .badge-selected{position:absolute;top:12px;right:12px;background:var(--red-600);color:#fff;font-size:10px;font-weight:700;letter-spacing:.3px;padding:3px 8px;border-radius:20px;}
+  .pin-btn{position:absolute;top:10px;left:10px;font-size:15px;cursor:pointer;opacity:0.35;transition:opacity .15s,transform .15s;z-index:3;line-height:1;}
+  .pin-btn:hover{opacity:0.9;transform:scale(1.15);}
+  .pin-btn.pinned{opacity:1;}
+  .part-row-pin{cursor:pointer;opacity:0.35;transition:opacity .15s;font-size:14px;}
+  .part-row-pin:hover{opacity:0.9;}
+  .part-row-pin.pinned{opacity:1;}
+  tr.part-row-clickable{cursor:pointer;}
+
+  .part-search-wrap{position:relative;}
+  .part-search-wrap .stage-select{width:280px;}
+  .part-search-dropdown{
+    position:absolute;top:calc(100% + 4px);left:0;right:0;max-height:320px;overflow-y:auto;
+    background:var(--white);border:1px solid var(--gray-200);border-radius:9px;box-shadow:0 10px 30px rgba(13,31,66,0.15);
+    z-index:50;
+  }
+  .part-search-item{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--gray-100);}
+  .part-search-item:last-child{border-bottom:none;}
+  .part-search-item:hover{background:var(--navy-50);}
+  .part-search-item.active{background:var(--navy-100);}
+  .part-search-item .psi-name{flex:1;font-size:13px;color:var(--gray-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .part-search-item .psi-pin{font-size:11px;}
+  .part-search-empty{padding:14px;text-align:center;font-size:12.5px;color:var(--gray-500);}
+
+  .et-tabs{display:flex;gap:4px;border-bottom:2px solid var(--gray-200);margin-bottom:20px;flex-wrap:wrap;}
+  .et-tab{padding:10px 16px;font-size:13.5px;font-weight:700;color:var(--gray-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;}
+  .et-tab:hover{color:var(--navy-800);}
+  .et-tab.active{color:var(--red-600);border-bottom-color:var(--red-600);}
+  .et-card-title{font-family:var(--font-display);font-size:17px;font-weight:700;color:var(--navy-900);margin-bottom:6px;}
+  .et-editable-table input.et-input{width:90px;border:1.5px solid var(--gray-300);border-radius:6px;padding:6px 8px;font-family:var(--font-mono);font-size:13px;text-align:center;}
+  .et-editable-table input.et-input:disabled{background:var(--gray-100);color:var(--gray-500);}
 
   /* modal */
   .modal-overlay{
@@ -539,6 +569,13 @@ let state = {
   selectedPartIds: new Set(),
   markingMeasurementId: null,
   bulkDrawingPreview: null,
+  pinnedCompanies: [],
+  pinnedParts: [],
+  partSearchQuery: '',
+  partSearchOpen: false,
+  drawingFilter: 'all', // all | missing | has
+  errorTracking: { ppmMonthly:{}, deptMonthly:{}, disHatalar:[], icHatalar:[] },
+  errorTrackingTab: 'ppm', // ppm | dept | dis | ic
 };
 function isAdmin(){ return state.currentUserRole === 'admin'; }
 function isClient(){ return state.currentUserRole === 'client'; }
@@ -555,6 +592,42 @@ function genClientCode(){
   let s = '';
   for(let i=0;i<7;i++) s += chars[Math.floor(Math.random()*chars.length)];
   return s;
+}
+
+/* ============================= CİHAZA ÖZEL TERCİHLER (localStorage) ============================= */
+// Bunlar paylaşılan üretim verisi DEĞİL — sadece bu tarayıcıdaki kişisel görünüm tercihleri
+// (son seçilen şirket, sabitlenen şirket/parçalar). Bu yüzden Firebase'e değil, bu cihaza kaydedilir.
+function lsGet(key, fallback){
+  try{
+    const raw = localStorage.getItem('ut_'+key);
+    return raw!=null ? JSON.parse(raw) : fallback;
+  }catch(e){ return fallback; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem('ut_'+key, JSON.stringify(value)); }catch(e){}
+}
+function loadLocalPrefs(){
+  state.pinnedCompanies = lsGet('pinnedCompanies', []);
+  state.pinnedParts = lsGet('pinnedParts', []);
+  const lastCompanyId = lsGet('lastCompanyId', null);
+  if(lastCompanyId) state.selectedCompanyId = lastCompanyId;
+}
+function toggleCompanyPin(id){
+  const set = new Set(state.pinnedCompanies);
+  if(set.has(id)) set.delete(id); else set.add(id);
+  state.pinnedCompanies = Array.from(set);
+  lsSet('pinnedCompanies', state.pinnedCompanies);
+}
+function togglePartPin(id){
+  const set = new Set(state.pinnedParts);
+  if(set.has(id)) set.delete(id); else set.add(id);
+  state.pinnedParts = Array.from(set);
+  lsSet('pinnedParts', state.pinnedParts);
+}
+function sortWithPinned(list, pinnedIds){
+  const pinned = [], rest = [];
+  list.forEach(item=> (pinnedIds.includes(item.id) ? pinned : rest).push(item));
+  return [...pinned, ...rest];
 }
 
 function setState(patch){ Object.assign(state, patch); render(); }
@@ -596,11 +669,26 @@ async function loadAll(){
     state.partsByCompany = partsMap;
     const knownUsersRaw = await storageGet('known-users');
     state.knownUsers = asArray(knownUsersRaw).filter(u=>typeof u==='string');
+    if(!isClient()){
+      const etRaw = await storageGet('errortracking');
+      state.errorTracking = {
+        ppmMonthly: (etRaw && etRaw.ppmMonthly) || {},
+        deptMonthly: (etRaw && etRaw.deptMonthly) || {},
+        disHatalar: asArray(etRaw && etRaw.disHatalar),
+        icHatalar: asArray(etRaw && etRaw.icHatalar),
+      };
+    }
     if(isClient()){
       state.selectedCompanyId = state.clientCompanyId;
       if(state.view==='companies') state.view = 'parts';
-    } else if(companies.length && !state.selectedCompanyId){
-      state.selectedCompanyId = companies[0].id;
+    } else {
+      // Daha önce localStorage'dan yüklenmiş bir seçim varsa, hâlâ geçerli mi kontrol et
+      if(state.selectedCompanyId && !companies.find(c=>c.id===state.selectedCompanyId)){
+        state.selectedCompanyId = null;
+      }
+      if(companies.length && !state.selectedCompanyId){
+        state.selectedCompanyId = companies[0].id;
+      }
     }
   }catch(e){
     console.error('loadAll fatal error', e);
@@ -625,6 +713,24 @@ async function persistParts(companyId){
   return ok;
 }
 async function persistKnownUsers(){ await storageSet('known-users', state.knownUsers); }
+
+/* ============================= HATA TAKİP (fabrika geneli, şirketten bağımsız) ============================= */
+const ERROR_DEPT_LIST = ['Lazer Kesimi', 'Kaynakhane', 'CNC Bükme', 'Diğer'];
+function genMonthLabels(beforeCount, afterCount){
+  const months = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  const now = new Date();
+  const labels = [];
+  for(let i=-beforeCount;i<=afterCount;i++){
+    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+    labels.push(months[d.getMonth()] + '.' + String(d.getFullYear()).slice(2));
+  }
+  return labels;
+}
+async function persistErrorTracking(){
+  const ok = await storageSet('errortracking', state.errorTracking);
+  if(!ok){ state.lastSaveFailed = true; }
+  return ok;
+}
 
 function getCompany(id){ return state.companies.find(c=>c.id===id); }
 function getParts(companyId){ return state.partsByCompany[companyId] || []; }
@@ -839,6 +945,7 @@ function attachAuthHandlers(){
       }
       state.loading = true;
       render();
+      loadLocalPrefs();
       await loadAll();
     }catch(e){
       console.error('auth error', e);
@@ -856,9 +963,10 @@ function renderSidebar(){
     {id:'parts', icon:'&#128230;', label:'Parçalar'},
     {id:'tracking', icon:'&#128295;', label:'Üretim Takibi'},
     {id:'quality', icon:'&#9878;', label:'Kalite Kontrol', badge: allOpenNcrCount()},
+    {id:'errortracking', icon:'&#128201;', label:'Hata Takip'},
     {id:'dashboard', icon:'&#128202;', label:'Dashboard'},
     {id:'reports', icon:'&#128196;', label:'Raporlar'},
-  ].filter(it => !(isClient() && it.id==='companies'));
+  ].filter(it => !(isClient() && (it.id==='companies' || it.id==='errortracking')));
   const sel = getCompany(state.selectedCompanyId);
   return `
   <div class="sidebar">
@@ -891,6 +999,7 @@ function renderView(){
     case 'parts': return renderPartsView();
     case 'tracking': return renderTrackingView();
     case 'quality': return renderQualityView();
+    case 'errortracking': return renderErrorTrackingView();
     case 'dashboard': return renderDashboardView();
     case 'reports': return renderReportsView();
     default: return '';
@@ -899,12 +1008,12 @@ function renderView(){
 
 /* ============================= COMPANIES VIEW ============================= */
 function renderCompaniesView(){
-  const companies = state.companies;
+  const companies = sortWithPinned(state.companies, state.pinnedCompanies);
   return `
     <div class="page-head">
       <div>
         <div class="page-title">Şirketler</div>
-        <div class="page-sub">Her şirketin parça verileri birbirinden tamamen bağımsızdır.</div>
+        <div class="page-sub">Her şirketin parça verileri birbirinden tamamen bağımsızdır. Sabitlemek için 📌 ikonuna tıklayın.</div>
       </div>
       ${isAdmin() ? `<button class="btn btn-primary" data-action="openAddCompany">+ Şirket Ekle</button>` : ''}
     </div>
@@ -920,8 +1029,10 @@ function renderCompaniesView(){
         ${companies.map(c=>{
           const t = companyTotals(c.id);
           const isSel = c.id === state.selectedCompanyId;
+          const isPinned = state.pinnedCompanies.includes(c.id);
           return `
           <div class="card company-card ${isSel?'selected':''}" data-select-company="${c.id}">
+            <div class="pin-btn ${isPinned?'pinned':''}" data-pin-company="${c.id}" title="${isPinned?'Sabitlemeyi kaldır':'En üste sabitle'}">${isPinned?'📌':'📍'}</div>
             ${isSel ? '<div class="badge-selected">Seçili</div>' : (isAdmin() ? `
             <div class="actions">
               <div class="icon-btn" data-edit-company="${c.id}" title="Düzenle">&#9998;</div>
@@ -957,11 +1068,15 @@ function renderPartsView(){
     const q = state.search.trim().toLowerCase();
     parts = parts.filter(p => p.partNo.toLowerCase().includes(q) || p.partName.toLowerCase().includes(q));
   }
+  if(state.drawingFilter==='missing') parts = parts.filter(p => !(p.drawings && p.drawings.length));
+  if(state.drawingFilter==='has') parts = parts.filter(p => p.drawings && p.drawings.length);
+  parts = sortWithPinned(parts, state.pinnedParts);
+  const missingDrawingCount = getParts(company.id).filter(p => !(p.drawings && p.drawings.length)).length;
   return `
     <div class="page-head">
       <div>
         <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span></div>
-        <div class="page-sub">${fmtNum(getParts(company.id).length)} parça kayıtlı · Proses akışı: ${stages.map(escapeHtml).join(' → ')}</div>
+        <div class="page-sub">${fmtNum(getParts(company.id).length)} parça kayıtlı · Proses akışı: ${stages.map(escapeHtml).join(' → ')} · satıra tıklayarak üretim takibini açabilirsiniz</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${isAdmin() ? `
@@ -974,6 +1089,11 @@ function renderPartsView(){
     </div>
     <div class="toolbar">
       <div class="search-box"><input type="text" id="searchInput" placeholder="Parça no veya adı ile ara…" value="${escapeHtml(state.search)}"/></div>
+      <select class="filter-select" id="drawingFilterSelect">
+        <option value="all" ${state.drawingFilter==='all'?'selected':''}>Tüm Parçalar</option>
+        <option value="missing" ${state.drawingFilter==='missing'?'selected':''}>Teknik Resmi Olmayanlar ${missingDrawingCount?`(${missingDrawingCount})`:''}</option>
+        <option value="has" ${state.drawingFilter==='has'?'selected':''}>Teknik Resmi Olanlar</option>
+      </select>
     </div>
     ${parts.length===0 ? `
       <div class="empty-state">
@@ -992,6 +1112,7 @@ function renderPartsView(){
       </div>` : ''}
       <table class="data-table">
         <thead><tr>
+          <th style="width:30px;"></th>
           ${isAdmin() ? `<th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>` : ''}
           <th>Parça No</th><th>Parça Adı</th><th>Mevcut Aşama</th><th>Termin</th><th>İstenen</th><th>${stages[stages.length-1]}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
         </tr></thead>
@@ -1008,8 +1129,10 @@ function renderPartsView(){
             const curStage = curIdx>=0 && status!=='shipped' ? stages[curIdx] : null;
             const curEntry = curStage ? getStageLastEntry(p, curStage) : null;
             const curDays = curEntry ? daysSince(curEntry.date) : null;
+            const isPinned = state.pinnedParts.includes(p.id);
             return `
-            <tr>
+            <tr class="part-row-clickable" data-row-part="${p.id}" data-row-company="${company.id}">
+              <td><span class="part-row-pin ${isPinned?'pinned':''}" data-pin-part="${p.id}" title="${isPinned?'Sabitlemeyi kaldır':'En üste sabitle'}">${isPinned?'📌':'📍'}</span></td>
               ${isAdmin() ? `<td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>` : ''}
               <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${(p.drawings&&p.drawings.length)?` <span title="${p.drawings.length} teknik resim eklendi" class="drawing-attach-icon">&#128206; ${p.drawings.length}</span>`:''}</td>
               <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
@@ -1024,7 +1147,6 @@ function renderPartsView(){
               <td style="font-size:11.5px;color:var(--gray-500);white-space:nowrap;">${p.lastUpdate||'—'}${p.updatedBy?`<div class="helper-text" style="margin:0;">${escapeHtml(p.updatedBy)}</div>`:''}</td>
               <td>
                 <div class="row-actions">
-                  <div class="icon-btn" data-track-part="${p.id}" title="Üretim Takibi">&#128295;</div>
                   ${isAdmin() ? `
                   <div class="icon-btn" data-edit-part="${p.id}" title="Düzenle">&#9998;</div>
                   <div class="icon-btn danger" data-delete-part="${p.id}" title="Sil">&#128465;</div>
@@ -1064,23 +1186,36 @@ function renderTrackingView(){
   const currentEntry = currentStageName ? getStageLastEntry(part, currentStageName) : null;
   const daysInStage = currentEntry ? daysSince(currentEntry.date) : null;
   const isShippedFully = remaining===0 && Number(part.orderedQty||0)>0;
+  const pinnedPartsInCompany = sortWithPinned(parts, state.pinnedParts);
 
   return `
     <div class="page-head">
       <div>
         <div class="page-title">Üretim Takibi</div>
-        <div class="page-sub">${escapeHtml(company.name)} — parça no veya adı yazarak bulun</div>
+        <div class="page-sub">${escapeHtml(company.name)} — kutuya tıklayıp arayın, boşken tüm parçalar listelenir</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input type="text" list="trackPartList" class="stage-select" id="partSearchInput" placeholder="Parça no veya adı yazın…" value="${escapeHtml(part.partNo)} — ${escapeHtml(part.partName)}" autocomplete="off"/>
-        <datalist id="trackPartList">
-          ${parts.map(p=>`<option data-id="${p.id}" value="${escapeHtml(p.partNo)} — ${escapeHtml(p.partName)}"></option>`).join('')}
-        </datalist>
+      <div style="display:flex;gap:8px;align-items:center;position:relative;">
+        <div class="part-search-wrap">
+          <input type="text" class="stage-select" id="partSearchInput" placeholder="Parça no veya adı yazın…" value="" autocomplete="off"/>
+          <div class="part-search-dropdown" id="partSearchDropdown" style="display:${state.partSearchOpen?'block':'none'};">
+            ${pinnedPartsInCompany.filter(p=>{
+              const q = state.partSearchQuery.trim().toLowerCase();
+              if(!q) return true;
+              return p.partNo.toLowerCase().includes(q) || (p.partName||'').toLowerCase().includes(q);
+            }).map(p=>`
+              <div class="part-search-item ${p.id===part.id?'active':''}" data-search-select-part="${p.id}">
+                <span class="part-no-tag">${escapeHtml(p.partNo)}</span>
+                <span class="psi-name">${escapeHtml(p.partName||'(isim yok)')}</span>
+                ${state.pinnedParts.includes(p.id)?'<span class="psi-pin">📌</span>':''}
+              </div>`).join('') || `<div class="part-search-empty">Eşleşen parça yok</div>`}
+          </div>
+        </div>
         <button class="btn btn-primary btn-sm" data-action="openAddPart" style="white-space:nowrap;" ${!isAdmin()?'disabled':''}>+ Parça Ekle</button>
       </div>
     </div>
 
     <div class="card" style="padding:20px;">
+      <div class="helper-text" style="margin:-10px 0 14px 0;">Seçili parça: <b style="color:var(--navy-800);font-style:normal;">${escapeHtml(part.partNo)} — ${part.partName?escapeHtml(part.partName):'(isim yok)'}</b></div>
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
         <div>
           <div style="font-family:var(--font-mono);font-size:13px;color:var(--navy-800);font-weight:700;">${escapeHtml(part.partNo)}</div>
@@ -1493,7 +1628,196 @@ function renderNcrList(ncrs, companyId, partId){
   `).join('');
 }
 
-/* ============================= DASHBOARD VIEW ============================= */
+/* ============================= HATA TAKİP VIEW ============================= */
+function renderErrorTrackingView(){
+  const tabs = [
+    {id:'ppm', label:'PPM Takibi'},
+    {id:'dept', label:'Bölüm Bazlı Hata'},
+    {id:'dis', label:'Dış Hata'},
+    {id:'ic', label:'İç Hata (Kişi Bazlı)'},
+  ];
+  return `
+    <div class="page-head">
+      <div><div class="page-title">Hata Takip</div><div class="page-sub">Fabrika geneli kalite hata takibi — PPM, bölüm bazlı ve kişi bazlı hata kayıtları</div></div>
+    </div>
+    <div class="et-tabs">
+      ${tabs.map(t=>`<div class="et-tab ${state.errorTrackingTab===t.id?'active':''}" data-et-tab="${t.id}">${t.label}</div>`).join('')}
+    </div>
+    ${state.errorTrackingTab==='ppm' ? renderPpmTab() : ''}
+    ${state.errorTrackingTab==='dept' ? renderDeptTab() : ''}
+    ${state.errorTrackingTab==='dis' ? renderDisHataTab() : ''}
+    ${state.errorTrackingTab==='ic' ? renderIcHataTab() : ''}
+  `;
+}
+
+function renderPpmTab(){
+  const months = genMonthLabels(5, 13);
+  const data = state.errorTracking.ppmMonthly || {};
+  const chartData = months
+    .map(m=>{
+      const row = data[m];
+      const uretim = row ? Number(row.uretim)||0 : 0;
+      const hata = row ? Number(row.hata)||0 : 0;
+      const ppm = uretim>0 ? Math.round((hata/uretim)*1000000) : 0;
+      return {date:m, value: ppm, hasData: !!(row && (row.uretim || row.hata))};
+    });
+  const chartPoints = chartData.filter(d=>d.hasData);
+  return `
+    <div class="card" style="padding:18px;margin-bottom:18px;">
+      <div class="et-card-title">PPM = (Toplam Hata Adedi ÷ Toplam Üretim Adedi) × 1.000.000</div>
+      <div class="helper-text" style="margin-bottom:14px;">Her ay için üretim ve hata adedini girin, PPM otomatik hesaplanır.</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table et-editable-table">
+          <thead><tr><th>Ay</th><th>Toplam Üretim Adedi</th><th>Toplam Hata Adedi</th><th>PPM</th></tr></thead>
+          <tbody>
+            ${months.map(m=>{
+              const row = data[m] || {};
+              const uretim = row.uretim!=null ? row.uretim : '';
+              const hata = row.hata!=null ? row.hata : '';
+              const ppm = (uretim && uretim>0) ? Math.round((Number(hata)||0)/Number(uretim)*1000000) : 0;
+              return `<tr>
+                <td class="mono" style="font-weight:700;">${escapeHtml(m)}</td>
+                <td><input type="number" min="0" class="et-input" data-ppm-uretim="${escapeHtml(m)}" value="${uretim}" ${!isAdmin()?'disabled':''}/></td>
+                <td><input type="number" min="0" class="et-input" data-ppm-hata="${escapeHtml(m)}" value="${hata}" ${!isAdmin()?'disabled':''}/></td>
+                <td class="mono" style="font-weight:700;color:${ppm>3000?'var(--red-700)':'var(--navy-800)'};">${fmtNum(ppm)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${isAdmin() ? `<div style="margin-top:14px;"><button class="btn btn-primary btn-sm" data-action="savePpmTable">Kaydet</button></div>` : ''}
+    </div>
+    ${chartPoints.length>0 ? `
+    <div class="card chart-card">
+      <div class="chart-card-title">PPM Trend Grafiği</div>
+      ${renderLineChartSVG(chartPoints)}
+    </div>` : ''}
+  `;
+}
+
+function renderDeptTab(){
+  const months = genMonthLabels(5, 13);
+  const depts = ['Kaynakhane','CNC Bükme','Lazer Kesimi'];
+  const data = state.errorTracking.deptMonthly || {};
+  const chartRows = depts.map(d=>({
+    stage: d,
+    value: months.reduce((sum,m)=> sum + Number((data[m]||{})[d]||0), 0)
+  }));
+  return `
+    <div class="card" style="padding:18px;margin-bottom:18px;">
+      <div class="et-card-title">Bölüm Bazlı Aylık Hata Adedi</div>
+      <div class="helper-text" style="margin-bottom:14px;">Her bölüm için aylık hata adedini girin.</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table et-editable-table">
+          <thead><tr><th>Ay</th>${depts.map(d=>`<th>${escapeHtml(d)}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${months.map(m=>{
+              const row = data[m] || {};
+              return `<tr>
+                <td class="mono" style="font-weight:700;">${escapeHtml(m)}</td>
+                ${depts.map(d=>`<td><input type="number" min="0" class="et-input" data-dept-val="${escapeHtml(m)}|${escapeHtml(d)}" value="${row[d]!=null?row[d]:''}" ${!isAdmin()?'disabled':''}/></td>`).join('')}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${isAdmin() ? `<div style="margin-top:14px;"><button class="btn btn-primary btn-sm" data-action="saveDeptTable">Kaydet</button></div>` : ''}
+    </div>
+    ${chartRows.some(r=>r.value>0) ? `
+    <div class="card chart-card">
+      <div class="chart-card-title">Toplam Hata — Bölüm Bazında (Görüntülenen Ay Aralığı)</div>
+      ${renderBarChartSVG(chartRows.filter(r=>r.value>0))}
+    </div>` : ''}
+  `;
+}
+
+function renderDisHataTab(){
+  const list = (state.errorTracking.disHatalar||[]).slice().sort((a,b)=> (b.tarih||'').localeCompare(a.tarih||''));
+  const byMonth = {};
+  list.forEach(h=>{
+    if(!h.tarih) return;
+    const key = h.tarih.slice(0,7); // YYYY-MM
+    byMonth[key] = (byMonth[key]||0) + (Number(h.adet)||0);
+  });
+  const monthKeys = Object.keys(byMonth).sort();
+  const chartData = monthKeys.slice(-12).map(k=>({date:k, value:byMonth[k]}));
+  const totalAdet = list.reduce((s,h)=>s+(Number(h.adet)||0),0);
+  return `
+    <div class="kpi-grid" style="margin-bottom:18px;">
+      <div class="kpi-card accent"><div class="kpi-label">Toplam Dış Hata Kaydı</div><div class="kpi-value">${fmtNum(list.length)}</div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Toplam Hatalı Adet</div><div class="kpi-value">${fmtNum(totalAdet)}</div></div>
+    </div>
+    ${chartData.length>0 ? `
+    <div class="card chart-card" style="margin-bottom:18px;">
+      <div class="chart-card-title">Aylık Dış Hata Adedi</div>
+      ${renderLineChartSVG(chartData)}
+    </div>` : ''}
+    <div class="page-head" style="margin-top:0;">
+      <div><div class="page-title" style="font-size:20px;">Dış Hata Kayıtları</div></div>
+      ${isAdmin() ? `<button class="btn btn-primary btn-sm" data-action="openDisHata">+ Kayıt Ekle</button>` : ''}
+    </div>
+    ${list.length===0 ? `<div class="empty-state"><div class="ico">&#128201;</div><h3>Henüz dış hata kaydı yok</h3></div>` : `
+    <table class="data-table">
+      <thead><tr><th>Tarih</th><th>Parça Kodu</th><th>Hata Nedeni</th><th>Adet</th>${isAdmin()?'<th></th>':''}</tr></thead>
+      <tbody>
+        ${list.map(h=>`<tr>
+          <td class="mono">${escapeHtml(h.tarih||'')}</td>
+          <td><span class="part-no-tag">${escapeHtml(h.parcaKodu||'')}</span></td>
+          <td>${escapeHtml(h.hataNedeni||'')}</td>
+          <td class="mono" style="color:var(--red-700);font-weight:700;">${fmtNum(h.adet)}</td>
+          ${isAdmin() ? `<td><div class="icon-btn danger" data-remove-dis-hata="${h.id}" title="Sil">&#128465;</div></td>` : ''}
+        </tr>`).join('')}
+      </tbody>
+    </table>`}
+  `;
+}
+
+function renderIcHataTab(){
+  const list = (state.errorTracking.icHatalar||[]).slice().sort((a,b)=> (b.tarih||'').localeCompare(a.tarih||''));
+  const deptTotals = ERROR_DEPT_LIST.map(d=>({stage:d, value: list.filter(h=>h.bolum===d).reduce((s,h)=>s+(Number(h.adet)||0),0)}));
+  const personTotals = {};
+  list.forEach(h=>{
+    const p = h.sorumluKisi || 'Bilinmiyor';
+    personTotals[p] = (personTotals[p]||0) + (Number(h.adet)||0);
+  });
+  const personRows = Object.entries(personTotals).sort((a,b)=>b[1]-a[1]);
+  return `
+    <div class="chart-grid" style="margin-bottom:18px;">
+      ${deptTotals.some(d=>d.value>0) ? `
+      <div class="card chart-card">
+        <div class="chart-card-title">Bölüm Bazında Toplam İç Hata</div>
+        ${renderBarChartSVG(deptTotals.filter(d=>d.value>0))}
+      </div>` : ''}
+      ${personRows.length>0 ? `
+      <div class="card chart-card">
+        <div class="chart-card-title">Kişi Bazında Toplam Hata</div>
+        ${renderBarChartSVG(personRows.slice(0,8).map(([stage,value])=>({stage,value})))}
+      </div>` : ''}
+    </div>
+    <div class="page-head" style="margin-top:0;">
+      <div><div class="page-title" style="font-size:20px;">İç Hata Kayıtları</div></div>
+      ${isAdmin() ? `<button class="btn btn-primary btn-sm" data-action="openIcHata">+ Kayıt Ekle</button>` : ''}
+    </div>
+    ${list.length===0 ? `<div class="empty-state"><div class="ico">&#128201;</div><h3>Henüz iç hata kaydı yok</h3></div>` : `
+    <table class="data-table">
+      <thead><tr><th>Tarih</th><th>Bölüm</th><th>Hata Adı</th><th>Hata Türü</th><th>Sorumlu</th><th>Adet</th><th>İzlenebilirlik</th>${isAdmin()?'<th></th>':''}</tr></thead>
+      <tbody>
+        ${list.map(h=>`<tr>
+          <td class="mono">${escapeHtml(h.tarih||'')}</td>
+          <td>${escapeHtml(h.bolum||'')}</td>
+          <td>${escapeHtml(h.hataAdi||'')}</td>
+          <td>${escapeHtml(h.hataTuru||'')}</td>
+          <td>${escapeHtml(h.sorumluKisi||'')}</td>
+          <td class="mono" style="color:var(--red-700);font-weight:700;">${fmtNum(h.adet)}</td>
+          <td><span class="status-badge ${h.izlenebilirlik==='OK'?'shipped':'progress'}"><span class="status-dot"></span>${escapeHtml(h.izlenebilirlik||'—')}</span></td>
+          ${isAdmin() ? `<td><div class="icon-btn danger" data-remove-ic-hata="${h.id}" title="Sil">&#128465;</div></td>` : ''}
+        </tr>`).join('')}
+      </tbody>
+    </table>`}
+  `;
+}
+
+
 function renderDashboardView(){
   const totals = allTotals();
   const companies = visibleCompanies();
@@ -1953,6 +2277,43 @@ function renderModal(){
       </div>
     `);
   }
+  if(m.type==='disHata'){
+    return modalWrap(`
+      <h2>Dış Hata Kaydı Ekle</h2>
+      <div class="modal-sub">Müşteriden gelen / dışarıda tespit edilen hata kaydı.</div>
+      <div class="field"><label>Tarih</label><input type="date" id="disHataTarihInput" value="${new Date().toISOString().slice(0,10)}"/></div>
+      <div class="field"><label>Parça Kodu</label><input type="text" id="disHataParcaInput" placeholder="Örn. 2337055"/></div>
+      <div class="field"><label>Hata Nedeni</label><textarea id="disHataNedenInput" placeholder="Örn. Malzemeler ters büküm yapılmış"></textarea></div>
+      <div class="field"><label>Adet</label><input type="number" min="0" id="disHataAdetInput" placeholder="0"/></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" data-action="saveDisHata">Kaydet</button>
+      </div>
+    `);
+  }
+  if(m.type==='icHata'){
+    return modalWrap(`
+      <h2>İç Hata Kaydı Ekle</h2>
+      <div class="modal-sub">Bölüm / kişi bazlı iç hata kaydı.</div>
+      <div class="field"><label>Tarih</label><input type="date" id="icHataTarihInput" value="${new Date().toISOString().slice(0,10)}"/></div>
+      <div class="field"><label>Bölüm</label>
+        <select id="icHataBolumInput">${ERROR_DEPT_LIST.map(d=>`<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Hata Adı</label><input type="text" id="icHataAdiInput" placeholder="Örn. 12 mm Bermak"/></div>
+      <div class="field"><label>Hata Türü</label><input type="text" id="icHataTuruInput" placeholder="Örn. Hatalı büküm"/></div>
+      <div class="field"><label>Sorumlu Kişi</label><input type="text" id="icHataSorumluInput" placeholder="Örn. Ahmet Yılmaz"/></div>
+      <div class="field"><label>Hatanın Nasıl Meydana Geldiği</label><textarea id="icHataNasilInput" placeholder="Örn. Gündüz vardiyası"></textarea></div>
+      <div class="field"><label>Adet</label><input type="number" min="0" id="icHataAdetInput" placeholder="0"/></div>
+      <div class="field"><label>İzlenebilirlik</label>
+        <select id="icHataIzlenebilirlikInput"><option value="OK">OK</option><option value="NOT OK">NOT OK</option></select>
+      </div>
+      <div class="field"><label>Açıklama (opsiyonel)</label><textarea id="icHataAciklamaInput"></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" data-action="saveIcHata">Kaydet</button>
+      </div>
+    `);
+  }
   return '';
 }
 function modalWrap(inner, size){
@@ -1978,14 +2339,18 @@ function attachHandlers(){
 
   app.querySelectorAll('[data-select-company]').forEach(el=>{
     el.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-edit-company]') || e.target.closest('[data-delete-company]')) return;
+      if(e.target.closest('[data-edit-company]') || e.target.closest('[data-delete-company]') || e.target.closest('[data-pin-company]')) return;
       state.selectedCompanyId = el.getAttribute('data-select-company');
       state.selectedPartIds = new Set();
+      lsSet('lastCompanyId', state.selectedCompanyId);
       render();
     });
   });
   app.querySelectorAll('[data-select-company-btn]').forEach(el=>{
-    el.addEventListener('click', (e)=>{ e.stopPropagation(); state.selectedCompanyId = el.getAttribute('data-select-company-btn'); state.selectedPartIds = new Set(); render(); });
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); state.selectedCompanyId = el.getAttribute('data-select-company-btn'); state.selectedPartIds = new Set(); lsSet('lastCompanyId', state.selectedCompanyId); render(); });
+  });
+  app.querySelectorAll('[data-pin-company]').forEach(el=>{
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); toggleCompanyPin(el.getAttribute('data-pin-company')); render(); });
   });
   app.querySelectorAll('[data-edit-company]').forEach(el=>{
     el.addEventListener('click',(e)=>{ e.stopPropagation(); state.modal = {type:'editCompany', payload:{id: el.getAttribute('data-edit-company')}}; render(); });
@@ -1995,18 +2360,31 @@ function attachHandlers(){
   });
 
   app.querySelectorAll('[data-edit-part]').forEach(el=>{
-    el.addEventListener('click', ()=>{ state.modal = {type:'editPart', payload:{id: el.getAttribute('data-edit-part')}}; render(); });
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); state.modal = {type:'editPart', payload:{id: el.getAttribute('data-edit-part')}}; render(); });
   });
   app.querySelectorAll('[data-delete-part]').forEach(el=>{
-    el.addEventListener('click', ()=>{ state.modal = {type:'deletePart', payload:{id: el.getAttribute('data-delete-part')}}; render(); });
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); state.modal = {type:'deletePart', payload:{id: el.getAttribute('data-delete-part')}}; render(); });
   });
   app.querySelectorAll('[data-track-part]').forEach(el=>{
-    el.addEventListener('click', ()=>{ state.selectedPartId = el.getAttribute('data-track-part'); state.view='tracking'; render(); });
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); state.selectedPartId = el.getAttribute('data-track-part'); state.view='tracking'; render(); });
+  });
+  app.querySelectorAll('[data-pin-part]').forEach(el=>{
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); togglePartPin(el.getAttribute('data-pin-part')); render(); });
+  });
+  app.querySelectorAll('tr.part-row-clickable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.closest('input, button, .icon-btn, .part-row-pin, .drawing-attach-icon')) return;
+      state.selectedCompanyId = el.getAttribute('data-row-company');
+      state.selectedPartId = el.getAttribute('data-row-part');
+      state.view = 'tracking';
+      render();
+    });
   });
 
   const selectAllCheck = document.getElementById('selectAllCheck');
   if(selectAllCheck){
-    selectAllCheck.addEventListener('change', ()=>{
+    selectAllCheck.addEventListener('change', (e)=>{
+      e.stopPropagation();
       const company = getCompany(state.selectedCompanyId);
       let parts = getParts(company.id);
       if(state.search.trim()){
@@ -2019,6 +2397,7 @@ function attachHandlers(){
     });
   }
   app.querySelectorAll('[data-part-check]').forEach(el=>{
+    el.addEventListener('click', (e)=> e.stopPropagation());
     el.addEventListener('change', ()=>{
       const id = el.getAttribute('data-part-check');
       if(el.checked){ state.selectedPartIds.add(id); } else { state.selectedPartIds.delete(id); }
@@ -2033,16 +2412,44 @@ function attachHandlers(){
       setTimeout(()=>{ const i=document.getElementById('searchInput'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0);
     });
   }
+  const drawingFilterSelect = document.getElementById('drawingFilterSelect');
+  if(drawingFilterSelect){
+    drawingFilterSelect.addEventListener('change', ()=>{ state.drawingFilter = drawingFilterSelect.value; render(); });
+  }
 
   const partSearchInput = document.getElementById('partSearchInput');
   if(partSearchInput){
+    partSearchInput.addEventListener('focus', ()=>{ state.partSearchOpen = true; render(); setTimeout(()=>{ const i=document.getElementById('partSearchInput'); if(i){ i.focus(); i.value = state.partSearchQuery; } },0); });
     partSearchInput.addEventListener('input', ()=>{
-      const val = partSearchInput.value;
-      const company = getCompany(state.selectedCompanyId);
-      const parts = getParts(company.id);
-      const match = parts.find(p => `${p.partNo} — ${p.partName}` === val);
-      if(match){ state.selectedPartId = match.id; render(); }
+      state.partSearchQuery = partSearchInput.value;
+      state.partSearchOpen = true;
+      render();
+      setTimeout(()=>{ const i=document.getElementById('partSearchInput'); if(i){ i.focus(); i.value = state.partSearchQuery; i.selectionStart=i.selectionEnd=i.value.length; } },0);
     });
+    partSearchInput.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ state.partSearchOpen=false; state.partSearchQuery=''; render(); } });
+  }
+  app.querySelectorAll('[data-search-select-part]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      state.selectedPartId = el.getAttribute('data-search-select-part');
+      state.partSearchOpen = false;
+      state.partSearchQuery = '';
+      render();
+    });
+  });
+  if(state.partSearchOpen){
+    // Dışarı tıklanınca aç-kapan listeyi kapat
+    setTimeout(()=>{
+      const closeHandler = (e)=>{
+        const wrap = document.querySelector('.part-search-wrap');
+        if(wrap && !wrap.contains(e.target)){
+          state.partSearchOpen = false;
+          state.partSearchQuery = '';
+          document.removeEventListener('click', closeHandler);
+          render();
+        }
+      };
+      document.addEventListener('click', closeHandler);
+    }, 0);
   }
 
   const drawingDropZone = document.getElementById('drawingDropZone');
@@ -2165,6 +2572,26 @@ function attachHandlers(){
       state.selectedCompanyId = el.getAttribute('data-goto-company');
       state.selectedPartId = el.getAttribute('data-goto-part');
       state.view = 'tracking';
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-et-tab]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.errorTrackingTab = el.getAttribute('data-et-tab'); render(); });
+  });
+  app.querySelectorAll('[data-remove-dis-hata]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      state.errorTracking.disHatalar = (state.errorTracking.disHatalar||[]).filter(h=>h.id!==el.getAttribute('data-remove-dis-hata'));
+      await persistErrorTracking();
+      showToast('Kayıt silindi.');
+      render();
+    });
+  });
+  app.querySelectorAll('[data-remove-ic-hata]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      state.errorTracking.icHatalar = (state.errorTracking.icHatalar||[]).filter(h=>h.id!==el.getAttribute('data-remove-ic-hata'));
+      await persistErrorTracking();
+      showToast('Kayıt silindi.');
       render();
     });
   });
@@ -2565,6 +2992,81 @@ async function handleAction(action, el){
       });
       break;
     }
+
+    case 'savePpmTable': {
+      if(!isAdmin()) return;
+      const months = genMonthLabels(5, 13);
+      const data = state.errorTracking.ppmMonthly || {};
+      months.forEach(m=>{
+        const uInp = document.querySelector(`[data-ppm-uretim="${CSS.escape(m)}"]`);
+        const hInp = document.querySelector(`[data-ppm-hata="${CSS.escape(m)}"]`);
+        const uretim = uInp && uInp.value!=='' ? Number(uInp.value) : null;
+        const hata = hInp && hInp.value!=='' ? Number(hInp.value) : null;
+        if(uretim==null && hata==null){ delete data[m]; }
+        else { data[m] = { uretim: uretim||0, hata: hata||0 }; }
+      });
+      state.errorTracking.ppmMonthly = data;
+      await persistErrorTracking();
+      showToast('PPM tablosu kaydedildi.');
+      render();
+      break;
+    }
+    case 'saveDeptTable': {
+      if(!isAdmin()) return;
+      const months = genMonthLabels(5, 13);
+      const depts = ['Kaynakhane','CNC Bükme','Lazer Kesimi'];
+      const data = state.errorTracking.deptMonthly || {};
+      months.forEach(m=>{
+        let row = data[m] || {};
+        let anyVal = false;
+        depts.forEach(d=>{
+          const inp = document.querySelector(`[data-dept-val="${CSS.escape(m+'|'+d)}"]`);
+          const v = inp && inp.value!=='' ? Number(inp.value) : null;
+          if(v!=null){ row[d] = v; anyVal = true; } else { delete row[d]; }
+        });
+        if(anyVal){ data[m] = row; } else { delete data[m]; }
+      });
+      state.errorTracking.deptMonthly = data;
+      await persistErrorTracking();
+      showToast('Bölüm bazlı hata tablosu kaydedildi.');
+      render();
+      break;
+    }
+    case 'openDisHata': state.modal = {type:'disHata'}; render(); break;
+    case 'saveDisHata': {
+      const tarih = document.getElementById('disHataTarihInput').value;
+      const parcaKodu = document.getElementById('disHataParcaInput').value.trim();
+      const hataNedeni = document.getElementById('disHataNedenInput').value.trim();
+      const adet = Number(document.getElementById('disHataAdetInput').value)||0;
+      if(!tarih || !hataNedeni){ showToast('Tarih ve hata nedeni zorunludur.'); return; }
+      state.errorTracking.disHatalar = state.errorTracking.disHatalar || [];
+      state.errorTracking.disHatalar.push({id: uid('dh'), tarih, parcaKodu, hataNedeni, adet, addedBy: state.currentUser});
+      state.modal = null;
+      await persistErrorTracking();
+      showToast('Dış hata kaydı eklendi.');
+      render();
+      break;
+    }
+    case 'openIcHata': state.modal = {type:'icHata'}; render(); break;
+    case 'saveIcHata': {
+      const tarih = document.getElementById('icHataTarihInput').value;
+      const bolum = document.getElementById('icHataBolumInput').value;
+      const hataAdi = document.getElementById('icHataAdiInput').value.trim();
+      const hataTuru = document.getElementById('icHataTuruInput').value.trim();
+      const sorumluKisi = document.getElementById('icHataSorumluInput').value.trim();
+      const nasilOldu = document.getElementById('icHataNasilInput').value.trim();
+      const adet = Number(document.getElementById('icHataAdetInput').value)||0;
+      const izlenebilirlik = document.getElementById('icHataIzlenebilirlikInput').value;
+      const aciklama = document.getElementById('icHataAciklamaInput').value.trim();
+      if(!tarih || !hataAdi){ showToast('Tarih ve hata adı zorunludur.'); return; }
+      state.errorTracking.icHatalar = state.errorTracking.icHatalar || [];
+      state.errorTracking.icHatalar.push({id: uid('ih'), tarih, bolum, hataAdi, hataTuru, sorumluKisi, nasilOldu, adet, izlenebilirlik, aciklama, addedBy: state.currentUser});
+      state.modal = null;
+      await persistErrorTracking();
+      showToast('İç hata kaydı eklendi.');
+      render();
+      break;
+    }
   }
 }
 
@@ -2826,6 +3328,7 @@ fbAuth.onAuthStateChanged(async (user)=>{
       state.currentUserRole = (profile && profile.role) || null;
       state.clientCompanyId = (profile && profile.companyId) || null;
       render();
+      loadLocalPrefs();
       await loadAll();
       checkAndNotify();
     }catch(e){
