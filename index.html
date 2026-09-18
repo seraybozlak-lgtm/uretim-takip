@@ -56,9 +56,9 @@
     --white:#FFFFFF;
 
     --ink:#070B14;
-    --panel:#111A2F;
-    --panel-2:#17233D;
-    --hair:#233252;
+    --panel:linear-gradient(160deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.035) 100%);
+    --panel-2:linear-gradient(160deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 100%);
+    --hair:rgba(255,255,255,0.14);
 
     --font-display:'Bricolage Grotesque', -apple-system, sans-serif;
     --font-body:'Inter', -apple-system, sans-serif;
@@ -66,16 +66,23 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
-  html{zoom:1.1;}
-  @media (max-width:900px){ html{zoom:1;} }
+  html{font-size:107%;}
   body{
     font-family:var(--font-body);
-    background:var(--ink);
+    background:
+      radial-gradient(1100px circle at 12% -8%, rgba(74,114,201,0.20), transparent 60%),
+      radial-gradient(900px circle at 105% 8%, rgba(226,58,76,0.13), transparent 55%),
+      radial-gradient(700px circle at 50% 110%, rgba(198,161,83,0.07), transparent 60%),
+      var(--ink);
+    background-attachment:fixed;
     color:var(--gray-900);
   }
   #app{display:flex;min-height:100vh;}
   ::selection{background:rgba(226,58,76,0.35);color:#fff;}
   *:focus-visible{outline:2px solid var(--navy-700);outline-offset:2px;}
+  .card,.kpi-card,.modal,.login-box,table.data-table,.company-card,.ncr-card,.pipeline-stage,.part-search-dropdown,.toast,.alert-box,.drawing-box{
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  }
 
   /* ---------- SIDEBAR ---------- */
   .sidebar{
@@ -165,10 +172,10 @@
     letter-spacing:0.1px;
   }
   .btn:active{transform:scale(0.97);}
-  .btn-primary{background:var(--red-600);color:var(--white);box-shadow:0 2px 10px rgba(255,78,94,0.28);}
-  .btn-primary:hover{background:var(--red-700);box-shadow:0 4px 16px rgba(255,78,94,0.38);}
-  .btn-navy{background:var(--ink-fill-2);color:var(--white);box-shadow:0 2px 8px rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);}
-  .btn-navy:hover{background:var(--navy-50);border-color:rgba(255,255,255,0.14);}
+  .btn-primary{background:linear-gradient(180deg, #FF6373 0%, var(--red-600) 55%, var(--red-700) 100%);color:var(--white);box-shadow:inset 0 1px 0 rgba(255,255,255,0.45),0 4px 16px rgba(255,78,94,0.35);}
+  .btn-primary:hover{background:linear-gradient(180deg, #FF7684 0%, var(--red-700) 55%, #C82232 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),0 6px 22px rgba(255,78,94,0.45);}
+  .btn-navy{background:linear-gradient(180deg, #24345C 0%, var(--ink-fill-2) 60%, var(--ink-fill) 100%);color:var(--white);box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 2px 10px rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.1);}
+  .btn-navy:hover{background:linear-gradient(180deg, #2E4270 0%, var(--navy-50) 60%, var(--ink-fill-2) 100%);border-color:rgba(255,255,255,0.18);}
   .btn-ghost{background:var(--panel);color:var(--navy-800);border:1px solid var(--gray-200);}
   .btn-ghost:hover{border-color:var(--navy-700);box-shadow:0 0 0 3px rgba(74,114,201,0.12);}
   .btn-sm{padding:6px 12px;font-size:12.5px;}
@@ -176,7 +183,7 @@
   .btn-danger-ghost:hover{background:var(--red-100);}
   .btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
 
-  .card{background:var(--panel);border:1px solid var(--hair);border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);}
+  .card{background:var(--panel);border:1px solid var(--hair);border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.22),0 14px 30px rgba(0,0,0,0.28);}
   .empty-state{
     text-align:center;padding:70px 20px;color:var(--gray-500);
     border:1.5px dashed var(--gray-300);border-radius:12px;background:var(--panel);
@@ -244,7 +251,7 @@
     position:fixed;inset:0;background:rgba(3,6,12,0.65);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
   }
-  .modal{background:var(--panel);border:1px solid var(--hair);border-radius:16px;width:100%;max-width:440px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,0.55);max-height:88vh;overflow-y:auto;}
+  .modal{background:var(--panel);border:1px solid var(--hair);border-radius:16px;width:100%;max-width:440px;padding:28px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.25),0 30px 80px rgba(0,0,0,0.55);max-height:88vh;overflow-y:auto;}
   .modal.wide{max-width:660px;}
   .modal h2{font-family:var(--font-display);font-size:23px;font-weight:600;color:var(--navy-900);margin:0 0 4px 0;letter-spacing:-0.2px;}
   .modal .modal-sub{font-size:13px;color:var(--gray-500);margin-bottom:18px;font-family:var(--font-body);}
@@ -266,7 +273,7 @@
 
   /* login modal specific */
   .login-overlay{position:fixed;inset:0;background:radial-gradient(circle at 25% 15%, #16264A 0%, var(--navy-950) 55%, #030509 100%);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px;}
-  .login-box{background:var(--panel);border:1px solid var(--hair);border-radius:18px;padding:44px 38px;width:100%;max-width:400px;box-shadow:0 50px 120px rgba(0,0,0,0.6);position:relative;overflow:hidden;}
+  .login-box{background:var(--panel);border:1px solid var(--hair);border-radius:18px;padding:44px 38px;width:100%;max-width:400px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.3),0 50px 120px rgba(0,0,0,0.6);position:relative;overflow:hidden;}
   .login-box::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--navy-700),var(--brass),var(--red-600));}
   .login-box .login-brand{font-family:var(--font-display);font-weight:700;font-size:27px;color:var(--navy-900);text-align:center;letter-spacing:-0.3px;}
   .login-box .login-brand span{color:var(--red-600);}
@@ -308,7 +315,7 @@
 
   /* dashboard */
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:26px;}
-  .kpi-card{padding:19px 19px 17px 19px;border-radius:12px;background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--navy-700);box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);transition:box-shadow .2s,transform .15s,border-color .15s;}
+  .kpi-card{padding:19px 19px 17px 19px;border-radius:12px;background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--navy-700);box-shadow:inset 0 1px 0 rgba(255,255,255,0.22),0 12px 26px rgba(0,0,0,0.26);transition:box-shadow .2s,transform .15s,border-color .15s;}
   .kpi-card:hover{border-color:var(--navy-700);transform:translateY(-2px);}
   .kpi-card.accent{border-left-color:var(--red-600);}
   .kpi-card .kpi-label{font-size:11px;color:var(--gray-500);font-weight:600;letter-spacing:0.2px;font-family:var(--font-body);}
@@ -1184,6 +1191,7 @@ function renderPartsView(){
   if(state.drawingFilter==='has') parts = parts.filter(p => p.drawings && p.drawings.length);
   parts = sortWithPinned(parts, state.pinnedParts);
   const missingDrawingCount = getParts(company.id).filter(p => !(p.drawings && p.drawings.length)).length;
+  const missingStageCount = DEFAULT_STAGES.filter(s => !stages.includes(s)).length;
   return `
     <div class="page-head">
       <div>
@@ -1192,7 +1200,7 @@ function renderPartsView(){
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${isAdmin() ? `
-        <button class="btn btn-ghost" data-action="openStages">Proses Aşamaları</button>
+        <button class="btn btn-ghost" data-action="openStages" style="position:relative;">Proses Aşamaları${missingStageCount ? `<span class="nav-badge" style="position:absolute;top:-7px;right:-7px;">${missingStageCount}</span>` : ''}</button>
         <button class="btn btn-ghost" data-action="openDrawingTrash">&#128465; Çöp Kutusu${state.drawingTrash.length?` (${state.drawingTrash.length})`:''}</button>
         <button class="btn btn-navy" data-action="openImport">&#128228; Excel / CSV Yükle</button>
         <button class="btn btn-navy" data-action="openBulkDrawings">&#128193; Teknik Resimleri Toplu Yükle</button>
@@ -1356,7 +1364,7 @@ function renderTrackingView(){
                 ${d.type && d.type.startsWith('image/') ?
                   `<img src="${d.data}" class="drawing-thumb" data-view-drawing="${part.id}" data-drawing-idx="${i}"/>` :
                   `<div class="drawing-file-icon" data-view-drawing="${part.id}" data-drawing-idx="${i}">&#128196;</div>`}
-                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">Görüntülemek için tıklayın</div></div>
+                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">${d.type && d.type.startsWith('image/') && isAdmin() ? 'Görüntülemek ve ölçüm noktalarını işaretlemek için tıklayın' : 'Görüntülemek için tıklayın'}</div></div>
                 ${isAdmin() ? `<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button>` : ''}
               </div>`).join('')}
           </div>
@@ -1618,8 +1626,8 @@ function measurementStatus(m){
 function renderMeasurementSection(part){
   const measurements = part.measurements || [];
   const suggested = calcSampleCount(part.orderedQty);
-  const primaryImageDrawing = (part.drawings||[]).find(d=> d.type && d.type.startsWith('image/'));
-  const hasImageDrawing = !!primaryImageDrawing;
+  const imageDrawings = (part.drawings||[]).map((d,i)=>({...d, idx:i})).filter(d=> d.type && d.type.startsWith('image/'));
+  const hasImageDrawing = imageDrawings.length>0;
   const admin = isAdmin();
   return `
     <div class="section-title">Ölçüm Kontrolü</div>
@@ -1631,14 +1639,15 @@ function renderMeasurementSection(part){
     </div>` : ''}
 
     ${hasImageDrawing ? `
-      <div class="card" style="padding:14px;margin-bottom:14px;">
-        ${admin ? `<div class="helper-text" style="margin:0 0 8px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span>${state.markingMeasurementId ? 'Tam istediğiniz noktaya yakınlaştırıp resme tıklayın; işaret o noktaya konur.' : 'Bir ölçüm satırındaki "Resimde İşaretle" butonuna basıp resme tıklayarak konumunu belirleyebilirsiniz.'}${(part.drawings||[]).filter(d=>d.type&&d.type.startsWith('image/')).length>1 ? ' (Birden fazla resim var, işaretleme ilk resim üzerinde yapılır.)' : ''}</span>${state.markingMeasurementId ? `<button class="btn btn-ghost btn-sm" data-action="cancelMarkMeasurement" style="white-space:nowrap;">İşaretlemeyi İptal Et</button>` : ''}</div>` : ''}
-        <div class="drawing-image-wrap" id="measureImageWrap" style="position:relative;display:inline-block;max-width:100%;cursor:${state.markingMeasurementId?'crosshair':'default'};">
-          <img src="${primaryImageDrawing.data}" id="measureImageEl" style="max-width:100%;max-height:420px;border-radius:8px;border:1px solid var(--gray-300);display:block;"/>
-          ${measurements.filter(m=>m.imgX!=null && m.imgY!=null).map(m=>`<div class="meas-marker ${measurementStatus(m)}" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
+      <div class="card" style="padding:14px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <img src="${imageDrawings[0].data}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--gray-300);cursor:pointer;" data-open-drawing-marker="${part.id}" data-drawing-idx="${imageDrawings[0].idx}"/>
+        <div style="flex:1;min-width:160px;">
+          <div style="font-weight:700;color:var(--navy-800);font-size:13.5px;">Teknik resim üzerinde işaretleme</div>
+          <div class="helper-text" style="margin:2px 0 0 0;">${imageDrawings.length>1?`${imageDrawings.length} teknik resim mevcut. `:''}Ölçüm noktalarını resim üzerinde görüntülemek${admin?' veya işaretlemek':''} için resme tıklayın.</div>
         </div>
+        <button class="btn btn-ghost btn-sm" data-open-drawing-marker="${part.id}" data-drawing-idx="${imageDrawings[0].idx}">Resimde Görüntüle${admin?' / İşaretle':''}</button>
       </div>
-    ` : ''}
+    ` : (admin ? `<div class="helper-text" style="margin-bottom:14px;">Ölçüm noktalarını resim üzerinde işaretlemek için önce "Teknik Resimler" bölümünden bir resim yükleyin.</div>` : '')}
 
     ${measurements.length===0 ? `
       <div class="empty-state" style="padding:30px 20px;">
@@ -1660,10 +1669,10 @@ function renderMeasurementSection(part){
                   ? (m.imgX!=null
                       ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                            <span style="color:var(--red-600);font-weight:700;white-space:nowrap;">&#128204; işaretli</span>
-                           <button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Yeniden İşaretle</button>
+                           <button class="btn btn-ghost btn-sm" data-open-mark-measurement="${m.id}">Yeniden İşaretle</button>
                            <div class="icon-btn danger" data-unmark-measurement="${m.id}" title="İşareti kaldır">&#128465;</div>
                          </div>`
-                      : `<button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Resimde İşaretle</button>`)
+                      : `<button class="btn btn-ghost btn-sm" data-open-mark-measurement="${m.id}">Resimde İşaretle</button>`)
                   : (m.imgX!=null ? `<span style="color:var(--red-600);font-weight:700;">&#128204; işaretli</span>` : '—')
               }</td>` : ''}
               <td><input type="text" inputmode="decimal" placeholder="0,00" class="stage-input" style="width:90px;font-size:13px;padding:6px 8px;" data-meas-value="${m.id}" value="${m.measuredValue!=null?String(m.measuredValue).replace('.',','):''}" ${!admin?'disabled':''}/></td>
@@ -2227,6 +2236,7 @@ function renderModal(){
   }
   if(m.type==='stages'){
     const company = getCompany(state.selectedCompanyId);
+    const missingDefaults = DEFAULT_STAGES.filter(s => !company.stages.includes(s));
     return modalWrap(`
       <h2>Üretim Aşamaları</h2>
       <div class="modal-sub">${escapeHtml(company.name)} için proses akışını düzenleyin. Sondaki aşama "sevkiyat" olarak kabul edilir.</div>
@@ -2237,7 +2247,18 @@ function renderModal(){
         <input type="text" id="newStageInput" placeholder="Yeni aşama adı (Örn. Kalite Kontrol)"/>
         <button class="btn btn-navy btn-sm" data-action="addStage">+ Ekle</button>
       </div>
-      <div class="helper-text">Aşama sırası, üretim akışını (Kesim → Büküm → … → Sevkiyat) temsil eder. Bir aşamayı kaldırmak, o aşamaya ait girilmiş adetleri siler.</div>
+      ${missingDefaults.length ? `
+        <div class="card" style="padding:12px 14px;margin-top:14px;border-left:3px solid var(--red-600);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="font-weight:700;font-size:12.5px;color:var(--navy-800);">Eklenebilecek standart proses aşamaları</div>
+            <button class="btn btn-ghost btn-sm" data-action="addAllDefaultStages">Tümünü Ekle (+${missingDefaults.length})</button>
+          </div>
+          <div class="stage-chip-row">
+            ${missingDefaults.map(s=>`<span class="tag-chip" style="cursor:pointer;background:var(--panel-2);" data-quick-add-stage="${escapeHtml(s)}">+ ${escapeHtml(s)}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+      <div class="helper-text" style="margin-top:12px;">Aşama sırası, üretim akışını (Kesim → Büküm → … → Sevkiyat) temsil eder. Bir aşamayı kaldırmak, o aşamaya ait girilmiş adetleri siler.</div>
       <div class="modal-actions">
         <button class="btn btn-primary" data-action="closeModal">Tamam</button>
       </div>
@@ -2480,6 +2501,58 @@ function renderModal(){
       </div>
     `, 'wide');
   }
+  if(m.type==='markDrawing'){
+    const company = getCompany(state.selectedCompanyId);
+    const part = getParts(company.id).find(p=>p.id===m.payload.partId);
+    const imageDrawings = (part.drawings||[]).map((d,i)=>({...d, idx:i})).filter(d=> d.type && d.type.startsWith('image/'));
+    const drawingIdx = (m.payload.drawingIdx!=null && imageDrawings.some(d=>d.idx===m.payload.drawingIdx)) ? m.payload.drawingIdx : (imageDrawings[0] ? imageDrawings[0].idx : null);
+    const drawing = drawingIdx!=null ? part.drawings[drawingIdx] : null;
+    const measurements = part.measurements || [];
+    const admin = isAdmin();
+    if(!drawing){
+      return modalWrap(`
+        <h2>Teknik Resim</h2>
+        <div class="empty-state" style="padding:30px 20px;"><p style="margin:0;">Görüntülenecek bir teknik resim bulunamadı.</p></div>
+        <div class="modal-actions"><button class="btn btn-ghost" data-action="closeModal">Kapat</button></div>
+      `, 'wide');
+    }
+    const markersHere = measurements.filter(x=> x.imgX!=null && (x.imgDrawingIdx||0)===drawingIdx);
+    return modalWrap(`
+      <h2>${escapeHtml(drawing.name)}</h2>
+      <div class="modal-sub">${escapeHtml(part.partNo)}${part.partName?` — ${escapeHtml(part.partName)}`:''}${imageDrawings.length>1?` · ${imageDrawings.findIndex(d=>d.idx===drawingIdx)+1}/${imageDrawings.length}. resim`:''}</div>
+      ${imageDrawings.length>1 ? `
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+          ${imageDrawings.map(d=>`<img src="${d.data}" data-select-drawing="${d.idx}" data-part="${part.id}" style="width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid ${d.idx===drawingIdx?'var(--red-600)':'var(--hair)'};"/>`).join('')}
+        </div>
+      ` : ''}
+      ${admin ? `<div class="helper-text" style="margin:0 0 8px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span>${state.markingMeasurementId ? 'Tam istediğiniz noktaya yakınlaştırıp resme tıklayın; işaret o noktaya konur.' : 'Aşağıdaki listeden bir ölçüm noktası seçip "İşaretle" ile resme tıklayarak yerini belirleyin.'}</span>${state.markingMeasurementId ? `<button class="btn btn-ghost btn-sm" data-action="cancelMarkMeasurement" style="white-space:nowrap;">İşaretlemeyi İptal Et</button>` : ''}</div>` : ''}
+      <div class="drawing-image-wrap" id="measureImageWrap" style="position:relative;display:inline-block;max-width:100%;cursor:${state.markingMeasurementId?'crosshair':'default'};">
+        <img src="${drawing.data}" id="measureImageEl" data-drawing-idx="${drawingIdx}" style="max-width:100%;max-height:440px;border-radius:8px;border:1px solid var(--gray-300);display:block;"/>
+        ${markersHere.map(x=>`<div class="meas-marker ${measurementStatus(x)}" style="left:${x.imgX}%;top:${x.imgY}%;">${x.no}</div>`).join('')}
+      </div>
+      ${measurements.length ? `
+        <div class="helper-text" style="margin:14px 0 6px 0;">Ölçüm Noktaları</div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:190px;overflow-y:auto;">
+          ${measurements.map(x=>{
+            const onThisImg = x.imgX!=null && (x.imgDrawingIdx||0)===drawingIdx;
+            const onOtherImg = x.imgX!=null && !onThisImg;
+            return `
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--hair);border-radius:7px;background:var(--panel-2);">
+              <span class="mono" style="font-weight:700;color:var(--navy-800);width:22px;">${x.no}</span>
+              <span style="flex:1;font-size:12px;color:var(--gray-500);">${onThisImg?'Bu resimde işaretli':onOtherImg?'Başka bir resimde işaretli':'İşaretlenmedi'}</span>
+              ${admin ? `
+                <button class="btn btn-ghost btn-sm" data-mark-measurement="${x.id}">${onThisImg?'Yeniden İşaretle':'İşaretle'}</button>
+                ${x.imgX!=null ? `<div class="icon-btn danger" data-unmark-measurement="${x.id}" title="İşareti kaldır">&#128465;</div>` : ''}
+              ` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      ` : ''}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Kapat</button>
+      </div>
+    `, 'wide');
+  }
   return '';
 }
 function modalWrap(inner, size){
@@ -2627,25 +2700,52 @@ function attachHandlers(){
       const idx = Number(el.getAttribute('data-drawing-idx'));
       const drawing = part && part.drawings && part.drawings[idx];
       if(drawing){
+        if(drawing.type && drawing.type.startsWith('image/')){
+          state.markingMeasurementId = null;
+          state.modal = {type:'markDrawing', payload:{partId: part.id, drawingIdx: idx}};
+          render();
+          return;
+        }
         try{
           const blob = dataURLtoBlob(drawing.data);
           const blobUrl = URL.createObjectURL(blob);
-          if(drawing.type && drawing.type.startsWith('image/')){
-            const w = window.open();
-            if(w){
-              w.document.write(`<title>${escapeHtml(drawing.name)}</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${blobUrl}" style="max-width:100%;max-height:100%;"/></body>`);
-            } else {
-              showToast('Yeni sekme açılamadı — tarayıcınız pop-up engelliyor olabilir.');
-            }
-          } else {
-            const w = window.open(blobUrl, '_blank');
-            if(!w) showToast('Yeni sekme açılamadı — tarayıcınız pop-up engelliyor olabilir.');
-          }
+          const w = window.open(blobUrl, '_blank');
+          if(!w) showToast('Yeni sekme açılamadı — tarayıcınız pop-up engelliyor olabilir.');
         }catch(e){
           console.error('drawing view error', e);
           showToast('Dosya açılamadı.');
         }
       }
+    });
+  });
+  app.querySelectorAll('[data-open-drawing-marker]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      syncTrackingFormToState();
+      state.markingMeasurementId = null;
+      state.modal = {type:'markDrawing', payload:{partId: el.getAttribute('data-open-drawing-marker'), drawingIdx: Number(el.getAttribute('data-drawing-idx'))}};
+      render();
+    });
+  });
+  app.querySelectorAll('[data-open-mark-measurement]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      syncTrackingFormToState();
+      const company = getCompany(state.selectedCompanyId);
+      const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+      const mid = el.getAttribute('data-open-mark-measurement');
+      const measurement = part && (part.measurements||[]).find(x=>x.id===mid);
+      const imageDrawings = (part.drawings||[]).map((d,i)=>({...d, idx:i})).filter(d=> d.type && d.type.startsWith('image/'));
+      let drawingIdx = imageDrawings[0] ? imageDrawings[0].idx : 0;
+      if(measurement && measurement.imgX!=null && measurement.imgDrawingIdx!=null) drawingIdx = measurement.imgDrawingIdx;
+      state.modal = {type:'markDrawing', payload:{partId: part.id, drawingIdx}};
+      state.markingMeasurementId = mid;
+      render();
+    });
+  });
+  app.querySelectorAll('[data-select-drawing]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      state.markingMeasurementId = null;
+      state.modal = {type:'markDrawing', payload:{partId: el.getAttribute('data-part'), drawingIdx: Number(el.getAttribute('data-select-drawing'))}};
+      render();
     });
   });
   app.querySelectorAll('[data-remove-drawing]').forEach(el=>{
@@ -2688,10 +2788,11 @@ function attachHandlers(){
     el.addEventListener('click', async ()=>{
       syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
-      const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+      const modalPartId = (state.modal && state.modal.payload && state.modal.payload.partId) || state.selectedPartId;
+      const part = getParts(company.id).find(p=>p.id===modalPartId);
       const m = part && (part.measurements||[]).find(x=>x.id===el.getAttribute('data-unmark-measurement'));
       if(!m) return;
-      m.imgX = null; m.imgY = null;
+      m.imgX = null; m.imgY = null; m.imgDrawingIdx = null;
       await persistParts(company.id);
       render();
     });
@@ -2708,13 +2809,15 @@ function attachHandlers(){
     measureImageEl.addEventListener('click', async (e)=>{
       syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
-      const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+      const modalPartId = (state.modal && state.modal.payload && state.modal.payload.partId) || state.selectedPartId;
+      const part = getParts(company.id).find(p=>p.id===modalPartId);
       const m = part && (part.measurements||[]).find(x=>x.id===state.markingMeasurementId);
       if(!m) return;
       const rect = measureImageEl.getBoundingClientRect();
       const xPct = Math.min(100, Math.max(0, ((e.clientX-rect.left)/rect.width)*100));
       const yPct = Math.min(100, Math.max(0, ((e.clientY-rect.top)/rect.height)*100));
       m.imgX = xPct; m.imgY = yPct;
+      m.imgDrawingIdx = Number(measureImageEl.getAttribute('data-drawing-idx'))||0;
       state.markingMeasurementId = null;
       await persistParts(company.id);
       render();
@@ -2850,6 +2953,29 @@ function attachHandlers(){
 
   const newStageInput = document.getElementById('newStageInput');
   if(newStageInput){ newStageInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAction('addStage'); }); }
+  app.querySelectorAll('[data-quick-add-stage]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      const val = el.getAttribute('data-quick-add-stage');
+      if(company.stages.some(s=>s.toLowerCase()===val.toLowerCase())) return;
+      company.stages.push(val);
+      await persistCompanies();
+      state.modal = {type:'stages'};
+      render();
+    });
+  });
+  const addAllStagesBtn = app.querySelector('[data-action="addAllDefaultStages"]');
+  if(addAllStagesBtn){
+    addAllStagesBtn.addEventListener('click', async ()=>{
+      const company = getCompany(state.selectedCompanyId);
+      DEFAULT_STAGES.forEach(s=>{
+        if(!company.stages.some(x=>x.toLowerCase()===s.toLowerCase())) company.stages.push(s);
+      });
+      await persistCompanies();
+      state.modal = {type:'stages'};
+      render();
+    });
+  }
   const companyNameInput = document.getElementById('companyNameInput');
   if(companyNameInput){
     companyNameInput.focus();
@@ -2868,7 +2994,7 @@ async function handleAction(action, el){
       break;
     }
     case 'openAddCompany': state.modal = {type:'addCompany'}; render(); break;
-    case 'closeModal': state.modal=null; state.importPreview=null; render(); break;
+    case 'closeModal': state.modal=null; state.importPreview=null; state.markingMeasurementId=null; render(); break;
     case 'gotoCompanies': state.view='companies'; render(); break;
     case 'gotoParts': state.view='parts'; render(); break;
 
@@ -3171,7 +3297,7 @@ async function handleAction(action, el){
       const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
       part.measurements = part.measurements || [];
       const nextNo = part.measurements.length + 1;
-      part.measurements.push({id: uid('ms'), no: nextNo, imgX:null, imgY:null, measuredValue:'', nominalValue:'', tolerance:''});
+      part.measurements.push({id: uid('ms'), no: nextNo, imgX:null, imgY:null, imgDrawingIdx:null, measuredValue:'', nominalValue:'', tolerance:''});
       await persistParts(company.id);
       render();
       break;
@@ -3183,7 +3309,7 @@ async function handleAction(action, el){
       const count = Number(el.getAttribute('data-count'))||0;
       part.measurements = part.measurements || [];
       while(part.measurements.length < count){
-        part.measurements.push({id: uid('ms'), no: part.measurements.length+1, imgX:null, imgY:null, measuredValue:'', nominalValue:'', tolerance:''});
+        part.measurements.push({id: uid('ms'), no: part.measurements.length+1, imgX:null, imgY:null, imgDrawingIdx:null, measuredValue:'', nominalValue:'', tolerance:''});
       }
       await persistParts(company.id);
       render();
