@@ -525,6 +525,17 @@
   .ppm-guide-item.good{border-color:rgba(63,193,126,.32);background:rgba(63,193,126,.07)}
   .ppm-guide-item.bad{border-color:rgba(255,67,88,.32);background:rgba(255,67,88,.07)}
   .measure-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 10px;}
+  .marking-panel{margin:10px 0 12px;padding:12px 13px;border:1px solid #334A6D;border-radius:11px;background:linear-gradient(135deg,#0B172B,#101D34);}
+  .marking-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px;}
+  .marking-panel-title{font-family:var(--font-display);font-size:13px;font-weight:800;letter-spacing:.8px;color:#F4F7FF;}
+  .marking-panel-title span{color:var(--red-500);}
+  .marking-buttons{display:flex;gap:7px;flex-wrap:wrap;}
+  .mark-chip{min-width:38px;height:34px;padding:0 10px;border-radius:9px;border:1px solid #3A5174;background:#13213B;color:#DCE5F6;font-family:var(--font-mono);font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+  .mark-chip:hover{border-color:var(--red-500);color:#fff;background:#1A2947;}
+  .mark-chip.active{background:var(--red-600);border-color:var(--red-500);color:#fff;box-shadow:0 0 0 3px rgba(255,67,88,.15);}
+  .mark-chip.done::before{content:'●';font-size:8px;color:#61D99A;}
+  .marking-hint{font-size:11.5px;color:#93A2C0;line-height:1.45;}
+  .measure-viewport.marking-active{border-color:var(--red-500);box-shadow:0 0 0 3px rgba(255,67,88,.10);}
   .measure-viewport{overflow:auto;max-height:610px;border:1px solid #2B4062;border-radius:11px;background:#050A13;padding:10px;}
   .measure-canvas{position:relative;display:inline-block;line-height:0;min-width:max-content;}
   .measure-canvas img,.measure-canvas canvas{display:block;border-radius:7px;user-select:none;-webkit-user-drag:none;}
@@ -1853,8 +1864,20 @@ function renderMeasurementSection(part){
           <button class="btn btn-ghost btn-sm" data-action="resetMeasurementZoom">%100</button>
           ${admin && state.markingMeasurementId ? `<span class="status-badge progress"><span class="status-dot"></span>İşaretleme modu</span><button class="btn btn-danger-ghost btn-sm" data-action="cancelMarkMeasurement">İptal</button>` : ''}
         </div>
-        <div class="helper-text" style="margin:0 0 9px 0;">${admin ? (state.markingMeasurementId ? 'Teknik resimde tam noktaya tıklayın. Sonrasında işareti sürükleyerek ince ayar yapabilirsiniz.' : '“Resimde İşaretle” ile nokta ekleyin. Mevcut işareti sürükleyin; çift tıklayarak da kaldırabilirsiniz.') : 'Ölçüm noktaları teknik resim üzerinde gösteriliyor.'}</div>
-        <div class="measure-viewport" id="measureViewport">
+        ${admin ? `
+        <div class="marking-panel">
+          <div class="marking-panel-head">
+            <div class="marking-panel-title"><span>●</span> MARKALAMA</div>
+            ${state.markingMeasurementId ? `<span class="status-badge progress"><span class="status-dot"></span>Markalama aktif</span>` : ''}
+          </div>
+          ${measurements.length ? `
+            <div class="marking-buttons">
+              ${measurements.map(m=>`<button class="mark-chip ${m.imgX!=null?'done':''} ${state.markingMeasurementId===m.id?'active':''}" data-mark-measurement="${m.id}" title="Ölçüm ${m.no} konumunu işaretle">${m.no}</button>`).join('')}
+            </div>
+            <div class="marking-hint" style="margin-top:9px;">${state.markingMeasurementId ? 'Şimdi teknik resimde istediğin noktaya tıkla. İşaret konduktan sonra sürükleyerek hassas ayar yapabilirsin.' : 'İşaretlemek istediğin ölçüm numarasına bas, sonra teknik resimde noktayı seç.'}</div>
+          ` : `<div class="marking-hint">Markalama yapmak için önce “+ Ölçüm Noktası Ekle” ile bir ölçüm satırı oluştur.</div>`}
+        </div>` : ''}
+        <div class="measure-viewport ${state.markingMeasurementId?'marking-active':''}" id="measureViewport">
           <div class="measure-canvas" id="measureImageCanvas" style="cursor:${state.markingMeasurementId?'crosshair':'default'};">
             ${selectedIsPdf
               ? `<canvas id="measureDrawingSurface" data-pdf-measure="1" data-drawing-index="${selectedDrawingIndex}"></canvas>`
@@ -1884,8 +1907,8 @@ function renderMeasurementSection(part){
               ${hasMarkableDrawing ? `<td>${
                 admin
                   ? (m.imgX!=null
-                      ? `<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><span style="color:var(--red-500);font-weight:700;white-space:nowrap;">&#128204; ${escapeHtml(drawingName||'işaretli')}</span><button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Yeniden İşaretle</button><button class="btn btn-danger-ghost btn-sm" data-unmark-measurement="${m.id}">İşareti Kaldır</button></div>`
-                      : `<button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Resimde İşaretle</button>`)
+                      ? `<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><span style="color:var(--red-500);font-weight:700;white-space:nowrap;">&#128204; ${escapeHtml(drawingName||'işaretli')}</span><button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Yeniden Markala</button><button class="btn btn-danger-ghost btn-sm" data-unmark-measurement="${m.id}">İşareti Kaldır</button></div>`
+                      : `<button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Markala</button>`)
                   : (m.imgX!=null ? `<span style="color:var(--red-500);font-weight:700;">&#128204; ${escapeHtml(drawingName||'işaretli')}</span>` : '—')
               }</td>` : ''}
               <td><input type="text" inputmode="decimal" lang="tr" autocomplete="off" placeholder="0,00" class="stage-input" style="width:98px;font-size:13px;padding:7px 8px;" data-meas-value="${m.id}" value="${escapeHtml(decimalDisplay(m.measuredValue))}" ${!admin?'disabled':''}/></td>
