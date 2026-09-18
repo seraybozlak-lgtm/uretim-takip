@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Üretim Takip">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <style>
@@ -526,7 +527,8 @@
   .measure-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 10px;}
   .measure-viewport{overflow:auto;max-height:610px;border:1px solid #2B4062;border-radius:11px;background:#050A13;padding:10px;}
   .measure-canvas{position:relative;display:inline-block;line-height:0;min-width:max-content;}
-  .measure-canvas img{display:block;border-radius:7px;user-select:none;-webkit-user-drag:none;}
+  .measure-canvas img,.measure-canvas canvas{display:block;border-radius:7px;user-select:none;-webkit-user-drag:none;}
+  .measure-pdf-note{font-size:11.5px;color:#94A2C1;margin-top:8px;}
   .meas-marker{pointer-events:auto;cursor:grab;z-index:5;transition:transform .12s,box-shadow .12s;}
   .meas-marker:hover{transform:translate(-50%,-50%) scale(1.14);box-shadow:0 0 0 5px rgba(255,67,88,.16),0 4px 12px rgba(0,0,0,.55);}
   .meas-marker.dragging{cursor:grabbing;transform:translate(-50%,-50%) scale(1.17);}
@@ -1821,59 +1823,65 @@ function decimalDisplay(v){
 function renderMeasurementSection(part){
   const measurements = part.measurements || [];
   const suggested = calcSampleCount(part.orderedQty);
-  const imageDrawings = (part.drawings||[]).map((d,index)=>({d,index})).filter(x=>x.d.type && x.d.type.startsWith('image/'));
-  const hasImageDrawing = imageDrawings.length>0;
-  if(hasImageDrawing && !imageDrawings.some(x=>x.index===state.measureDrawingIndex)) state.measureDrawingIndex = imageDrawings[0].index;
-  const selectedImage = hasImageDrawing ? imageDrawings.find(x=>x.index===state.measureDrawingIndex) || imageDrawings[0] : null;
-  const selectedDrawingIndex = selectedImage ? selectedImage.index : 0;
+  const markableDrawings = (part.drawings||[])
+    .map((d,index)=>({d,index}))
+    .filter(x=> (x.d.type && x.d.type.startsWith('image/')) || x.d.type==='application/pdf' || /\.pdf$/i.test(x.d.name||''));
+  const hasMarkableDrawing = markableDrawings.length>0;
+  if(hasMarkableDrawing && !markableDrawings.some(x=>x.index===state.measureDrawingIndex)) state.measureDrawingIndex = markableDrawings[0].index;
+  const selectedDrawing = hasMarkableDrawing ? markableDrawings.find(x=>x.index===state.measureDrawingIndex) || markableDrawings[0] : null;
+  const selectedDrawingIndex = selectedDrawing ? selectedDrawing.index : 0;
+  const selectedIsPdf = !!(selectedDrawing && (selectedDrawing.d.type==='application/pdf' || /\.pdf$/i.test(selectedDrawing.d.name||'')));
   const zoom = Math.min(3,Math.max(.75,Number(state.measureImageZoom)||1));
   const admin = isAdmin();
-  const markersForImage = measurements.filter(m=>m.imgX!=null && m.imgY!=null && (m.drawingIndex==null ? selectedDrawingIndex===imageDrawings[0]?.index : Number(m.drawingIndex)===selectedDrawingIndex));
+  const markersForDrawing = measurements.filter(m=>m.imgX!=null && m.imgY!=null && (m.drawingIndex==null ? selectedDrawingIndex===markableDrawings[0]?.index : Number(m.drawingIndex)===selectedDrawingIndex));
   return `
     <div class="section-title">Ölçüm Kontrolü</div>
-    <div class="helper-text" style="margin-bottom:10px;">Sipariş adedine (${fmtNum(part.orderedQty)}) göre önerilen ölçüm sayısı: <b style="color:var(--navy-800);font-style:normal;">${suggested}</b> ${measurements.length ? `· ${measurements.length} ölçüm noktası tanımlı` : ''}. Ondalık değerlerde <b>12,5</b> veya <b>12.5</b> yazabilirsiniz.</div>
+    <div class="helper-text" style="margin-bottom:10px;">Sipariş adedine (${fmtNum(part.orderedQty)}) göre önerilen ölçüm sayısı: <b style="color:var(--navy-800);font-style:normal;">${suggested}</b> ${measurements.length ? `· ${measurements.length} ölçüm noktası tanımlı` : ''}.</div>
     ${admin ? `
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <button class="btn btn-navy btn-sm" data-action="addMeasurement" data-part="${part.id}">+ Ölçüm Noktası Ekle</button>
       ${suggested > measurements.length ? `<button class="btn btn-ghost btn-sm" data-action="addSuggestedMeasurements" data-part="${part.id}" data-count="${suggested}">Önerilen Sayıya Tamamla (+${suggested-measurements.length})</button>` : ''}
     </div>` : ''}
 
-    ${hasImageDrawing ? `
+    ${hasMarkableDrawing ? `
       <div class="card" style="padding:14px;margin-bottom:14px;">
         <div class="measure-toolbar">
-          ${imageDrawings.length>1?`<span class="helper-text" style="margin:0;">Resim:</span><select class="month-select" id="measureDrawingSelect">${imageDrawings.map(x=>`<option value="${x.index}" ${x.index===selectedDrawingIndex?'selected':''}>${escapeHtml(x.d.name||('Resim '+(x.index+1)))}</option>`).join('')}</select>`:''}
+          ${markableDrawings.length>1?`<span class="helper-text" style="margin:0;">Teknik resim:</span><select class="month-select" id="measureDrawingSelect">${markableDrawings.map(x=>`<option value="${x.index}" ${x.index===selectedDrawingIndex?'selected':''}>${escapeHtml(x.d.name||('Teknik resim '+(x.index+1)))}</option>`).join('')}</select>`:''}
           <button class="btn btn-ghost btn-sm" data-action="zoomMeasurementOut" ${zoom<=.75?'disabled':''}>−</button>
           <span class="mono" style="font-size:12px;color:var(--navy-800);min-width:54px;text-align:center;">%${Math.round(zoom*100)}</span>
           <button class="btn btn-ghost btn-sm" data-action="zoomMeasurementIn" ${zoom>=3?'disabled':''}>+</button>
           <button class="btn btn-ghost btn-sm" data-action="resetMeasurementZoom">%100</button>
           ${admin && state.markingMeasurementId ? `<span class="status-badge progress"><span class="status-dot"></span>İşaretleme modu</span><button class="btn btn-danger-ghost btn-sm" data-action="cancelMarkMeasurement">İptal</button>` : ''}
         </div>
-        <div class="helper-text" style="margin:0 0 9px 0;">${admin ? (state.markingMeasurementId ? 'Resimde tam noktaya tıklayın. Sonrasında işareti sürükleyerek ince ayar yapabilirsiniz.' : '“Resimde İşaretle” ile nokta ekleyin. Mevcut işareti sürükleyin; çift tıklayarak da kaldırabilirsiniz.') : 'Ölçüm noktaları teknik resim üzerinde gösteriliyor.'}</div>
+        <div class="helper-text" style="margin:0 0 9px 0;">${admin ? (state.markingMeasurementId ? 'Teknik resimde tam noktaya tıklayın. Sonrasında işareti sürükleyerek ince ayar yapabilirsiniz.' : '“Resimde İşaretle” ile nokta ekleyin. Mevcut işareti sürükleyin; çift tıklayarak da kaldırabilirsiniz.') : 'Ölçüm noktaları teknik resim üzerinde gösteriliyor.'}</div>
         <div class="measure-viewport" id="measureViewport">
           <div class="measure-canvas" id="measureImageCanvas" style="cursor:${state.markingMeasurementId?'crosshair':'default'};">
-            <img src="${selectedImage.d.data}" id="measureImageEl" draggable="false" style="height:${Math.round(440*zoom)}px;width:auto;max-width:none;"/>
-            ${markersForImage.map(m=>`<div class="meas-marker ${measurementStatus(m)}" data-meas-marker="${m.id}" title="Ölçüm ${m.no} — sürükle / çift tıkla kaldır" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
+            ${selectedIsPdf
+              ? `<canvas id="measureDrawingSurface" data-pdf-measure="1" data-drawing-index="${selectedDrawingIndex}"></canvas>`
+              : `<img src="${selectedDrawing.d.data}" id="measureDrawingSurface" draggable="false" data-drawing-index="${selectedDrawingIndex}" style="height:${Math.round(440*zoom)}px;width:auto;max-width:none;"/>`}
+            ${markersForDrawing.map(m=>`<div class="meas-marker ${measurementStatus(m)}" data-meas-marker="${m.id}" title="Ölçüm ${m.no} — sürükle / çift tıkla kaldır" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
           </div>
         </div>
+        ${selectedIsPdf ? `<div class="measure-pdf-note">PDF teknik resmin ilk sayfası gösteriliyor ve doğrudan işaretlenebiliyor.</div>` : ''}
       </div>
-    ` : ''}
+    ` : (part.drawings&&part.drawings.length ? `<div class="card" style="padding:14px;margin-bottom:14px;"><div class="helper-text" style="margin:0;">Yüklenen teknik resim işaretleme için desteklenmeyen bir dosya türünde.</div></div>` : '')}
 
     ${measurements.length===0 ? `
       <div class="empty-state" style="padding:30px 20px;"><p style="margin:0;">Henüz ölçüm noktası eklenmedi.</p></div>
     ` : `
       <div style="overflow-x:auto;"><table class="data-table">
-        <thead><tr><th>No</th>${hasImageDrawing?'<th>Konum</th>':''}<th>Ölçülen Değer</th><th>Nominal Değer</th><th>Tolerans (±)</th><th>Durum</th>${admin?'<th></th>':''}</tr></thead>
+        <thead><tr><th>No</th>${hasMarkableDrawing?'<th>Konum</th>':''}<th>Ölçülen Değer</th><th>Nominal Değer</th><th>Tolerans (±)</th><th>Durum</th>${admin?'<th></th>':''}</tr></thead>
         <tbody>
           ${measurements.map(m=>{
             const status = measurementStatus(m);
             const statusLabel = status==='ok' ? 'Uygun' : status==='fail' ? 'Tolerans Dışı' : 'Bekliyor';
             const statusClass = status==='ok' ? 'good' : status==='fail' ? 'bad' : 'notstarted';
-            const markedDrawing = m.drawingIndex==null ? imageDrawings[0]?.index : Number(m.drawingIndex);
-            const drawingName = imageDrawings.find(x=>x.index===markedDrawing)?.d?.name || '';
+            const markedDrawing = m.drawingIndex==null ? markableDrawings[0]?.index : Number(m.drawingIndex);
+            const drawingName = markableDrawings.find(x=>x.index===markedDrawing)?.d?.name || '';
             return `
             <tr>
               <td class="mono">${m.no}</td>
-              ${hasImageDrawing ? `<td>${
+              ${hasMarkableDrawing ? `<td>${
                 admin
                   ? (m.imgX!=null
                       ? `<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><span style="color:var(--red-500);font-weight:700;white-space:nowrap;">&#128204; ${escapeHtml(drawingName||'işaretli')}</span><button class="btn btn-ghost btn-sm" data-mark-measurement="${m.id}">Yeniden İşaretle</button><button class="btn btn-danger-ghost btn-sm" data-unmark-measurement="${m.id}">İşareti Kaldır</button></div>`
@@ -1891,6 +1899,42 @@ function renderMeasurementSection(part){
       </table></div>
     `}
   `;
+}
+
+async function renderPdfMeasurementSurface(){
+  const canvas = document.getElementById('measureDrawingSurface');
+  if(!canvas || canvas.tagName!=='CANVAS' || !canvas.dataset.pdfMeasure) return;
+  const company = getCompany(state.selectedCompanyId);
+  const part = company ? getParts(company.id).find(p=>p.id===state.selectedPartId) : null;
+  const drawingIndex = Number(canvas.dataset.drawingIndex);
+  const drawing = part && part.drawings ? part.drawings[drawingIndex] : null;
+  if(!drawing || !drawing.data) return;
+  if(!window.pdfjsLib){
+    const ctx=canvas.getContext('2d'); canvas.width=760; canvas.height=440;
+    ctx.fillStyle='#101A2E'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#FF8089'; ctx.font='16px Inter, sans-serif'; ctx.fillText('PDF görüntüleyici yüklenemedi.',24,40);
+    return;
+  }
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const raw = new Uint8Array(await dataURLtoBlob(drawing.data).arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({data:raw}).promise;
+    const page = await pdf.getPage(1);
+    const baseViewport = page.getViewport({scale:1});
+    const zoom = Math.min(3,Math.max(.75,Number(state.measureImageZoom)||1));
+    const targetHeight = 440*zoom;
+    const scale = targetHeight/baseViewport.height;
+    const viewport = page.getViewport({scale});
+    const dpr = Math.max(1,window.devicePixelRatio||1);
+    canvas.width=Math.floor(viewport.width*dpr); canvas.height=Math.floor(viewport.height*dpr);
+    canvas.style.width=Math.floor(viewport.width)+'px'; canvas.style.height=Math.floor(viewport.height)+'px';
+    const ctx=canvas.getContext('2d');
+    await page.render({canvasContext:ctx,viewport,transform:dpr===1?null:[dpr,0,0,dpr,0,0]}).promise;
+  }catch(err){
+    console.error('PDF ölçüm çizimi hatası',err);
+    const ctx=canvas.getContext('2d'); canvas.width=760; canvas.height=440; canvas.style.width='760px';canvas.style.height='440px';
+    ctx.fillStyle='#101A2E';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#FF8089';ctx.font='16px Inter, sans-serif';ctx.fillText('PDF teknik resim görüntülenemedi.',24,40);
+  }
 }
 
 /* ============================= QUALITY VIEW ============================= */
@@ -3014,21 +3058,22 @@ function attachHandlers(){
       render();
     });
   }
-  const measureImageEl = document.getElementById('measureImageEl');
-  if(measureImageEl && state.markingMeasurementId){
-    measureImageEl.addEventListener('click', async (e)=>{
+  const measureDrawingSurface = document.getElementById('measureDrawingSurface');
+  if(measureDrawingSurface && state.markingMeasurementId){
+    measureDrawingSurface.addEventListener('click', async (e)=>{
       syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
-      const part = getParts(company.id).find(p=>p.id===state.selectedPartId);
+      const part = company ? getParts(company.id).find(p=>p.id===state.selectedPartId) : null;
       const m = part && (part.measurements||[]).find(x=>x.id===state.markingMeasurementId);
       if(!m) return;
-      const rect = measureImageEl.getBoundingClientRect();
+      const rect = measureDrawingSurface.getBoundingClientRect();
+      if(!rect.width || !rect.height) return;
       const xPct = Math.min(100, Math.max(0, ((e.clientX-rect.left)/rect.width)*100));
       const yPct = Math.min(100, Math.max(0, ((e.clientY-rect.top)/rect.height)*100));
       m.imgX = xPct; m.imgY = yPct; m.drawingIndex = state.measureDrawingIndex;
       state.markingMeasurementId = null;
-      await persistParts(company.id);
       render();
+      await persistParts(company.id);
     });
   }
 
@@ -3076,7 +3121,7 @@ function attachHandlers(){
       if(!isAdmin()) return;
       e.preventDefault(); e.stopPropagation();
       syncTrackingFormToState();
-      const image=document.getElementById('measureImageEl');
+      const image=document.getElementById('measureDrawingSurface');
       const company=getCompany(state.selectedCompanyId);
       const part=getParts(company.id).find(p=>p.id===state.selectedPartId);
       const m=part && (part.measurements||[]).find(x=>x.id===marker.getAttribute('data-meas-marker'));
@@ -3244,6 +3289,7 @@ function attachHandlers(){
     companyNameInput.focus();
     companyNameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const btn = app.querySelector('[data-action="saveAddCompany"],[data-action="saveEditCompany"]'); if(btn) btn.click(); } });
   }
+  renderPdfMeasurementSurface();
 }
 
 async function handleAction(action, el){
@@ -3591,25 +3637,35 @@ async function handleAction(action, el){
     case 'addMeasurement': {
       syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
-      const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      if(!company){ showToast('Önce bir şirket seçin.'); return; }
+      const targetPartId = (el && el.getAttribute('data-part')) || state.selectedPartId;
+      const part = getParts(company.id).find(p=>p.id===targetPartId);
+      if(!part){ showToast('Parça bulunamadı.'); return; }
       part.measurements = part.measurements || [];
       const nextNo = part.measurements.length + 1;
-      part.measurements.push({id: uid('ms'), no: nextNo, imgX:null, imgY:null, measuredValue:'', nominalValue:'', tolerance:''});
-      await persistParts(company.id);
+      part.measurements.push({id: uid('ms'), no: nextNo, imgX:null, imgY:null, drawingIndex:null, measuredValue:'', nominalValue:'', tolerance:''});
+      state.selectedPartId = part.id;
       render();
+      const ok = await persistParts(company.id);
+      if(ok===false) showToast('Ölçüm satırı eklendi ancak sunucuya kaydedilemedi.');
       break;
     }
     case 'addSuggestedMeasurements': {
       syncTrackingFormToState();
       const company = getCompany(state.selectedCompanyId);
-      const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
-      const count = Number(el.getAttribute('data-count'))||0;
+      if(!company){ showToast('Önce bir şirket seçin.'); return; }
+      const targetPartId = (el && el.getAttribute('data-part')) || state.selectedPartId;
+      const part = getParts(company.id).find(p=>p.id===targetPartId);
+      if(!part){ showToast('Parça bulunamadı.'); return; }
+      const count = Number(el && el.getAttribute('data-count'))||0;
       part.measurements = part.measurements || [];
       while(part.measurements.length < count){
-        part.measurements.push({id: uid('ms'), no: part.measurements.length+1, imgX:null, imgY:null, measuredValue:'', nominalValue:'', tolerance:''});
+        part.measurements.push({id: uid('ms'), no: part.measurements.length+1, imgX:null, imgY:null, drawingIndex:null, measuredValue:'', nominalValue:'', tolerance:''});
       }
-      await persistParts(company.id);
+      state.selectedPartId = part.id;
       render();
+      const ok = await persistParts(company.id);
+      if(ok===false) showToast('Ölçümler eklendi ancak sunucuya kaydedilemedi.');
       break;
     }
 
