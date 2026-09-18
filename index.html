@@ -732,12 +732,46 @@ function showToast(msg, undoTrashId){
 /* ============================= DATA ACCESS ============================= */
 function asArray(v){ return Array.isArray(v) ? v : []; }
 
+// Mevcut şirketlere sonradan eklenen standart proses aşamalarını (CNC, Torna, Kaplama)
+// mantıklı bir konuma otomatik olarak ekler. Zaten varsa (büyük/küçük harf fark etmeksizin)
+// dokunmaz. Geriye bir değişiklik yapılıp yapılmadığını döndürür.
+function injectNewProcessStages(company){
+  let changed = false;
+  const stages = company.stages;
+  const hasCi = (name) => stages.some(s => s.toLowerCase() === name.toLowerCase());
+  if(!hasCi('CNC') || !hasCi('Torna')){
+    let insertAt = stages.findIndex(s=>s.toLowerCase()==='kesim');
+    insertAt = insertAt===-1 ? 0 : insertAt+1;
+    if(!hasCi('CNC')){ stages.splice(insertAt,0,'CNC'); insertAt++; changed=true; }
+    if(!hasCi('Torna')){ stages.splice(insertAt,0,'Torna'); changed=true; }
+  }
+  if(!hasCi('Kaplama')){
+    const boyaIdx = stages.findIndex(s=>s.toLowerCase()==='boya');
+    let insertAt;
+    if(boyaIdx!==-1){ insertAt = boyaIdx+1; }
+    else{
+      const montajIdx = stages.findIndex(s=>s.toLowerCase()==='montaj');
+      insertAt = montajIdx!==-1 ? montajIdx : Math.max(0, stages.length-1);
+    }
+    stages.splice(insertAt,0,'Kaplama');
+    changed = true;
+  }
+  return changed;
+}
+
 async function loadAll(){
   try{
     const companiesRaw = await storageGet('companies');
     const companies = asArray(companiesRaw);
     state.companies = companies;
-    companies.forEach(c => { if(c && (!c.stages || !c.stages.length)) c.stages = DEFAULT_STAGES.slice(); if(c && !c.clientCode) c.clientCode = genClientCode(); });
+    let stagesChanged = false;
+    companies.forEach(c => {
+      if(!c) return;
+      if(!c.stages || !c.stages.length){ c.stages = DEFAULT_STAGES.slice(); stagesChanged = true; }
+      else if(injectNewProcessStages(c)) stagesChanged = true;
+      if(!c.clientCode) c.clientCode = genClientCode();
+    });
+    if(stagesChanged){ await storageSet('companies', companies); }
     const partsMap = {};
     for(const c of companies){
       if(!c || !c.id) continue;
