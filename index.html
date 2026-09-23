@@ -1032,6 +1032,53 @@
     .marking-buttons{gap:5px;}
   }
 
+
+  /* ---------- QUALITY / NCR INTELLIGENCE ---------- */
+  .quality-flow-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0 16px;}
+  .quality-flow-card{background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.012));border:1px solid var(--hair);border-radius:12px;padding:13px;}
+  .quality-flow-card .qf-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.45px;color:var(--gray-500);font-weight:800;}
+  .quality-flow-card .qf-value{font-family:var(--font-mono);font-size:24px;font-weight:800;margin-top:6px;color:var(--navy-900);}
+  .quality-flow-card.warn .qf-value{color:#FFB86B;}
+  .quality-flow-card.bad .qf-value{color:var(--red-500);}
+  .quality-flow-card.good .qf-value{color:#61D99A;}
+  .quality-event-list{display:flex;flex-direction:column;gap:8px;}
+  .quality-event{display:grid;grid-template-columns:150px 110px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--hair);background:var(--panel);border-radius:10px;}
+  .quality-event .qe-type{font-weight:800;color:var(--navy-900);}
+  .quality-event .qe-qty{font-family:var(--font-mono);font-weight:800;}
+  .quality-event .qe-note{font-size:12px;color:var(--gray-500);}
+  .quality-event .qe-date{font-size:11px;color:var(--gray-500);white-space:nowrap;}
+  .ncr-suggestion{border:1px solid rgba(255,184,107,.28);background:rgba(255,184,107,.055);border-radius:12px;padding:13px 14px;margin-bottom:9px;display:flex;gap:12px;align-items:flex-start;}
+  .ncr-suggestion.critical{border-color:rgba(255,56,84,.32);background:rgba(255,56,84,.055);}
+  .ncr-suggestion .ns-body{flex:1;min-width:0;}
+  .ncr-suggestion .ns-title{font-weight:800;color:var(--navy-900);font-size:13px;margin-bottom:3px;}
+  .ncr-suggestion .ns-desc{font-size:12px;color:var(--gray-500);line-height:1.5;}
+  .process-estimate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-top:12px;}
+  .estimate-chip{border:1px solid var(--hair);background:var(--panel-2);border-radius:10px;padding:10px 11px;}
+  .estimate-chip .ec-name{font-size:10.5px;color:var(--gray-500);font-weight:800;text-transform:uppercase;letter-spacing:.3px;}
+  .estimate-chip .ec-days{font-family:var(--font-mono);font-size:18px;color:var(--navy-900);font-weight:800;margin-top:5px;}
+  .estimate-chip.current-good{border-color:rgba(67,207,140,.28);background:rgba(67,207,140,.05);}
+  .estimate-chip.current-warn{border-color:rgba(255,184,107,.30);background:rgba(255,184,107,.05);}
+  .estimate-chip.current-bad{border-color:rgba(255,56,84,.34);background:rgba(255,56,84,.06);}
+  .profile-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;}
+  .profile-grid .field{margin-bottom:0;}
+  .quality-tag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 8px;font-size:10.5px;font-weight:800;border:1px solid var(--hair);background:var(--panel-2);color:var(--gray-700);}
+  .quality-tag.auto{border-color:rgba(255,56,84,.25);color:#FF8290;background:rgba(255,56,84,.05);}
+  .quality-tag.manual{color:var(--gray-500);}
+  .production-issue{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--hair);border-radius:10px;background:var(--panel);margin-bottom:8px;}
+  .production-issue.open{border-left:3px solid #FFB86B;}
+  .production-issue.closed{opacity:.7;border-left:3px solid #61D99A;}
+  @media(max-width:820px){
+    .profile-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .quality-event{grid-template-columns:1fr 70px;gap:6px 10px;}
+    .quality-event .qe-note{grid-column:1/-1;}
+    .quality-event .qe-date{grid-column:1/-1;}
+    .ncr-suggestion{flex-direction:column;}
+  }
+  @media(max-width:460px){
+    .profile-grid{grid-template-columns:1fr;}
+    .quality-flow-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+
 </style>
 </head>
 <body>
@@ -1053,9 +1100,10 @@ firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const FIREBASE_URL = firebaseConfig.databaseURL;
 
-// Yönetici (Kalite Kontrol) rolüyle kayıt olabilmek için gereken kod.
-const ADMIN_SIGNUP_CODE = 'formak1907';
-
+// Güvenli veritabanı yolları: her path segmenti ayrı encode edilir.
+function encodeDbPath(path){
+  return String(path||'').split('/').filter(Boolean).map(encodeURIComponent).join('/');
+}
 async function getIdToken(){
   const user = fbAuth.currentUser;
   if(!user) return null;
@@ -1063,23 +1111,27 @@ async function getIdToken(){
 }
 async function firebaseFetch(path, options){
   const token = await getIdToken();
-  const sep = path.includes('?') ? '&' : '?';
-  const url = `${FIREBASE_URL}/${path}.json${token ? sep+'auth='+token : ''}`;
+  const cleanPath = encodeDbPath(path);
+  const url = `${FIREBASE_URL}/${cleanPath}.json${token ? '?auth='+encodeURIComponent(token) : ''}`;
   const res = await fetch(url, options);
-  if(!res.ok) throw new Error('Firebase request failed: ' + res.status);
+  if(!res.ok){
+    const err = new Error('Firebase request failed: ' + res.status);
+    err.status = res.status;
+    throw err;
+  }
   return res;
 }
-async function storageGet(key){
+async function storageGet(path){
   try{
-    const res = await firebaseFetch(encodeURIComponent(key));
+    const res = await firebaseFetch(path);
     const data = await res.json();
     return (data===null || data===undefined) ? null : data;
   }catch(e){
-    console.error('storageGet error', e);
+    console.error('storageGet error', path, e);
     return null;
   }
 }
-async function storageSet(key, value){
+async function storageSet(path, value){
   try{
     const json = JSON.stringify(value);
     if(json.length > 40000000){
@@ -1087,7 +1139,7 @@ async function storageSet(key, value){
       showToast('Kayıt boyutu çok büyük. Teknik resim dosyalarını küçültün veya bazılarını silin.');
       return false;
     }
-    const res = await firebaseFetch(encodeURIComponent(key), {
+    await firebaseFetch(path, {
       method: 'PUT',
       headers: {'Content-Type':'application/json'},
       body: json
@@ -1095,15 +1147,33 @@ async function storageSet(key, value){
     state.lastSaveErrorDetail = null;
     return true;
   }catch(e){
-    console.error('storage set error', e);
+    console.error('storage set error', path, e);
     state.lastSaveErrorDetail = 'Hata: ' + (e && e.message ? e.message : String(e));
     return false;
   }
 }
-async function storageDelete(key){
+async function storageDelete(path){
+  try{ await firebaseFetch(path, { method:'DELETE' }); return true; }
+  catch(e){ console.error('storage delete error', path, e); return false; }
+}
+// Yalnızca eski şemayı bir kez taşımak için: önceki sürüm "parts:COMPANY_ID" gibi
+// iki noktalı anahtarları tek segment olarak saklıyordu.
+async function legacyStorageGet(key){
   try{
-    await firebaseFetch(encodeURIComponent(key), { method:'DELETE' });
-  }catch(e){ console.error('storage delete error', e); }
+    const token = await getIdToken();
+    const url = `${FIREBASE_URL}/${encodeURIComponent(key)}.json${token ? '?auth='+encodeURIComponent(token) : ''}`;
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ console.error('legacy read error', key, e); return null; }
+}
+async function legacyStorageDelete(key){
+  try{
+    const token = await getIdToken();
+    const url = `${FIREBASE_URL}/${encodeURIComponent(key)}.json${token ? '?auth='+encodeURIComponent(token) : ''}`;
+    const res = await fetch(url,{method:'DELETE'});
+    return res.ok;
+  }catch(e){ return false; }
 }
 
 const DEFAULT_STAGES = ['Kesim','CNC','Torna','Büküm','Kaynak','Taşlama','Boya','Kaplama','Montaj','Paketleme','Sevkiyat'];
@@ -1202,7 +1272,7 @@ let state = {
   companies: [],
   partsByCompany: {},
   selectedCompanyId: null,
-  view: 'companies',        // companies | parts | tracking | quality | dashboard | reports
+  view: 'companies',        // companies | parts | tracking | quality | dashboard | reports | access
   selectedPartId: null,
   search: '',
   qualityFilter: 'acik',    // acik | kapali | hepsi
@@ -1212,6 +1282,9 @@ let state = {
   authChecking: true,
   importPreview: null,
   knownUsers: [],
+  companyAccessCodes: {},
+  staffInvites: {},
+  accessUsers: {},
   storageUnavailable: false,
   isOffline: (typeof navigator !== 'undefined' && 'onLine' in navigator) ? !navigator.onLine : false,
   lastSaveFailed: false,
@@ -1234,7 +1307,7 @@ let state = {
   lastEditedStageByPart: {}, // partId -> gerçekten en son değiştirilen proses
   stageDrafts: {},
   rejectDrafts: {},
-  errorTracking: { ppmMonthly:{}, ppmTarget:3000, deptMonthly:{}, disHatalar:[], icHatalar:[] },
+  errorTracking: { ppmMonthly:{}, ppmTarget:3000, ncrRejectThresholdPct:3, deptMonthly:{}, disHatalar:[], icHatalar:[] },
   errorTrackingTab: 'ppm', // ppm | dept | dis | ic
   drawingTrash: [],
   selectedTrashIds: new Set(),
@@ -1243,6 +1316,7 @@ let state = {
 };
 function isAdmin(){ return state.currentUserRole === 'admin'; }
 function isClient(){ return state.currentUserRole === 'client'; }
+function isInternal(){ return !!state.currentUserRole && state.currentUserRole !== 'client'; }
 function canEditStage(stage){ if(isClient()) return false; return isAdmin() || state.currentUserRole === stage; }
 function visibleCompanies(){
   if(isClient()){
@@ -1251,12 +1325,16 @@ function visibleCompanies(){
   }
   return state.companies;
 }
-function genClientCode(){
+function genAccessCode(){
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let s = '';
-  for(let i=0;i<7;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  const bytes = new Uint32Array(24);
+  if(window.crypto && crypto.getRandomValues) crypto.getRandomValues(bytes);
+  else for(let i=0;i<bytes.length;i++) bytes[i]=Math.floor(Math.random()*0xffffffff);
+  let s='';
+  for(let i=0;i<bytes.length;i++) s += chars[bytes[i] % chars.length];
   return s;
 }
+function genClientCode(){ return genAccessCode(); }
 
 
 /* ============================= AY / VERİ GÖÇÜ YARDIMCILARI ============================= */
@@ -1385,106 +1463,143 @@ function showToast(msg, undoTrashId){
 /* ============================= DATA ACCESS ============================= */
 function asArray(v){ return Array.isArray(v) ? v : []; }
 
+function companyArrayFromRaw(raw){
+  if(Array.isArray(raw)) return raw.filter(Boolean);
+  if(raw && typeof raw==='object') return Object.values(raw).filter(Boolean);
+  return [];
+}
+function companyMapFromArray(list){
+  const out={}; (list||[]).forEach(c=>{ if(c&&c.id) out[c.id]=c; }); return out;
+}
+async function migrateLegacySchemaIfNeeded(){
+  if(!isAdmin()) return;
+  const version = Number(await storageGet('meta/schemaVersion') || 0);
+  if(version >= 2) return;
+
+  const rawCompanies = await storageGet('companies');
+  const companies = companyArrayFromRaw(rawCompanies);
+  const existingCodes = (await storageGet('companyAccessCodes')) || {};
+  const accessCodes = {...existingCodes};
+  const inviteMap = (await storageGet('clientInvites')) || {};
+  let migrationOk = true;
+
+  for(const c of companies){
+    if(!c || !c.id) continue;
+    let code = String(accessCodes[c.id] || c.clientCode || '').toUpperCase();
+    // Eski kısa kodlar yerine tahmin edilmesi çok daha zor, 24 karakterlik kod üret.
+    if(code.length < 16) code = genClientCode();
+    accessCodes[c.id] = code;
+    inviteMap[code] = {companyId:c.id,active:true,createdAt:todayStr()};
+    delete c.clientCode;
+
+    const currentParts = await storageGet('parts/'+c.id);
+    if(currentParts===null){
+      const legacyParts = await legacyStorageGet('parts:'+c.id);
+      if(legacyParts!==null){
+        const copied = await storageSet('parts/'+c.id, legacyParts);
+        if(!copied) migrationOk = false;
+      }
+    }
+  }
+
+  if(companies.length && !(await storageSet('companies', companyMapFromArray(companies)))) migrationOk=false;
+  if(!(await storageSet('companyAccessCodes', accessCodes))) migrationOk=false;
+  if(!(await storageSet('clientInvites', inviteMap))) migrationOk=false;
+
+  // Eski parts:... anahtarlarını otomatik silmiyoruz: geçiş sırasında güvenli yedek olarak kalırlar.
+  // Yeni Rules yayımlandığında bu eski yollar zaten erişilemez olur.
+  if(migrationOk){
+    await storageSet('meta/schemaVersion', 2);
+    await storageSet('meta/migratedAt', todayStr());
+  }else{
+    throw new Error('Güvenli veri göçü tamamlanamadı. Eski veriler silinmedi; Rules yayımlanmadan önce tekrar deneyin.');
+  }
+}
+
 async function loadAll(){
   try{
-    const companiesRaw = await storageGet('companies');
-    const companies = asArray(companiesRaw);
+    if(isAdmin()) await migrateLegacySchemaIfNeeded();
+
+    let companies=[];
+    if(isClient()){
+      if(!state.clientCompanyId) throw new Error('Müşteri hesabında şirket bağlantısı yok.');
+      const c = await storageGet('companies/'+state.clientCompanyId);
+      if(c) companies=[c];
+    }else{
+      companies = companyArrayFromRaw(await storageGet('companies'));
+    }
     state.companies = companies;
+
     let companiesMigrated = false;
-    companies.forEach(c => {
+    companies.forEach(c=>{
       if(!c) return;
-      const normalizedStages = ensureRequiredStages(c.stages);
-      if(JSON.stringify(normalizedStages)!==JSON.stringify(c.stages||[])){ c.stages = normalizedStages; companiesMigrated = true; }
-      if(!c.clientCode){ c.clientCode = genClientCode(); companiesMigrated = true; }
-      if(!Array.isArray(c.months)){ c.months=[]; companiesMigrated = true; }
+      const normalizedStages=ensureRequiredStages(c.stages);
+      if(JSON.stringify(normalizedStages)!==JSON.stringify(c.stages||[])){ c.stages=normalizedStages; companiesMigrated=true; }
+      if(!Array.isArray(c.months)){ c.months=[]; companiesMigrated=true; }
     });
-    const partsMap = {};
-    const migratedPartCompanies = new Set();
+
+    const partsMap={};
+    const migratedPartCompanies=new Set();
     for(const c of companies){
-      if(!c || !c.id) continue;
-      const partsRaw = await storageGet('parts:'+c.id);
-      const parts = asArray(partsRaw);
+      if(!c||!c.id) continue;
+      const parts=asArray(await storageGet('parts/'+c.id));
       parts.forEach(p=>{
         if(!p) return;
-        if(!p.qtys) p.qtys={};
-        if(!p.rejects) p.rejects={};
-        if(!p.ncrs) p.ncrs=[];
-        if(!p.history) p.history=[];
-        if(!Array.isArray(p.drawings)) p.drawings = [];
-        if(p.drawing){ p.drawings.push(p.drawing); p.drawing = undefined; } // eski tekli resimden yeni diziye taşı
-        if(p.color===undefined) p.color='';
-        if(!Array.isArray(p.measurements)) p.measurements=[];
-        if(!Array.isArray(p.returnEvents)) p.returnEvents=[];
-        if(!p.orderedQty) p.orderedQty = Number(p.orderedQty)||0;
-        const inferredMonth = inferPartMonth(p);
-        if(p.orderMonth!==inferredMonth){ p.orderMonth=inferredMonth; migratedPartCompanies.add(c.id); }
+        if(!p.qtys) p.qtys={}; if(!p.rejects) p.rejects={}; if(!p.ncrs) p.ncrs=[]; if(!p.history) p.history=[];
+        if(!Array.isArray(p.drawings)) p.drawings=[]; if(p.drawing){p.drawings.push(p.drawing);p.drawing=undefined;}
+        if(p.color===undefined) p.color=''; if(!Array.isArray(p.measurements)) p.measurements=[]; if(!Array.isArray(p.returnEvents)) p.returnEvents=[];
+        if(!Array.isArray(p.qualityEvents)) p.qualityEvents=[];
+        if(!Array.isArray(p.productionIssues)) p.productionIssues=[];
+        if(!Array.isArray(p.dismissedNcrSuggestions)) p.dismissedNcrSuggestions=[];
+        if(!p.processProfile || typeof p.processProfile!=='object') p.processProfile={};
+        if(!p.orderedQty) p.orderedQty=Number(p.orderedQty)||0;
+        const inferredMonth=inferPartMonth(p); if(p.orderMonth!==inferredMonth){p.orderMonth=inferredMonth;migratedPartCompanies.add(c.id);}
       });
-      const beforeMonths = JSON.stringify(c.months||[]);
-      ensureCompanyMonths(c, parts);
-      if(JSON.stringify(c.months||[])!==beforeMonths) companiesMigrated = true;
-      partsMap[c.id] = parts;
+      const beforeMonths=JSON.stringify(c.months||[]); ensureCompanyMonths(c,parts);
+      if(JSON.stringify(c.months||[])!==beforeMonths) companiesMigrated=true;
+      partsMap[c.id]=parts;
     }
-    state.partsByCompany = partsMap;
-    const knownUsersRaw = await storageGet('known-users');
-    state.knownUsers = asArray(knownUsersRaw).filter(u=>typeof u==='string');
+    state.partsByCompany=partsMap;
+
     if(!isClient()){
-      const etRaw = await storageGet('errortracking');
-      state.errorTracking = {
-        ppmMonthly: (etRaw && etRaw.ppmMonthly) || {},
-        ppmTarget: Number(etRaw && etRaw.ppmTarget) || 3000,
-        deptMonthly: (etRaw && etRaw.deptMonthly) || {},
-        disHatalar: asArray(etRaw && etRaw.disHatalar),
-        icHatalar: asArray(etRaw && etRaw.icHatalar),
-      };
-      const trashRaw = await storageGet('drawingtrash');
-      let trash = asArray(trashRaw);
-      const before = trash.length;
-      trash = trash.filter(t => {
-        const d = daysSince(t.deletedAt);
-        return d===null || d < TRASH_RETENTION_DAYS;
-      });
-      state.drawingTrash = trash;
-      if(trash.length !== before){
-        await persistDrawingTrash(); // 15 günü geçenleri kalıcı olarak temizle
-      }
+      const knownUsersRaw=await storageGet('known-users'); state.knownUsers=asArray(knownUsersRaw).filter(u=>typeof u==='string');
+      const etRaw=await storageGet('errortracking');
+      state.errorTracking={ppmMonthly:(etRaw&&etRaw.ppmMonthly)||{},ppmTarget:Number(etRaw&&etRaw.ppmTarget)||3000,ncrRejectThresholdPct:Number(etRaw&&etRaw.ncrRejectThresholdPct)||3,deptMonthly:(etRaw&&etRaw.deptMonthly)||{},disHatalar:asArray(etRaw&&etRaw.disHatalar),icHatalar:asArray(etRaw&&etRaw.icHatalar)};
+      const trashRaw=await storageGet('drawingtrash'); let trash=asArray(trashRaw); const before=trash.length;
+      trash=trash.filter(t=>{const d=daysSince(t.deletedAt);return d===null||d<TRASH_RETENTION_DAYS;}); state.drawingTrash=trash;
+      if(trash.length!==before && isAdmin()) await persistDrawingTrash();
     }
-    if(companiesMigrated) await storageSet('companies', companies);
-    for(const cid of migratedPartCompanies) await storageSet('parts:'+cid, partsMap[cid]||[]);
+    if(isAdmin()){
+      state.companyAccessCodes=(await storageGet('companyAccessCodes'))||{};
+      state.staffInvites=(await storageGet('staffInvites'))||{};
+      state.accessUsers=(await storageGet('users'))||{};
+    }
+    if(companiesMigrated && isAdmin()) await persistCompanies();
+    if(isAdmin()) for(const cid of migratedPartCompanies) await persistParts(cid);
+
     if(isClient()){
-      state.selectedCompanyId = state.clientCompanyId;
-      if(state.view==='companies') state.view = 'parts';
-    } else {
-      // Daha önce localStorage'dan yüklenmiş bir seçim varsa, hâlâ geçerli mi kontrol et
-      if(state.selectedCompanyId && !companies.find(c=>c.id===state.selectedCompanyId)){
-        state.selectedCompanyId = null;
-      }
-      if(companies.length && !state.selectedCompanyId){
-        state.selectedCompanyId = companies[0].id;
-      }
+      state.selectedCompanyId=state.clientCompanyId;
+      if(state.view==='companies'||state.view==='errortracking'||state.view==='access') state.view='parts';
+    }else{
+      if(state.selectedCompanyId && !companies.find(c=>c.id===state.selectedCompanyId)) state.selectedCompanyId=null;
+      if(companies.length&&!state.selectedCompanyId) state.selectedCompanyId=companies[0].id;
     }
   }catch(e){
-    console.error('loadAll fatal error', e);
-    state.storageUnavailable = true;
-    state.companies = asArray(state.companies);
-    state.partsByCompany = state.partsByCompany || {};
-    state.knownUsers = asArray(state.knownUsers);
+    console.error('loadAll fatal error',e); state.storageUnavailable=true; state.companies=asArray(state.companies); state.partsByCompany=state.partsByCompany||{}; state.knownUsers=asArray(state.knownUsers);
   }
-  state.loading = false;
-  render();
+  state.loading=false; render();
 }
 async function persistCompanies(){
-  state.lastSaveFailed = false;
-  const ok = await storageSet('companies', state.companies);
-  if(!ok && !state.storageUnavailable){ state.lastSaveFailed = true; render(); }
-  return ok;
+  state.lastSaveFailed=false;
+  const ok=await storageSet('companies',companyMapFromArray(state.companies));
+  if(!ok&&!state.storageUnavailable){state.lastSaveFailed=true;render();} return ok;
 }
 async function persistParts(companyId){
-  state.lastSaveFailed = false;
-  const ok = await storageSet('parts:'+companyId, state.partsByCompany[companyId] || []);
-  if(!ok && !state.storageUnavailable){ state.lastSaveFailed = true; render(); }
-  return ok;
+  state.lastSaveFailed=false;
+  const ok=await storageSet('parts/'+companyId,state.partsByCompany[companyId]||[]);
+  if(!ok&&!state.storageUnavailable){state.lastSaveFailed=true;render();} return ok;
 }
-async function persistKnownUsers(){ await storageSet('known-users', state.knownUsers); }
+async function persistKnownUsers(){ if(!isClient()) await storageSet('known-users',state.knownUsers); }
 
 /* ============================= HATA TAKİP (fabrika geneli, şirketten bağımsız) ============================= */
 const ERROR_DEPT_LIST = ['Lazer Kesimi', 'Kaynakhane', 'CNC Bükme', 'Diğer'];
@@ -1610,28 +1725,24 @@ function renderAuthScreen(){
   <div class="login-overlay">
     <div class="login-box" style="max-width:420px;">
       <div class="login-brand">ÜRETİM <span>TAKİP</span></div>
-      <div class="login-sub">${isSignup ? 'Yeni hesap oluşturun' : 'Hesabınızla giriş yapın'}</div>
+      <div class="login-sub">${isSignup ? 'Davet koduyla güvenli hesap oluşturun' : 'Hesabınızla giriş yapın'}</div>
 
       ${isSignup ? `
         <div class="field"><label>Ad Soyad</label><input type="text" id="authNameInput" placeholder="Örn. Ahmet Yılmaz" autocomplete="off"/></div>
         <div class="field"><label>E-posta</label><input type="email" id="authEmailInput" placeholder="ornek@sirket.com" autocomplete="off"/></div>
         <div class="field"><label>Şifre</label><input type="password" id="authPassInput" placeholder="En az 6 karakter" autocomplete="off"/></div>
         <div class="field">
-          <label>İstasyon / Rol</label>
-          <select id="authRoleInput">
-            ${DEFAULT_STAGES.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
-            <option value="admin">Kalite Kontrol (Yönetici)</option>
-            <option value="client">Müşteri (Salt Okunur)</option>
+          <label>Hesap Türü</label>
+          <select id="authAccountTypeInput">
+            <option value="client">Müşteri</option>
+            <option value="staff">Üretim Personeli</option>
           </select>
         </div>
-        <div class="field" id="adminCodeField" style="display:none;">
-          <label>Yönetici Kodu</label>
-          <input type="password" id="authAdminCodeInput" placeholder="Yönetici kaydı için gerekli kod" autocomplete="off"/>
+        <div class="field">
+          <label id="authInviteLabel">Şirket Davet Kodu</label>
+          <input type="text" id="authInviteCodeInput" placeholder="Size verilen davet kodu" autocomplete="off" style="text-transform:uppercase;font-family:var(--font-mono);letter-spacing:.7px;"/>
         </div>
-        <div class="field" id="clientCodeField" style="display:none;">
-          <label>Müşteri Takip Kodu</label>
-          <input type="text" id="authClientCodeInput" placeholder="Şirketinizden aldığınız kod" autocomplete="off"/>
-        </div>
+        <div class="helper-text" style="margin:-5px 0 14px 0;">Yönetici hesabı herkese açık kayıt ekranından oluşturulamaz. Personel rolleri yönetici tarafından oluşturulan davet koduyla atanır.</div>
         <div id="authErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin:-4px 0 14px 0;min-height:16px;"></div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;" id="authSubmitBtn">Hesap Oluştur ve Gir</button>
         <div class="login-note">Zaten hesabın var mı? <a href="#" id="switchToLogin" style="color:var(--navy-700);font-weight:700;">Giriş yap</a></div>
@@ -1640,7 +1751,7 @@ function renderAuthScreen(){
         <div class="field"><label>Şifre</label><input type="password" id="authPassInput" placeholder="Şifre" autocomplete="off"/></div>
         <div id="authErrorMsg" style="color:var(--red-700);font-size:12.5px;font-weight:700;margin:-4px 0 14px 0;min-height:16px;"></div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;" id="authSubmitBtn">Giriş Yap</button>
-        <div class="login-note">Hesabın yok mu? <a href="#" id="switchToSignup" style="color:var(--navy-700);font-weight:700;">Kayıt ol</a></div>
+        <div class="login-note">Hesabın yok mu? <a href="#" id="switchToSignup" style="color:var(--navy-700);font-weight:700;">Davet koduyla kayıt ol</a></div>
       `}
     </div>
   </div>`;
@@ -1654,22 +1765,14 @@ function attachAuthHandlers(){
   if(emailInput) emailInput.focus();
 
   const switchLink = document.getElementById(isSignup ? 'switchToLogin' : 'switchToSignup');
-  if(switchLink){
-    switchLink.addEventListener('click', (e)=>{ e.preventDefault(); state.authView = isSignup ? 'login' : 'signup'; render(); });
-  }
+  if(switchLink){ switchLink.addEventListener('click', (e)=>{ e.preventDefault(); state.authView = isSignup ? 'login' : 'signup'; render(); }); }
 
-  const roleInput = document.getElementById('authRoleInput');
-  const adminCodeField = document.getElementById('adminCodeField');
-  const clientCodeField = document.getElementById('clientCodeField');
-  if(roleInput){
-    roleInput.addEventListener('change', ()=>{
-      if(adminCodeField) adminCodeField.style.display = roleInput.value === 'admin' ? 'block' : 'none';
-      if(clientCodeField) clientCodeField.style.display = roleInput.value === 'client' ? 'block' : 'none';
-    });
+  const accountType = document.getElementById('authAccountTypeInput');
+  const inviteLabel = document.getElementById('authInviteLabel');
+  if(accountType && inviteLabel){
+    accountType.addEventListener('change', ()=>{ inviteLabel.textContent = accountType.value==='staff' ? 'Personel Davet Kodu' : 'Şirket Davet Kodu'; });
   }
-
   const showErr = (msg)=>{ if(errEl) errEl.textContent = msg; };
-
   const friendlyError = (code)=>{
     if(code==='auth/email-already-in-use') return 'Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.';
     if(code==='auth/invalid-email') return 'Geçerli bir e-posta adresi girin.';
@@ -1688,59 +1791,50 @@ function attachAuthHandlers(){
     try{
       if(isSignup){
         const name = (document.getElementById('authNameInput').value||'').trim();
-        const role = document.getElementById('authRoleInput').value;
-        const adminCode = (document.getElementById('authAdminCodeInput')?.value)||'';
-        const clientCode = (document.getElementById('authClientCodeInput')?.value||'').trim().toUpperCase();
+        const type = document.getElementById('authAccountTypeInput').value;
+        const inviteCode = (document.getElementById('authInviteCodeInput').value||'').trim().toUpperCase();
         if(!name){ showErr('Ad soyad zorunludur.'); submitBtn.disabled=false; return; }
-        if(role==='admin' && adminCode !== ADMIN_SIGNUP_CODE){ showErr('Yönetici kodu hatalı.'); submitBtn.disabled=false; return; }
-        if(role==='client' && !clientCode){ showErr('Müşteri kodu zorunludur.'); submitBtn.disabled=false; return; }
+        if(!inviteCode){ showErr('Davet kodu zorunludur.'); submitBtn.disabled=false; return; }
+
         const cred = await fbAuth.createUserWithEmailAndPassword(email, pass);
         await cred.user.updateProfile({ displayName: name });
-        const token = await cred.user.getIdToken();
-
-        let matchedCompanyId = null;
-        if(role==='client'){
-          const compRes = await fetch(`${FIREBASE_URL}/companies.json?auth=${token}`);
-          const compData = await compRes.json();
-          const compList = asArray(compData);
-          const match = compList.find(c=> c && (c.clientCode||'').toUpperCase() === clientCode);
-          if(!match){
+        let profileData = null;
+        if(type==='client'){
+          const inv = await storageGet('clientInvites/'+inviteCode);
+          if(!inv || inv.active===false || !inv.companyId){
             await cred.user.delete().catch(()=>{});
-            showErr('Müşteri kodu geçersiz. Şirketinizden aldığınız kodu kontrol edin.');
-            submitBtn.disabled = false;
-            return;
+            showErr('Şirket davet kodu geçersiz veya artık aktif değil.'); submitBtn.disabled=false; return;
           }
-          matchedCompanyId = match.id;
+          profileData = {name,email,role:'client',companyId:inv.companyId,inviteCode,createdAt:todayStr()};
+        }else{
+          const inv = await storageGet('staffInvites/'+inviteCode);
+          if(!inv || inv.active===false || !inv.role || !DEFAULT_STAGES.includes(inv.role)){
+            await cred.user.delete().catch(()=>{});
+            showErr('Personel davet kodu geçersiz veya artık aktif değil.'); submitBtn.disabled=false; return;
+          }
+          profileData = {name,email,role:inv.role,inviteCode,createdAt:todayStr()};
         }
-
-        // Profil/rol bilgisini veritabanına yaz
-        const profileData = { name, email, role, createdAt: todayStr() };
-        if(matchedCompanyId) profileData.companyId = matchedCompanyId;
-        await fetch(`${FIREBASE_URL}/users/${cred.user.uid}.json?auth=${token}`, {
-          method: 'PUT', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(profileData)
-        });
-        state.currentUser = name; state.currentUserUid = cred.user.uid; state.currentUserRole = role;
-        state.clientCompanyId = matchedCompanyId;
+        const ok = await storageSet('users/'+cred.user.uid, profileData);
+        if(!ok){
+          await cred.user.delete().catch(()=>{});
+          showErr('Hesap profili oluşturulamadı. Davet kodunu kontrol edin.'); submitBtn.disabled=false; return;
+        }
+        state.currentUser = name; state.currentUserUid = cred.user.uid; state.currentUserRole = profileData.role;
+        state.clientCompanyId = profileData.companyId || null;
       } else {
         const cred = await fbAuth.signInWithEmailAndPassword(email, pass);
-        const token = await cred.user.getIdToken();
-        const res = await fetch(`${FIREBASE_URL}/users/${cred.user.uid}.json?auth=${token}`);
-        const profile = await res.json();
-        state.currentUser = (profile && profile.name) || cred.user.displayName || email;
+        const profile = await storageGet('users/'+cred.user.uid);
+        if(!profile || !profile.role){
+          await fbAuth.signOut();
+          showErr('Bu hesabın uygulama erişim profili yok. Yöneticiyle görüşün.'); submitBtn.disabled=false; return;
+        }
+        state.currentUser = profile.name || cred.user.displayName || email;
         state.currentUserUid = cred.user.uid;
-        state.currentUserRole = (profile && profile.role) || null;
-        state.clientCompanyId = (profile && profile.companyId) || null;
+        state.currentUserRole = profile.role;
+        state.clientCompanyId = profile.companyId || null;
       }
-      state.loading = true;
-      render();
-      loadLocalPrefs();
-      await loadAll();
-    }catch(e){
-      console.error('auth error', e);
-      showErr(friendlyError(e.code));
-      submitBtn.disabled = false;
-    }
+      state.loading = true; render(); loadLocalPrefs(); await loadAll();
+    }catch(e){ console.error('auth error',e); showErr(friendlyError(e.code)); submitBtn.disabled=false; }
   };
   submitBtn.addEventListener('click', doSubmit);
   passInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') doSubmit(); });
@@ -1755,6 +1849,7 @@ function renderSidebar(){
     {id:'errortracking', icon:icon('trend'), label:'Hata Takip'},
     {id:'dashboard', icon:icon('chart'), label:'Dashboard'},
     {id:'reports', icon:icon('doc'), label:'Raporlar'},
+    ...(isAdmin() ? [{id:'access', icon:icon('gear'), label:'Erişim'}] : []),
   ].filter(it => !(isClient() && (it.id==='companies' || it.id==='errortracking')));
   const sel = getCompany(state.selectedCompanyId);
   return `
@@ -1791,6 +1886,7 @@ function renderView(){
     case 'errortracking': return renderErrorTrackingView();
     case 'dashboard': return renderDashboardView();
     case 'reports': return renderReportsView();
+    case 'access': return renderAccessView();
     default: return '';
   }
 }
@@ -2097,7 +2193,11 @@ function renderTrackingView(){
       </div>
     </div>
 
+    ${renderProductionEstimateSection(part,company)}
     ${renderMeasurementSection(part)}
+    ${renderQualityFlowSection(part,company)}
+    ${renderNcrSuggestionsSection(part,company)}
+    ${renderProductionIssuesSection(part)}
 
     ${(part.returnEvents&&part.returnEvents.length)?`
       <div class="section-title">Proses Geri Dönüşleri</div>
@@ -2296,6 +2396,240 @@ function collectRejectByStage(){
   return Object.entries(totals).map(([stage,value])=>({stage,value})).sort((a,b)=>b.value-a.value);
 }
 
+
+const QUALITY_REJECT_SUGGEST_PCT = 3;
+const QUALITY_EVENT_META = {
+  quarantine:{label:'Karantina',tone:'warn'},
+  quarantine_release:{label:'Karantinadan Serbest',tone:'good'},
+  rework:{label:'Yeniden İşleme',tone:'warn'},
+  rework_complete:{label:'Rework Tamamlandı',tone:'good'},
+  quality_scrap:{label:'Kalite Hurdası',tone:'bad'},
+  surplus_stock:{label:'Fazla Üretim · Stokta',tone:'good'},
+  surplus_scrap:{label:'Fazla Üretim · Hurda',tone:'warn'},
+  surplus_ship:{label:'Fazla Üretim · Sevk',tone:'good'},
+  surplus_hold:{label:'Fazla Üretim · Beklet',tone:'warn'},
+  customer_complaint:{label:'Müşteri Şikâyeti',tone:'bad'}
+};
+const NCR_CATEGORY_OPTIONS = [
+  'Ölçü tolerans dışı','Yanlış / eksik delik','Büküm hatası','Kaynak hatası','Yüzey hatası',
+  'Boya hatası','Kaplama hatası','Yanlış malzeme','Yanlış parça','Teknik resim / revizyon hatası',
+  'Müşteri şikâyeti','Hasar','Kalite hurdası','Diğer'
+];
+const NCR_DISPOSITION_OPTIONS = ['Karantina','Yeniden İşleme','Hurda','Serbest Bırak / Kabul','Müşteri Onayı Bekleniyor','Diğer'];
+const PRODUCTION_ISSUE_TYPES = ['Makine arızası','Malzeme bekleniyor','Operatör bekleniyor','Program bekleniyor','Önceki proses bekleniyor','Kalite problemi','Planlama / kapasite','Diğer'];
+
+function ensurePartQualityData(part){
+  if(!part) return;
+  if(!Array.isArray(part.qualityEvents)) part.qualityEvents=[];
+  if(!Array.isArray(part.productionIssues)) part.productionIssues=[];
+  if(!Array.isArray(part.dismissedNcrSuggestions)) part.dismissedNcrSuggestions=[];
+  if(!part.processProfile || typeof part.processProfile!=='object') part.processProfile={};
+  if(!Array.isArray(part.ncrs)) part.ncrs=[];
+}
+function qualityFlowTotals(part){
+  ensurePartQualityData(part);
+  const t={quarantine:0,rework:0,qualityScrap:0,surplusStock:0,surplusScrap:0,surplusShip:0,surplusHold:0,customerComplaint:0};
+  (part.qualityEvents||[]).forEach(e=>{
+    const q=Math.max(0,Number(e.qty)||0);
+    if(e.type==='quarantine') t.quarantine+=q;
+    if(e.type==='quarantine_release') t.quarantine=Math.max(0,t.quarantine-q);
+    if(e.type==='rework') t.rework+=q;
+    if(e.type==='rework_complete') t.rework=Math.max(0,t.rework-q);
+    if(e.type==='quality_scrap') t.qualityScrap+=q;
+    if(e.type==='surplus_stock') t.surplusStock+=q;
+    if(e.type==='surplus_scrap') t.surplusScrap+=q;
+    if(e.type==='surplus_ship') t.surplusShip+=q;
+    if(e.type==='surplus_hold') t.surplusHold+=q;
+    if(e.type==='customer_complaint') t.customerComplaint+=q;
+  });
+  t.surplusTotal=t.surplusStock+t.surplusScrap+t.surplusShip+t.surplusHold;
+  return t;
+}
+function collectQualityFlowTotals(){
+  const t={quarantine:0,rework:0,qualityScrap:0,surplusStock:0,surplusScrap:0,surplusShip:0,surplusHold:0,surplusTotal:0,customerComplaint:0};
+  visibleCompanies().forEach(c=>getParts(c.id).forEach(p=>{
+    const x=qualityFlowTotals(p); Object.keys(t).forEach(k=>t[k]+=Number(x[k]||0));
+  }));
+  return t;
+}
+function ncrExistsForSource(part, sourceKey){
+  return !!(part.ncrs||[]).find(n=>n.sourceKey===sourceKey);
+}
+function createNcrObject(part, data){
+  ensurePartQualityData(part);
+  const ncr={
+    id:uid('ncr'), date:todayStr(), stage:data.stage||'Kalite Kontrol',
+    recordType:data.recordType||'Kalite Uygunsuzluğu',
+    category:data.category||'Diğer',
+    description:data.description||'',
+    rootCause:data.rootCause||'',
+    correctiveAction:data.correctiveAction||'',
+    disposition:data.disposition||'Karantina',
+    qty:Math.max(0,Number(data.qty)||0),
+    status:'acik', user:data.user||state.currentUser,
+    source:data.source||'manual', sourceKey:data.sourceKey||null,
+    autoCreated:!!data.autoCreated
+  };
+  part.ncrs.push(ncr);
+  return ncr;
+}
+function ensureAutomaticMeasurementNcrs(part){
+  ensurePartQualityData(part);
+  let created=0;
+  (part.measurements||[]).forEach(m=>{
+    if(measurementStatus(m)!=='fail') return;
+    const key='measurement:'+m.id;
+    if(ncrExistsForSource(part,key)) return;
+    const measured=parseDecimal(m.measuredValue), nominal=parseDecimal(m.nominalValue), tol=Math.abs(parseDecimal(m.tolerance));
+    const diff=measured-nominal;
+    createNcrObject(part,{
+      stage:'Kalite Kontrol', category:'Ölçü tolerans dışı', disposition:'Karantina', qty:1,
+      description:`Ölçüm #${m.no}: nominal ${decimalDisplay(nominal)} ±${decimalDisplay(tol)}, ölçülen ${decimalDisplay(measured)}. Sapma ${diff>=0?'+':''}${decimalDisplay(Number(diff.toFixed(4)))}.`,
+      source:'measurement',sourceKey:key,autoCreated:true
+    });
+    created++;
+  });
+  return created;
+}
+function processProfile(part){
+  ensurePartQualityData(part);
+  return Object.assign({material:'',thickness:'',width:'',length:'',holeCount:0,bendCount:0,weldLengthMm:0,complexity:'normal',toleranceClass:'normal'},part.processProfile||{});
+}
+function estimateStageDays(part, stage){
+  const p=processProfile(part);
+  const qty=Math.max(1,Number(part.orderedQty)||1);
+  const th=Math.max(.5,Number(p.thickness)||1.5);
+  const w=Math.max(50,Number(p.width)||300), l=Math.max(50,Number(p.length)||300);
+  const areaM2=(w*l)/1e6;
+  const holes=Math.max(0,Number(p.holeCount)||0), bends=Math.max(0,Number(p.bendCount)||0), weldM=Math.max(0,Number(p.weldLengthMm)||0)/1000;
+  const cf=p.complexity==='high'?1.45:p.complexity==='low'?.82:1;
+  const tf=p.toleranceClass==='precision'?1.35:p.toleranceClass==='rough'?.9:1;
+  let hours=0;
+  switch(stage){
+    case 'Kesim': hours=.35 + qty*(.006 + areaM2*.010 + holes*.0015 + th*.0015); break;
+    case 'CNC': hours=.55 + qty*(.012 + holes*.0035 + areaM2*.004)*tf; break;
+    case 'Torna': hours=.65 + qty*(.018 + th*.0015)*tf; break;
+    case 'Büküm': hours=.35 + qty*Math.max(1,bends)*.009*cf; break;
+    case 'Kaynak': hours=.45 + qty*(Math.max(.12,weldM)*.11 + .006)*cf; break;
+    case 'Taşlama': hours=.25 + qty*(Math.max(.10,weldM)*.055 + .004)*cf; break;
+    case 'Boya': hours=1.6 + qty*(.006+areaM2*.018); break;
+    case 'Kaplama': hours=2.0 + qty*(.005+areaM2*.014); break;
+    case 'Montaj': hours=.35 + qty*(.012 + (holes+bends)*.0015)*cf; break;
+    case 'Paketleme': hours=.20 + qty*(.004 + areaM2*.003); break;
+    case 'Sevkiyat': hours=2.0; break;
+    default: hours=.35 + qty*.01*cf;
+  }
+  // Fabrika içi kuyruk/aktarım payı: aktif işleme süresinden daha gerçekçi proses hedefi üretir.
+  const workingDays=(hours/8)*1.35;
+  return Math.max(.25,Math.min(30,workingDays));
+}
+function currentStageEstimateStatus(part, company){
+  const idx=getCurrentStageIndex(part,company.stages);
+  if(idx<0) return null;
+  const stage=company.stages[idx], entry=getStageLastEntry(part,stage);
+  const actual=entry?daysSince(entry.date):0, expected=estimateStageDays(part,stage);
+  const ratio=expected>0?actual/expected:0;
+  return {stage,actual,expected,ratio,cls:ratio>1.5?'bad':ratio>1.1?'warn':'good'};
+}
+function ncrSuggestionsForPart(part, company){
+  ensurePartQualityData(part);
+  const dismissed=new Set(part.dismissedNcrSuggestions||[]);
+  const out=[];
+  const ordered=Math.max(1,Number(part.orderedQty)||1);
+  company.stages.forEach(stage=>{
+    const rej=Math.max(0,Number((part.rejects||{})[stage]||0));
+    if(!rej) return;
+    const pct=rej/ordered*100, key='reject:'+stage;
+    const threshold=Math.max(.1,Number(state.errorTracking?.ncrRejectThresholdPct)||QUALITY_REJECT_SUGGEST_PCT);
+    if(pct>=threshold && !dismissed.has(key) && !ncrExistsForSource(part,key)){
+      out.push({key,critical:pct>=8,title:`${stage} prosesinde yüksek ret oranı`,desc:`${fmtNum(rej)} ret / ${fmtNum(part.orderedQty)} sipariş = %${pct.toLocaleString('tr-TR',{maximumFractionDigits:1})}. NCR değerlendirmesi önerilir.`,stage,category:'Diğer',disposition:'Karantina',qty:rej});
+    }
+  });
+  (part.returnEvents||[]).forEach(r=>{
+    const key='return:'+r.id;
+    if(dismissed.has(key)||ncrExistsForSource(part,key)) return;
+    out.push({key,critical:false,title:'Proses geri dönüşü tespit edildi',desc:`${r.fromStage} → ${r.toStage} · ${fmtNum(r.qty)} adet. Geri dönüş kalite kaynaklıysa NCR açın; planlama kaynaklıysa sadece proses geri dönüşü olarak bırakın.`,stage:r.toStage,category:'Diğer',disposition:'Yeniden İşleme',qty:r.qty});
+  });
+  (part.productionIssues||[]).forEach(i=>{
+    if(i.status==='kapali'||i.type!=='Kalite problemi') return;
+    const key='issue:'+i.id;
+    if(dismissed.has(key)||ncrExistsForSource(part,key)) return;
+    out.push({key,critical:true,title:'Kalite kaynaklı üretim problemi',desc:i.description||`${i.stage} prosesinde kalite problemi kaydedildi.`,stage:i.stage,category:'Diğer',disposition:'Karantina',qty:i.qty||0});
+  });
+  const cur=currentStageEstimateStatus(part,company);
+  if(cur && cur.actual>=1 && cur.ratio>1.5){
+    const key='delay:'+cur.stage+':'+inferPartMonth(part);
+    if(!dismissed.has(key)){
+      out.push({key,productionOnly:true,critical:false,title:`${cur.stage} prosesinde gecikme`,desc:`Beklenen yaklaşık ${cur.expected.toLocaleString('tr-TR',{maximumFractionDigits:1})} gün; şu an ${cur.actual} gün. Bu kalite uygunsuzluğu değil, üretim problemi olarak değerlendirilmelidir.`,stage:cur.stage});
+    }
+  }
+  return out;
+}
+function renderProductionEstimateSection(part,company){
+  const profile=processProfile(part);
+  const cur=currentStageEstimateStatus(part,company);
+  const relevant=company.stages.filter(s=>s!=='Sevkiyat');
+  return `
+    <div class="section-title">Tahmini Proses Süreleri</div>
+    <div class="card" style="padding:16px;margin-bottom:14px;">
+      <div class="analytics-note" style="margin-bottom:12px;">Bu süreler sipariş adedi ve onaylanan parça özelliklerinden operasyonel tahmin üretir. İlk dönemde planlama referansıdır; gerçek üretim geçmişiniz biriktikçe hedefleri firmanıza göre kalibre etmek daha doğru olur.</div>
+      ${isAdmin()?`<div class="profile-grid">
+        <div class="field"><label>Malzeme</label><input id="ppMaterial" type="text" value="${escapeHtml(profile.material||'')}" placeholder="S235JR"/></div>
+        <div class="field"><label>Kalınlık (mm)</label><input id="ppThickness" type="text" inputmode="decimal" value="${escapeHtml(decimalDisplay(profile.thickness))}" placeholder="2,0"/></div>
+        <div class="field"><label>En (mm)</label><input id="ppWidth" type="number" min="0" value="${Number(profile.width)||''}" placeholder="300"/></div>
+        <div class="field"><label>Boy (mm)</label><input id="ppLength" type="number" min="0" value="${Number(profile.length)||''}" placeholder="450"/></div>
+        <div class="field"><label>Delik Sayısı</label><input id="ppHoles" type="number" min="0" value="${Number(profile.holeCount)||0}"/></div>
+        <div class="field"><label>Büküm Sayısı</label><input id="ppBends" type="number" min="0" value="${Number(profile.bendCount)||0}"/></div>
+        <div class="field"><label>Kaynak Uzunluğu (mm)</label><input id="ppWeld" type="number" min="0" value="${Number(profile.weldLengthMm)||0}"/></div>
+        <div class="field"><label>Karmaşıklık</label><select id="ppComplexity"><option value="low" ${profile.complexity==='low'?'selected':''}>Basit</option><option value="normal" ${profile.complexity==='normal'?'selected':''}>Normal</option><option value="high" ${profile.complexity==='high'?'selected':''}>Karmaşık</option></select></div>
+        <div class="field"><label>Tolerans Seviyesi</label><select id="ppTolerance"><option value="rough" ${profile.toleranceClass==='rough'?'selected':''}>Geniş</option><option value="normal" ${profile.toleranceClass==='normal'?'selected':''}>Normal</option><option value="precision" ${profile.toleranceClass==='precision'?'selected':''}>Hassas</option></select></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d.type==='application/pdf'||/\.pdf$/i.test(d.name||''))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">PDF'den Ön Analiz</button>`:''}</div>`:''}
+      <div class="process-estimate-grid">
+        ${relevant.map(stage=>{
+          const d=estimateStageDays(part,stage);
+          const isCur=cur&&cur.stage===stage;
+          return `<div class="estimate-chip ${isCur?'current-'+cur.cls:''}"><div class="ec-name">${escapeHtml(stage)}${isCur?' · ŞU AN':''}</div><div class="ec-days">${d.toLocaleString('tr-TR',{maximumFractionDigits:1})} gün</div>${isCur?`<div class="helper-text" style="margin:4px 0 0;">Gerçek: ${cur.actual} gün</div>`:''}</div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+function renderQualityFlowSection(part,company){
+  const q=qualityFlowTotals(part);
+  const events=(part.qualityEvents||[]).slice().reverse();
+  return `
+    <div class="section-title">Kalite / Parça Durumu</div>
+    <div class="card" style="padding:16px;margin-bottom:14px;">
+      <div class="quality-flow-grid">
+        <div class="quality-flow-card warn"><div class="qf-label">Karantina</div><div class="qf-value">${fmtNum(q.quarantine)}</div></div>
+        <div class="quality-flow-card warn"><div class="qf-label">Rework</div><div class="qf-value">${fmtNum(q.rework)}</div></div>
+        <div class="quality-flow-card bad"><div class="qf-label">Kalite Hurdası</div><div class="qf-value">${fmtNum(q.qualityScrap)}</div></div>
+        <div class="quality-flow-card good"><div class="qf-label">Fazla · Stok</div><div class="qf-value">${fmtNum(q.surplusStock)}</div></div>
+        <div class="quality-flow-card warn"><div class="qf-label">Fazla · Hurda</div><div class="qf-value">${fmtNum(q.surplusScrap)}</div></div>
+        <div class="quality-flow-card"><div class="qf-label">Toplam Fazla Üretim</div><div class="qf-value">${fmtNum(q.surplusTotal)}</div></div>
+      </div>
+      ${isAdmin()?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${events.length?'14px':'0'};"><button class="btn btn-primary btn-sm" data-action="openQualityEvent" data-part="${part.id}">+ Kalite / Adet Kararı Ekle</button><button class="btn btn-ghost btn-sm" data-action="openProductionIssue" data-part="${part.id}">+ Üretim Problemi</button></div>`:''}
+      ${events.length?`<div class="quality-event-list">${events.slice(0,12).map(e=>{const meta=QUALITY_EVENT_META[e.type]||{label:e.type,tone:''};return `<div class="quality-event"><div class="qe-type">${escapeHtml(meta.label)}</div><div class="qe-qty">${fmtNum(e.qty)} adet</div><div class="qe-note">${escapeHtml(e.stage||'')} ${e.reason?'· '+escapeHtml(e.reason):''}${e.note?' · '+escapeHtml(e.note):''}</div><div class="qe-date">${escapeHtml(e.date||'')}<br>${escapeHtml(e.user||'')}</div></div>`;}).join('')}</div>`:''}
+    </div>`;
+}
+function renderNcrSuggestionsSection(part,company){
+  const suggestions=ncrSuggestionsForPart(part,company);
+  if(!suggestions.length) return '';
+  return `<div class="section-title">Akıllı Uyarılar</div><div class="card" style="padding:14px;margin-bottom:14px;">${suggestions.map(s=>`
+    <div class="ncr-suggestion ${s.critical?'critical':''}">
+      <div class="ns-body"><div class="ns-title">${escapeHtml(s.title)}</div><div class="ns-desc">${escapeHtml(s.desc)}</div></div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">
+        ${s.productionOnly?`<button class="btn btn-ghost btn-sm" data-action="openProductionIssue" data-part="${part.id}" data-stage="${escapeHtml(s.stage||'')}">Üretim Problemi Ekle</button>`:`<button class="btn btn-primary btn-sm" data-action="openNcrSuggestion" data-part="${part.id}" data-key="${escapeHtml(s.key)}">NCR Aç</button>`}
+        <button class="btn btn-ghost btn-sm" data-action="dismissNcrSuggestion" data-part="${part.id}" data-key="${escapeHtml(s.key)}">Gizle</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+function renderProductionIssuesSection(part){
+  ensurePartQualityData(part);
+  if(!(part.productionIssues||[]).length) return '';
+  return `<div class="section-title">Üretim Problemleri</div><div>${part.productionIssues.slice().reverse().map(i=>`<div class="production-issue ${i.status==='kapali'?'closed':'open'}"><div><div style="font-weight:800;color:var(--navy-900);">${escapeHtml(i.type)} · ${escapeHtml(i.stage||'—')}</div><div class="helper-text" style="margin:4px 0 0;">${escapeHtml(i.description||'Açıklama yok')} · ${escapeHtml(i.date||'')} · ${escapeHtml(i.user||'')}</div></div>${i.status!=='kapali'&&isAdmin()?`<button class="btn btn-ghost btn-sm" data-action="closeProductionIssue" data-part="${part.id}" data-issue="${i.id}">Kapat</button>`:`<span class="quality-tag">${i.status==='kapali'?'Kapatıldı':'Açık'}</span>`}</div>`).join('')}</div>`;
+}
+
 function measurementStatus(m){
   const measured = m.measuredValue!==''&&m.measuredValue!=null ? parseDecimal(m.measuredValue) : null;
   const nominal = m.nominalValue!==''&&m.nominalValue!=null ? parseDecimal(m.nominalValue) : null;
@@ -2452,6 +2786,11 @@ function renderQualityView(){
   if(state.qualityFilter==='acik') all = all.filter(n=>n.status==='acik');
   if(state.qualityFilter==='kapali') all = all.filter(n=>n.status==='kapali');
 
+  const qflow=collectQualityFlowTotals();
+  const ppmData=state.errorTracking.ppmMonthly||{};
+  const ppmTarget=Math.max(1,Number(state.errorTracking.ppmTarget)||3000);
+  const ppmRows=Object.entries(ppmData).map(([m,r])=>({m,ppm:Number(r&&r.uretim)>0?Math.round((Number(r.hata)||0)/Number(r.uretim)*1000000):0,has:Number(r&&r.uretim)>0}));
+  const latestPpm=ppmRows.filter(x=>x.has).slice(-1)[0]||null;
   return `
     <div class="page-head">
       <div><div class="page-title">Kalite Kontrol</div><div class="page-sub">Ret adetleri ve uygunsuzluk kayıtları — tüm şirketler</div></div>
@@ -2462,7 +2801,13 @@ function renderQualityView(){
       <div class="kpi-card accent"><div class="kpi-label">Açık Uygunsuzluk</div><div class="kpi-value">${fmtNum(totals.openNcr)}</div></div>
       <div class="kpi-card"><div class="kpi-label">Kapatılan Uygunsuzluk</div><div class="kpi-value">${fmtNum(totals.closedNcr)}</div></div>
       <div class="kpi-card"><div class="kpi-label">Sevk Edilen / Sipariş</div><div class="kpi-value" style="font-size:20px;">${fmtNum(totals.shipped)} <span class="kpi-unit">/ ${fmtNum(totals.ordered)}</span></div></div>
+      <div class="kpi-card"><div class="kpi-label">Karantina</div><div class="kpi-value">${fmtNum(qflow.quarantine)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Rework</div><div class="kpi-value">${fmtNum(qflow.rework)}</div></div>
+      <div class="kpi-card accent"><div class="kpi-label">Kalite Hurdası</div><div class="kpi-value">${fmtNum(qflow.qualityScrap)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Fazla Üretim Hurdası</div><div class="kpi-value">${fmtNum(qflow.surplusScrap)}</div></div>
     </div>
+    ${latestPpm&&latestPpm.ppm>ppmTarget?`<div class="ncr-suggestion critical" style="margin-bottom:14px;"><div class="ns-body"><div class="ns-title">PPM hedefi aşılmış</div><div class="ns-desc">${escapeHtml(latestPpm.m)} döneminde ${fmtNum(latestPpm.ppm)} PPM ölçüldü; hedef ${fmtNum(ppmTarget)}. Bu fabrika geneli bir kalite alarmıdır; ilgili parça/şikâyet bulunursa NCR ile ilişkilendirin.</div></div></div>`:''}
+    ${isAdmin()?`<div class="card" style="padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:end;flex-wrap:wrap;"><div class="field" style="margin:0;min-width:170px;"><label>NCR ret öneri eşiği (%)</label><input type="text" inputmode="decimal" id="ncrRejectThresholdInput" value="${decimalDisplay(state.errorTracking.ncrRejectThresholdPct||3)}"/></div><div class="helper-text" style="margin:0;flex:1;">Bir prosesteki ret oranı bu değere ulaştığında sistem NCR önerisi çıkarır. Varsayılan %3.</div><button class="btn btn-ghost btn-sm" data-action="saveQualitySettings">Eşiği Kaydet</button></div>`:''}
     <div class="toolbar">
       <select class="filter-select" id="qualityFilterSelect">
         <option value="acik" ${state.qualityFilter==='acik'?'selected':''}>Açık kayıtlar</option>
@@ -2481,7 +2826,9 @@ function renderQualityView(){
           </div>
           <span class="status-badge ${n.status==='acik'?'open':'closed'}"><span class="status-dot"></span>${n.status==='acik'?'Açık':'Kapatıldı'}</span>
         </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;"><span class="quality-tag ${n.autoCreated?'auto':'manual'}">${n.autoCreated?'OTOMATİK':'MANUEL'}</span>${n.category?`<span class="quality-tag">${escapeHtml(n.category)}</span>`:''}${n.disposition?`<span class="quality-tag">${escapeHtml(n.disposition)}</span>`:''}${Number(n.qty)>0?`<span class="quality-tag">${fmtNum(n.qty)} adet</span>`:''}</div>
         <div class="ncr-desc">${escapeHtml(n.description)}</div>
+        ${n.rootCause ? `<div class="ncr-action"><b>Kök Neden:</b> ${escapeHtml(n.rootCause)}</div>` : ''}
         ${n.correctiveAction ? `<div class="ncr-action"><b>Düzeltici Faaliyet:</b> ${escapeHtml(n.correctiveAction)}</div>` : ''}
         <div class="ncr-foot">
           <span class="helper-text" style="margin:0;">${n.status==='kapali' && n.closedDate ? 'Kapatıldı: '+n.closedDate : ''}</span>
@@ -2501,7 +2848,9 @@ function renderNcrList(ncrs, companyId, partId){
         </div>
         <span class="status-badge ${n.status==='acik'?'open':'closed'}"><span class="status-dot"></span>${n.status==='acik'?'Açık':'Kapatıldı'}</span>
       </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;"><span class="quality-tag ${n.autoCreated?'auto':'manual'}">${n.autoCreated?'OTOMATİK':'MANUEL'}</span>${n.category?`<span class="quality-tag">${escapeHtml(n.category)}</span>`:''}${n.disposition?`<span class="quality-tag">${escapeHtml(n.disposition)}</span>`:''}${Number(n.qty)>0?`<span class="quality-tag">${fmtNum(n.qty)} adet</span>`:''}</div>
       <div class="ncr-desc">${escapeHtml(n.description)}</div>
+      ${n.rootCause ? `<div class="ncr-action"><b>Kök Neden:</b> ${escapeHtml(n.rootCause)}</div>` : ''}
       ${n.correctiveAction ? `<div class="ncr-action"><b>Düzeltici Faaliyet:</b> ${escapeHtml(n.correctiveAction)}</div>` : ''}
       ${n.status==='acik' && isAdmin() ? `<div class="ncr-foot"><span></span><button class="btn btn-ghost btn-sm" data-close-ncr="${partId}|${n.id}" data-company="${companyId}">Kapat</button></div>` : ''}
     </div>
@@ -2818,7 +3167,7 @@ function renderDashboardView(){
   const rejectByStage = collectRejectByStage();
   const processStats = collectStageDurationStats(dashMonth);
   const returnEvents = collectReturnEvents(dashMonth);
-  const companyCompare = companies.map(c=>({company:c,...companyTotals(c.id,dashMonth)}));
+  const companyCompare = companies.map(c=>({company:c,...companyTotals(c.id)}));
   const monthSeries = selectedDashCompany ? companyMonthSeries(selectedDashCompany.id) : [];
 
   return `
@@ -2840,17 +3189,19 @@ function renderDashboardView(){
       <div class="kpi-card accent"><div class="kpi-label">Sevk Edilen</div><div class="kpi-value">${fmtNum(totals.shipped)}<span class="kpi-unit">adet</span></div></div>
       <div class="kpi-card accent"><div class="kpi-label">Toplam Ret</div><div class="kpi-value">${fmtNum(totals.rejected)}<span class="kpi-unit">adet</span></div></div>
     </div>
+    ${(()=>{const q=collectQualityFlowTotals();return `<div class="section-title">Kalite Akışı</div><div class="quality-flow-grid"><div class="quality-flow-card warn"><div class="qf-label">Karantina</div><div class="qf-value">${fmtNum(q.quarantine)}</div></div><div class="quality-flow-card warn"><div class="qf-label">Rework</div><div class="qf-value">${fmtNum(q.rework)}</div></div><div class="quality-flow-card bad"><div class="qf-label">Kalite Hurdası</div><div class="qf-value">${fmtNum(q.qualityScrap)}</div></div><div class="quality-flow-card warn"><div class="qf-label">Fazla Üretim Hurdası</div><div class="qf-value">${fmtNum(q.surplusScrap)}</div></div><div class="quality-flow-card good"><div class="qf-label">Fazla Üretim Stoku</div><div class="qf-value">${fmtNum(q.surplusStock)}</div></div></div>`;})()}
 
-    <div class="section-title">Şirketler Arası Kıyas</div>
-    <div class="month-bar"><span class="month-label">Kıyas Ayı</span><select class="month-select" id="dashboardMonthSelect">${knownMonths.slice().reverse().map(m=>`<option value="${m}" ${m===dashMonth?'selected':''}>${escapeHtml(monthLabel(m))}</option>`).join('')}</select><span class="helper-text" style="margin:0;">Bu bölüm yalnızca aynı ayı şirketler arasında karşılaştırır.</span></div>
-    ${companies.length===0?`<div class="empty-state"><p>Karşılaştırılacak şirket yok.</p></div>`:`<div class="chart-grid"><div class="card chart-card"><div class="chart-card-title">${escapeHtml(monthLabel(dashMonth))} · Şirket Sipariş Adetleri</div>${renderBarChartSVG(companyCompare.filter(x=>x.ordered>0).map(x=>({stage:x.company.name,value:x.ordered})))}</div><div class="card chart-card"><div class="chart-card-title">${escapeHtml(monthLabel(dashMonth))} · Sevk Adetleri</div>${renderBarChartSVG(companyCompare.filter(x=>x.shipped>0).map(x=>({stage:x.company.name,value:x.shipped})))}</div></div>
-    <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Şirket</th><th>Parça Kaydı</th><th>Sipariş</th><th>Üretimde</th><th>Sevk</th><th>Ret</th><th>Sevk Oranı</th></tr></thead><tbody>${companyCompare.map(x=>{const pct=x.ordered>0?x.shipped/x.ordered*100:0;return `<tr><td style="font-weight:800;color:var(--navy-900);">${escapeHtml(x.company.name)}</td><td class="mono">${fmtNum(x.partCount)}</td><td class="mono">${fmtNum(x.ordered)}</td><td class="mono">${fmtNum(x.inProgress)}</td><td class="mono">${fmtNum(x.shipped)}</td><td class="mono" style="color:${x.rejected>0?'var(--red-500)':'var(--gray-500)'};font-weight:800;">${fmtNum(x.rejected)}</td><td>%${pct.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td></tr>`;}).join('')}</tbody></table></div>`}
+    <div class="section-title">Genel Şirket Kıyası · Tüm Dönemler</div>
+    <div class="analytics-note" style="margin-bottom:14px;">Bu bölüm şirketlerin kayıtlı <b>tüm aylarındaki</b> sipariş, üretim, sevk ve ret verilerini birlikte karşılaştırır.</div>
+    ${companies.length===0?`<div class="empty-state"><p>Karşılaştırılacak şirket yok.</p></div>`:`<div class="chart-grid"><div class="card chart-card"><div class="chart-card-title">Tüm Dönemler · Şirket Sipariş Adetleri</div>${renderBarChartSVG(companyCompare.filter(x=>x.ordered>0).map(x=>({stage:x.company.name,value:x.ordered})))}</div><div class="card chart-card"><div class="chart-card-title">Tüm Dönemler · Sevk Adetleri</div>${renderBarChartSVG(companyCompare.filter(x=>x.shipped>0).map(x=>({stage:x.company.name,value:x.shipped})))}</div></div>
+    <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Şirket</th><th>Parça Kaydı</th><th>Toplam Sipariş</th><th>Üretimde</th><th>Toplam Sevk</th><th>Toplam Ret</th><th>Sevk Oranı</th></tr></thead><tbody>${companyCompare.map(x=>{const pct=x.ordered>0?x.shipped/x.ordered*100:0;return `<tr><td style="font-weight:800;color:var(--navy-900);">${escapeHtml(x.company.name)}</td><td class="mono">${fmtNum(x.partCount)}</td><td class="mono">${fmtNum(x.ordered)}</td><td class="mono">${fmtNum(x.inProgress)}</td><td class="mono">${fmtNum(x.shipped)}</td><td class="mono" style="color:${x.rejected>0?'var(--red-500)':'var(--gray-500)'};font-weight:800;">${fmtNum(x.rejected)}</td><td>%${pct.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td></tr>`;}).join('')}</tbody></table></div>`}
 
     <div class="section-title">Şirket İçi Aylar Arası Kıyas</div>
     ${companies.length?`<div class="month-bar"><span class="month-label">Şirket</span><select class="month-select" id="dashboardCompanySelect">${companies.map(c=>`<option value="${c.id}" ${c.id===state.dashboardCompanyId?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select><span class="month-label">İncelenen Ay</span><select class="month-select" id="dashboardCompanyMonthSelect">${companyMonths.slice().reverse().map(m=>`<option value="${m}" ${m===companyDashMonth?'selected':''}>${escapeHtml(monthLabel(m))}</option>`).join('')}</select><span class="helper-text" style="margin:0;">Bu bölüm yalnızca seçilen şirketin kendi aylarını karşılaştırır; üstteki şirketler arası kıyas ayından bağımsızdır.</span></div>${selectedDashCompany?renderCompanyMonthlyInsights(selectedDashCompany,companyDashMonth):''}
       ${monthSeries.length?`<div class="chart-grid" style="margin-top:16px;"><div class="card chart-card"><div class="chart-card-title">Aylık Sipariş Trendi · ${escapeHtml(selectedDashCompany.name)}</div>${renderBarChartSVG(monthSeries.map(x=>({stage:monthShortLabel(x.month),value:x.ordered})))}</div><div class="card chart-card"><div class="chart-card-title">Aylık Ret Trendi · ${escapeHtml(selectedDashCompany.name)}</div>${renderBarChartSVG(monthSeries.filter(x=>x.rejected>0).map(x=>({stage:monthShortLabel(x.month),value:x.rejected})))}</div></div>`:''}`:`<div class="empty-state"><p>Şirket verisi yok.</p></div>`}
 
     <div class="section-title">Proses Süre Analizi · ${escapeHtml(monthLabel(dashMonth))}</div>
+    <div class="month-bar"><span class="month-label">Operasyon Analiz Ayı</span><select class="month-select" id="dashboardMonthSelect">${knownMonths.slice().reverse().map(m=>`<option value="${m}" ${m===dashMonth?'selected':''}>${escapeHtml(monthLabel(m))}</option>`).join('')}</select><span class="helper-text" style="margin:0;">Bu ay seçimi yalnızca proses süreleri ve proses geri dönüşleri analizini değiştirir.</span></div>
     <div class="analytics-note" style="margin-bottom:12px;">Durum sınıfları ortalama proses bekleme süresine göre: ≤1 gün <b>Mükemmel</b>, 1–3 gün <b>İyi</b>, 3–7 gün <b>Dikkat</b>, &gt;7 gün <b>Kritik</b>. Bu eşikler operasyonel görünüm içindir; firmanızın gerçek hedef süreleri varsa onları esas alın.</div>
     ${processStats.length?`<div class="chart-grid"><div class="card chart-card"><div class="chart-card-title">Proses Başına Ortalama Gün</div>${renderBarChartSVG(processStats.map(x=>({stage:x.stage,value:Number(x.avg.toFixed(1))})))}</div><div class="card" style="padding:0;overflow:hidden;"><table class="data-table"><thead><tr><th>Proses</th><th>Ort. Gün</th><th>En Uzun</th><th>Aktif Parça</th><th>Durum</th></tr></thead><tbody>${processStats.map(x=>`<tr><td style="font-weight:800;">${escapeHtml(x.stage)}</td><td class="mono">${x.avg.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono">${x.maxDays.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono">${fmtNum(x.active)}</td><td><span class="process-health ${x.healthClass}">${escapeHtml(x.health)}</span></td></tr>`).join('')}</tbody></table></div></div>`:`<div class="empty-state" style="padding:28px;"><p>Bu ay için proses süre analizi oluşturacak yeterli geçmiş verisi yok.</p></div>`}
 
@@ -2955,6 +3306,30 @@ function renderReportsView(){
   `;
 }
 
+function renderAccessView(){
+  if(!isAdmin()) return `<div class="empty-state"><h3>Erişim yok</h3><p>Bu bölüm yalnızca yöneticilere açıktır.</p></div>`;
+  const users=Object.entries(state.accessUsers||{}).map(([uid,u])=>({uid,...(u||{})}));
+  users.sort((a,b)=>(b.role==='admin')-(a.role==='admin') || String(a.name||a.email||'').localeCompare(String(b.name||b.email||''),'tr'));
+  const adminCount=users.filter(u=>u.role==='admin').length;
+  const invites=Object.entries(state.staffInvites||{}).map(([code,v])=>({code,...(v||{})})).filter(x=>x.active!==false);
+  return `
+    <div class="page-head"><div><div class="page-title">Erişim Yönetimi</div><div class="page-sub">Personel davetleri, kayıtlı kullanıcılar ve yönetici yetkileri burada yönetilir. Yönetici kaydı halka açık değildir.</div></div></div>
+    <div class="card" style="padding:18px;margin-bottom:20px;">
+      <div class="section-title" style="margin:0 0 12px 0;">Personel Daveti Oluştur</div>
+      <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        <div class="field" style="margin:0;min-width:220px;flex:1;"><label>İstasyon / Rol</label><select id="staffInviteRoleSelect">${DEFAULT_STAGES.map(r=>`<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}</select></div>
+        <button class="btn btn-primary" data-action="createStaffInvite">Yeni Davet Kodu</button>
+      </div>
+      <div class="helper-text" style="margin-top:10px;">Bu kodu yalnızca ilgili personele verin. Kod, kayıt sırasında rolü otomatik atar; kullanıcı kendi rolünü seçemez.</div>
+    </div>
+    <div class="section-title">Aktif Personel Davetleri</div>
+    ${invites.length?`<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Rol</th><th>Davet Kodu</th><th>Oluşturma</th><th></th></tr></thead><tbody>${invites.map(i=>`<tr><td><b>${escapeHtml(i.role||'—')}</b></td><td class="mono">${escapeHtml(i.code)}</td><td>${escapeHtml(i.createdAt||'—')}</td><td><button class="btn btn-danger-ghost btn-sm" data-action="revokeStaffInvite" data-code="${escapeHtml(i.code)}">İptal Et</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-state" style="padding:30px 20px;"><p>Aktif personel daveti yok.</p></div>`}
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;"><span>Kayıtlı Kullanıcılar</span><span class="status-badge ${adminCount>1?'shipped':'notstarted'}"><span class="status-dot"></span>${adminCount} yönetici</span></div>
+    <div class="helper-text" style="margin:-6px 0 12px 0;">Bir kullanıcıyı yönetici yaptığınızda tüm şirketlere ve yönetim ekranlarına erişebilir. Kendi yönetici yetkinizi ve sistemdeki son yönetici hesabını kaldıramazsınız.</div>
+    ${users.length?`<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Ad</th><th>E-posta</th><th>Rol</th><th>Şirket</th><th>UID</th><th>Yetki</th></tr></thead><tbody>${users.map(u=>{const c=u.companyId?getCompany(u.companyId):null;const isSelf=u.uid===state.currentUserUid;const isUserAdmin=u.role==='admin';let action='';if(isSelf&&isUserAdmin){action=`<span class="status-badge shipped"><span class="status-dot"></span>Bu hesap</span>`;}else if(isUserAdmin){action=adminCount<=1?`<button class="btn btn-ghost btn-sm" disabled title="Sistemde en az bir yönetici kalmalıdır">Son Yönetici</button>`:`<button class="btn btn-danger-ghost btn-sm" data-action="openDemoteAdmin" data-uid="${escapeHtml(u.uid)}">Yetkiyi Kaldır</button>`;}else{action=`<button class="btn btn-primary btn-sm" data-action="openPromoteAdmin" data-uid="${escapeHtml(u.uid)}">Yönetici Yap</button>`;}return `<tr><td><b>${escapeHtml(u.name||'—')}</b>${isUserAdmin?' <span style="color:var(--red-500);font-size:11px;font-weight:800;">YÖNETİCİ</span>':''}</td><td>${escapeHtml(u.email||'—')}</td><td>${escapeHtml(roleLabel(u.role)||'—')}</td><td>${escapeHtml(c?c.name:(u.companyId||'—'))}</td><td class="mono" style="font-size:10px;">${escapeHtml(u.uid)}</td><td>${action}</td></tr>`;}).join('')}</tbody></table></div>`:`<div class="empty-state"><p>Kullanıcı profili bulunamadı.</p></div>`}
+  `;
+}
+
 function renderNoCompanySelected(){
   return `
     <div class="page-head"><div><div class="page-title">Bu bölüm için şirket seçin</div></div></div>
@@ -2983,10 +3358,10 @@ function renderModal(){
       <div class="field">
         <label>Müşteri Takip Kodu</label>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="text" id="companyClientCodeInput" value="${escapeHtml(company.clientCode||'')}" readonly style="font-family:var(--font-mono);letter-spacing:1px;background:var(--gray-50);"/>
+          <input type="text" id="companyClientCodeInput" value="${escapeHtml((state.companyAccessCodes||{})[company.id]||'')}" readonly style="font-family:var(--font-mono);letter-spacing:1px;background:var(--gray-50);"/>
           <button class="btn btn-ghost btn-sm" data-action="regenClientCode" data-id="${company.id}" type="button">Yenile</button>
         </div>
-        <div class="helper-text">Bu kodu müşteriye verirsen, "Müşteri (Salt Okunur)" rolüyle kayıt olup sadece kendi siparişlerini görebilir. Kodu yenilersen eski kod geçersiz olur. <b style="color:var(--red-700);font-style:normal;">Not:</b> bu kısıtlama uygulama ekranında uygulanır; çok teknik bir kullanıcı yine de veritabanına doğrudan erişmeye çalışabilir. Hassas/rakip firmalarla paylaşmadan önce bunu bilerek karar verin.</div>
+        <div class="helper-text">Bu kodu yalnızca ilgili müşteriye verin. Firebase Rules müşteriyi sunucu tarafında yalnızca bu şirkete sınırlar. Kodu yenilersen eski kod yeni kayıtlar için geçersiz olur; daha önce bağlanmış hesaplar etkilenmez.</div>
       </div>` : ''}
       <div class="modal-actions">
         <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
@@ -3003,6 +3378,29 @@ function renderModal(){
         <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
         <button class="btn btn-primary" style="background:var(--red-700);" data-action="confirmDeleteCompany" data-id="${company.id}">Evet, Sil</button>
       </div>
+    `);
+  }
+  if(m.type==='promoteAdmin'){
+    const u=(state.accessUsers||{})[m.payload.uid];
+    if(!u) return modalWrap(`<h2>Kullanıcı bulunamadı</h2><div class="modal-actions"><button class="btn btn-primary" data-action="closeModal">Kapat</button></div>`);
+    return modalWrap(`
+      <h2>Yönetici Yetkisi Ver</h2>
+      <div class="modal-sub"><b>${escapeHtml(u.name||u.email||'Bu kullanıcı')}</b> tam yönetici yetkisi alacak.</div>
+      <div class="card" style="padding:12px;margin:12px 0;background:var(--gray-50);"><div style="font-size:12.5px;line-height:1.55;color:var(--gray-700);">Yönetici; tüm şirketleri, parçaları, kullanıcıları, kalite kayıtlarını ve erişim ayarlarını görebilir ve değiştirebilir.</div></div>
+      <div class="modal-actions"><button class="btn btn-ghost" data-action="closeModal">Vazgeç</button><button class="btn btn-primary" data-action="confirmPromoteAdmin" data-uid="${escapeHtml(m.payload.uid)}">Yönetici Yap</button></div>
+    `);
+  }
+  if(m.type==='demoteAdmin'){
+    const u=(state.accessUsers||{})[m.payload.uid];
+    if(!u) return modalWrap(`<h2>Kullanıcı bulunamadı</h2><div class="modal-actions"><button class="btn btn-primary" data-action="closeModal">Kapat</button></div>`);
+    const fallback=(u.roleBeforeAdmin && (DEFAULT_STAGES.includes(u.roleBeforeAdmin)||u.roleBeforeAdmin==='client')) ? u.roleBeforeAdmin : (u.companyId?'client':DEFAULT_STAGES[0]);
+    const roleOptions=[...(u.companyId?[{value:'client',label:'Müşteri (Salt Okunur)'}]:[]),...DEFAULT_STAGES.map(r=>({value:r,label:r}))];
+    return modalWrap(`
+      <h2>Yönetici Yetkisini Kaldır</h2>
+      <div class="modal-sub"><b>${escapeHtml(u.name||u.email||'Bu kullanıcı')}</b> artık yönetici olmayacak. Yeni rolünü seçin.</div>
+      <div class="field"><label>Yeni Rol</label><select id="demoteRoleSelect">${roleOptions.map(r=>`<option value="${escapeHtml(r.value)}" ${r.value===fallback?'selected':''}>${escapeHtml(r.label)}</option>`).join('')}</select></div>
+      <div class="helper-text">Müşteri rolü yalnızca kullanıcı zaten bir şirkete bağlıysa seçilebilir. Değişiklik Firebase Rules tarafından hemen uygulanır.</div>
+      <div class="modal-actions"><button class="btn btn-ghost" data-action="closeModal">Vazgeç</button><button class="btn btn-primary" style="background:var(--red-700);" data-action="confirmDemoteAdmin" data-uid="${escapeHtml(m.payload.uid)}">Yetkiyi Kaldır</button></div>
     `);
   }
   if(m.type==='addMonth'){
@@ -3176,8 +3574,48 @@ function renderModal(){
       </div>
     `);
   }
+
+  if(m.type==='qualityEvent'){
+    const part=getParts(state.selectedCompanyId).find(p=>p.id===m.payload.partId);
+    const company=getCompany(state.selectedCompanyId);
+    return modalWrap(`
+      <h2>Kalite / Adet Kararı</h2>
+      <div class="modal-sub">${escapeHtml(part?.partNo||'')} — sağlam fazla üretim ile kalite hurdasını ayrı kaydedin.</div>
+      <div class="field"><label>Kayıt Türü</label><select id="qualityEventType">
+        <option value="quarantine">Karantina / karar bekliyor</option>
+        <option value="quarantine_release">Karantinadan serbest bırak</option>
+        <option value="rework">Yeniden işleme (Rework)</option>
+        <option value="rework_complete">Rework tamamlandı</option>
+        <option value="quality_scrap">Kalite hurdası — otomatik NCR</option>
+        <option value="surplus_stock">Fazla üretim — stokta tut</option>
+        <option value="surplus_scrap">Fazla üretim — hurdaya ayır</option>
+        <option value="surplus_ship">Fazla üretim — müşteriye sevk</option>
+        <option value="surplus_hold">Fazla üretim — beklet</option>
+        <option value="customer_complaint">Müşteri şikâyeti — otomatik NCR</option>
+      </select></div>
+      <div class="field"><label>Adet</label><input type="number" min="1" id="qualityEventQty" value="1"/></div>
+      <div class="field"><label>Proses</label><select id="qualityEventStage">${(company?.stages||DEFAULT_STAGES).map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div class="field"><label>Sebep</label><input type="text" id="qualityEventReason" placeholder="Örn. büküm ölçüsü tolerans dışı / ihtiyaç fazlası"/></div>
+      <div class="field"><label>Not</label><textarea id="qualityEventNote" placeholder="Ek açıklama"></textarea></div>
+      <div class="modal-actions"><button class="btn btn-ghost" data-action="closeModal">Vazgeç</button><button class="btn btn-primary" data-action="saveQualityEvent" data-part="${part?.id||''}">Kaydet</button></div>
+    `);
+  }
+  if(m.type==='productionIssue'){
+    const part=getParts(state.selectedCompanyId).find(p=>p.id===m.payload.partId);
+    const company=getCompany(state.selectedCompanyId);
+    return modalWrap(`
+      <h2>Üretim Problemi</h2>
+      <div class="modal-sub">${escapeHtml(part?.partNo||'')} — gecikme/duruş kayıtları NCR'dan ayrı tutulur.</div>
+      <div class="field"><label>Proses</label><select id="issueStageSelect">${(company?.stages||DEFAULT_STAGES).map(s=>`<option value="${escapeHtml(s)}" ${s===(m.payload.stage||'')?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div class="field"><label>Problem Türü</label><select id="issueTypeSelect">${PRODUCTION_ISSUE_TYPES.map(x=>`<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('')}</select></div>
+      <div class="field"><label>Etkilenen Adet (opsiyonel)</label><input type="number" min="0" id="issueQtyInput" value="0"/></div>
+      <div class="field"><label>Açıklama</label><textarea id="issueDescInput" placeholder="Ne oldu, üretim neden bekledi?"></textarea></div>
+      <div class="modal-actions"><button class="btn btn-ghost" data-action="closeModal">Vazgeç</button><button class="btn btn-primary" data-action="saveProductionIssue" data-part="${part?.id||''}">Kaydet</button></div>
+    `);
+  }
   if(m.type==='ncr'){
-    const isGlobal = !m.payload.partId;
+    const payload=m.payload||{};
+    const isGlobal = !payload.partId;
     const company = getCompany(state.selectedCompanyId);
     let stageOptions = company ? company.stages : DEFAULT_STAGES;
     let partOptionsHtml = '';
@@ -3203,13 +3641,17 @@ function renderModal(){
       <div class="field">
         <label>Aşama</label>
         <select id="ncrStageSelect">
-          ${stageOptions.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+          ${stageOptions.map(s=>`<option value="${escapeHtml(s)}" ${s===payload.stage?'selected':''}>${escapeHtml(s)}</option>`).join('')}
         </select>
       </div>
+      <div class="field"><label>Uygunsuzluk Türü</label><select id="ncrCategorySelect">${NCR_CATEGORY_OPTIONS.map(x=>`<option value="${escapeHtml(x)}" ${x===(payload.category||'')?'selected':''}>${escapeHtml(x)}</option>`).join('')}</select></div>
+      <div class="field"><label>Etkilenen Adet</label><input type="number" min="0" id="ncrQtyInput" value="${Number(payload.qty)||0}"/></div>
       <div class="field">
         <label>Uygunsuzluk Açıklaması</label>
-        <textarea id="ncrDescInput" placeholder="Örn. Ölçü toleransı dışında, yüzeyde çatlak vb."></textarea>
+        <textarea id="ncrDescInput" placeholder="Örn. Ölçü toleransı dışında, yüzeyde çatlak vb.">${escapeHtml(payload.description||'')}</textarea>
       </div>
+      <div class="field"><label>Kök Neden (biliniyorsa)</label><textarea id="ncrRootCauseInput" placeholder="Örn. yanlış takım, hatalı program, operatör ayarı…"></textarea></div>
+      <div class="field"><label>Karar / Disposition</label><select id="ncrDispositionSelect">${NCR_DISPOSITION_OPTIONS.map(x=>`<option value="${escapeHtml(x)}" ${x===(payload.disposition||'Karantina')?'selected':''}>${escapeHtml(x)}</option>`).join('')}</select></div>
       <div class="field">
         <label>Düzeltici Faaliyet (opsiyonel)</label>
         <textarea id="ncrActionInput" placeholder="Alınacak / alınan aksiyon"></textarea>
@@ -3796,10 +4238,67 @@ async function handleAction(action, el){
     case 'switchUser': {
       fbAuth.signOut().catch(()=>{});
       state.currentUser = null; state.currentUserUid = null; state.currentUserRole = null;
-      state.companies = []; state.partsByCompany = {}; state.selectedCompanyId = null;
+      state.companies = []; state.partsByCompany = {}; state.selectedCompanyId = null; state.companyAccessCodes={}; state.staffInvites={}; state.accessUsers={};
       state.authView = 'login';
       render();
       break;
+    }
+    case 'createStaffInvite': {
+      if(!isAdmin()) return;
+      const role=document.getElementById('staffInviteRoleSelect')?.value;
+      if(!DEFAULT_STAGES.includes(role)){showToast('Geçerli bir rol seçin.');return;}
+      const code=genAccessCode(); const item={role,active:true,createdAt:todayStr(),createdBy:state.currentUser};
+      state.staffInvites[code]=item; await storageSet('staffInvites/'+code,item); showToast(role+' için personel davet kodu oluşturuldu.'); render(); break;
+    }
+    case 'revokeStaffInvite': {
+      if(!isAdmin()) return;
+      const code=el.getAttribute('data-code'); if(!code)return;
+      delete state.staffInvites[code]; await storageDelete('staffInvites/'+code); showToast('Personel daveti iptal edildi.'); render(); break;
+    }
+    case 'openPromoteAdmin': {
+      if(!isAdmin()) return;
+      const targetUid=el.getAttribute('data-uid');
+      const u=(state.accessUsers||{})[targetUid];
+      if(!targetUid||!u||u.role==='admin') return;
+      state.modal={type:'promoteAdmin',payload:{uid:targetUid}}; render(); break;
+    }
+    case 'confirmPromoteAdmin': {
+      if(!isAdmin()) return;
+      const targetUid=el.getAttribute('data-uid');
+      const u=(state.accessUsers||{})[targetUid];
+      if(!targetUid||!u||u.role==='admin'){state.modal=null;render();return;}
+      const updated={...u,roleBeforeAdmin:u.role,role:'admin',promotedAt:todayStr(),promotedBy:state.currentUser};
+      const ok=await storageSet('users/'+targetUid,updated);
+      if(!ok){showToast('Yönetici yetkisi verilemedi.');return;}
+      state.accessUsers[targetUid]=updated; state.modal=null;
+      showToast((u.name||u.email||'Kullanıcı')+' artık yönetici.'); render(); break;
+    }
+    case 'openDemoteAdmin': {
+      if(!isAdmin()) return;
+      const targetUid=el.getAttribute('data-uid');
+      const u=(state.accessUsers||{})[targetUid];
+      const adminCount=Object.values(state.accessUsers||{}).filter(x=>x&&x.role==='admin').length;
+      if(!targetUid||!u||u.role!=='admin') return;
+      if(targetUid===state.currentUserUid){showToast('Kendi yönetici yetkinizi buradan kaldıramazsınız.');return;}
+      if(adminCount<=1){showToast('Sistemde en az bir yönetici kalmalıdır.');return;}
+      state.modal={type:'demoteAdmin',payload:{uid:targetUid}}; render(); break;
+    }
+    case 'confirmDemoteAdmin': {
+      if(!isAdmin()) return;
+      const targetUid=el.getAttribute('data-uid');
+      const u=(state.accessUsers||{})[targetUid];
+      const adminCount=Object.values(state.accessUsers||{}).filter(x=>x&&x.role==='admin').length;
+      if(!targetUid||!u||u.role!=='admin'){state.modal=null;render();return;}
+      if(targetUid===state.currentUserUid){showToast('Kendi yönetici yetkinizi kaldıramazsınız.');return;}
+      if(adminCount<=1){showToast('Sistemde en az bir yönetici kalmalıdır.');return;}
+      const newRole=document.getElementById('demoteRoleSelect')?.value;
+      if(!(DEFAULT_STAGES.includes(newRole)||(newRole==='client'&&u.companyId))){showToast('Geçerli bir yeni rol seçin.');return;}
+      const updated={...u,role:newRole,adminRemovedAt:todayStr(),adminRemovedBy:state.currentUser};
+      delete updated.roleBeforeAdmin;
+      const ok=await storageSet('users/'+targetUid,updated);
+      if(!ok){showToast('Yönetici yetkisi kaldırılamadı.');return;}
+      state.accessUsers[targetUid]=updated; state.modal=null;
+      showToast((u.name||u.email||'Kullanıcı')+' için yönetici yetkisi kaldırıldı.'); render(); break;
     }
     case 'openAddCompany': state.modal = {type:'addCompany'}; render(); break;
     case 'closeModal': state.modal=null; state.importPreview=null; render(); break;
@@ -3809,13 +4308,17 @@ async function handleAction(action, el){
     case 'saveAddCompany': {
       const name = document.getElementById('companyNameInput').value.trim();
       if(!name){ showToast('Şirket adı boş olamaz.'); return; }
-      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice(), clientCode: genClientCode(), months:[currentMonthKey()]};
+      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice(), months:[currentMonthKey()]};
+      const newCode = genClientCode();
+      state.companyAccessCodes[newCo.id]=newCode;
       state.companies.push(newCo);
       state.partsByCompany[newCo.id] = [];
       state.selectedCompanyId = newCo.id;
       state.modal = null;
       await persistCompanies();
-      await storageSet('parts:'+newCo.id, []);
+      await storageSet('parts/'+newCo.id, []);
+      await storageSet('companyAccessCodes/'+newCo.id, newCode);
+      await storageSet('clientInvites/'+newCode, {companyId:newCo.id,active:true,createdAt:todayStr()});
       showToast('Şirket eklendi: ' + name);
       render();
       break;
@@ -3836,9 +4339,13 @@ async function handleAction(action, el){
       const id = el.getAttribute('data-id');
       const co = getCompany(id);
       if(co){
-        co.clientCode = genClientCode();
-        await persistCompanies();
-        showToast('Müşteri kodu yenilendi.');
+        const oldCode=(state.companyAccessCodes||{})[id]||'';
+        const newCode=genClientCode();
+        state.companyAccessCodes[id]=newCode;
+        await storageSet('companyAccessCodes/'+id,newCode);
+        await storageSet('clientInvites/'+newCode,{companyId:id,active:true,createdAt:todayStr()});
+        if(oldCode) await storageDelete('clientInvites/'+oldCode);
+        showToast('Müşteri davet kodu yenilendi.');
         state.modal = {type:'editCompany', payload:{id}};
         render();
       }
@@ -3851,7 +4358,11 @@ async function handleAction(action, el){
       if(state.selectedCompanyId===id) state.selectedCompanyId = state.companies[0]?.id || null;
       state.modal = null;
       await persistCompanies();
-      await storageDelete('parts:'+id);
+      await storageDelete('parts/'+id);
+      const oldCode=(state.companyAccessCodes||{})[id]||'';
+      if(oldCode) await storageDelete('clientInvites/'+oldCode);
+      await storageDelete('companyAccessCodes/'+id);
+      delete state.companyAccessCodes[id];
       showToast('Şirket silindi.');
       render();
       break;
@@ -3886,7 +4397,7 @@ async function handleAction(action, el){
         existing.lastUpdate = todayStr(); existing.updatedBy = state.currentUser; newPartId = existing.id;
       } else {
         newPartId = uid('pt');
-        parts.push({id:newPartId, partNo, partName, orderedQty:qty, color:colorVal, dueDate:dueDateVal, orderMonth, qtys:{}, rejects:{}, note:'', drawings:[], measurements:[], lastUpdate:todayStr(), updatedBy:state.currentUser, history:[], ncrs:[], returnEvents:[]});
+        parts.push({id:newPartId, partNo, partName, orderedQty:qty, color:colorVal, dueDate:dueDateVal, orderMonth, qtys:{}, rejects:{}, note:'', drawings:[], measurements:[], lastUpdate:todayStr(), updatedBy:state.currentUser, history:[], ncrs:[], returnEvents:[],qualityEvents:[],productionIssues:[],dismissedNcrSuggestions:[],processProfile:{}});
       }
       company.months=ensureCompanyMonths(company,parts);
       if(!company.months.includes(orderMonth)) company.months.push(orderMonth);
@@ -3963,7 +4474,7 @@ async function handleAction(action, el){
           existing.updatedBy = state.currentUser;
           updated++;
         } else {
-          parts.push({id:uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', dueDate:'', orderMonth, qtys:{}, rejects:{}, note:'', drawings:[], measurements:[], lastUpdate:todayStr(), updatedBy:state.currentUser, history:[], ncrs:[], returnEvents:[]});
+          parts.push({id:uid('pt'), partNo:r.partNo, partName:r.partName, orderedQty:r.orderedQty, color:'', dueDate:'', orderMonth, qtys:{}, rejects:{}, note:'', drawings:[], measurements:[], lastUpdate:todayStr(), updatedBy:state.currentUser, history:[], ncrs:[], returnEvents:[],qualityEvents:[],productionIssues:[],dismissedNcrSuggestions:[],processProfile:{}});
           added++;
         }
       });
@@ -4051,13 +4562,116 @@ async function handleAction(action, el){
           if(m){ const v = inp.value===''?'':parseDecimal(inp.value); if(v!==m.tolerance){ m.tolerance=v; changed=true; } }
         });
       }
+      const autoNcrCount=ensureAutomaticMeasurementNcrs(part);
+      if(autoNcrCount>0) changed=true;
       if(changed){ part.lastUpdate = now; part.updatedBy = state.currentUser; }
       await persistParts(company.id);
-      showToast(changed ? 'Üretim verileri güncellendi.' : 'Değişiklik yok.');
+      showToast(autoNcrCount>0 ? `${autoNcrCount} tolerans dışı ölçüm için NCR otomatik açıldı.` : (changed ? 'Üretim verileri güncellendi.' : 'Değişiklik yok.'));
       render();
       break;
     }
 
+
+    case 'saveProcessProfile': {
+      const company=getCompany(state.selectedCompanyId);
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      if(!part) return;
+      ensurePartQualityData(part);
+      part.processProfile={
+        material:(document.getElementById('ppMaterial')?.value||'').trim(),
+        thickness:document.getElementById('ppThickness')?.value===''?'':parseDecimal(document.getElementById('ppThickness')?.value),
+        width:Number(document.getElementById('ppWidth')?.value)||0,
+        length:Number(document.getElementById('ppLength')?.value)||0,
+        holeCount:Number(document.getElementById('ppHoles')?.value)||0,
+        bendCount:Number(document.getElementById('ppBends')?.value)||0,
+        weldLengthMm:Number(document.getElementById('ppWeld')?.value)||0,
+        complexity:document.getElementById('ppComplexity')?.value||'normal',
+        toleranceClass:document.getElementById('ppTolerance')?.value||'normal',
+        confirmed:true, updatedAt:todayStr(), updatedBy:state.currentUser
+      };
+      await persistParts(company.id); showToast('Proses tahmin bilgileri kaydedildi.'); render(); break;
+    }
+    case 'analyzeDrawingPdf': {
+      const company=getCompany(state.selectedCompanyId);
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      if(!part) return;
+      const pdf=(part.drawings||[]).find(d=>d.type==='application/pdf'||/\.pdf$/i.test(d.name||''));
+      if(!pdf){showToast('Bu parçada PDF teknik resim yok.');return;}
+      if(!window.pdfjsLib){showToast('PDF analiz kütüphanesi yüklenemedi.');return;}
+      try{
+        const raw=await (await fetch(pdf.data)).arrayBuffer();
+        pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const doc=await pdfjsLib.getDocument({data:raw}).promise;
+        const page=await doc.getPage(1), tc=await page.getTextContent();
+        const text=tc.items.map(x=>x.str).join(' ');
+        ensurePartQualityData(part);
+        const prof=processProfile(part);
+        const th=text.match(/(?:THK|THICKNESS|KALINLIK|SAC|T)\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i);
+        const dim=text.match(/(\d{2,4}(?:[.,]\d+)?)\s*[xX×]\s*(\d{2,4}(?:[.,]\d+)?)/);
+        const holes=[...text.matchAll(/(\d+)\s*[xX]\s*[Ø⌀]\s*\d+(?:[.,]\d+)?/g)].reduce((a,m)=>a+(Number(m[1])||0),0);
+        const toNum=s=>parseDecimal(s);
+        if(th) prof.thickness=toNum(th[1]);
+        if(dim){prof.width=toNum(dim[1]);prof.length=toNum(dim[2]);}
+        if(holes) prof.holeCount=holes;
+        const tolerances=[...text.matchAll(/±\s*(\d+(?:[.,]\d+)?)/g)].map(m=>toNum(m[1])).filter(Number.isFinite);
+        if(tolerances.length && Math.min(...tolerances)<=.1) prof.toleranceClass='precision';
+        prof.autoAnalyzedAt=todayStr(); prof.autoAnalysisSource=pdf.name;
+        part.processProfile=prof;
+        await persistParts(company.id);
+        showToast((th||dim||holes||tolerances.length)?'PDF metin katmanından ön analiz çıkarıldı. Değerleri kontrol edip Analizi Kaydet’e basın.':'PDF okundu fakat güvenilir ölçü bilgisi bulunamadı; alanları elle doldurun.');
+        render();
+      }catch(err){console.error(err);showToast('PDF ön analizi yapılamadı. Taranmış PDF ise alanları elle girin.');}
+      break;
+    }
+    case 'openQualityEvent': state.modal={type:'qualityEvent',payload:{partId:el.getAttribute('data-part')}}; render(); break;
+    case 'saveQualityEvent': {
+      const company=getCompany(state.selectedCompanyId);
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      if(!part) return;
+      ensurePartQualityData(part);
+      const type=document.getElementById('qualityEventType')?.value;
+      const qty=Math.max(1,Number(document.getElementById('qualityEventQty')?.value)||1);
+      const stage=document.getElementById('qualityEventStage')?.value||'Kalite Kontrol';
+      const reason=(document.getElementById('qualityEventReason')?.value||'').trim();
+      const note=(document.getElementById('qualityEventNote')?.value||'').trim();
+      const ev={id:uid('qe'),type,qty,stage,reason,note,date:todayStr(),user:state.currentUser};
+      part.qualityEvents.push(ev);
+      if(type==='quality_scrap'){
+        ev.ncrId=createNcrObject(part,{stage,category:'Kalite hurdası',disposition:'Hurda',qty,description:`${fmtNum(qty)} adet kalite uygunsuzluğu nedeniyle hurdaya ayrıldı.${reason?' Sebep: '+reason:''}${note?' Not: '+note:''}`,source:'qualityEvent',sourceKey:'qualityEvent:'+ev.id,autoCreated:true}).id;
+      }else if(type==='customer_complaint'){
+        ev.ncrId=createNcrObject(part,{stage,category:'Müşteri şikâyeti',disposition:'Karantina',qty,description:`Müşteri şikâyeti kaydı.${reason?' Sebep: '+reason:''}${note?' Not: '+note:''}`,source:'qualityEvent',sourceKey:'qualityEvent:'+ev.id,autoCreated:true}).id;
+      }
+      part.lastUpdate=todayStr();part.updatedBy=state.currentUser;
+      state.modal=null; await persistParts(company.id);
+      showToast(type==='quality_scrap'||type==='customer_complaint'?'Kayıt eklendi ve NCR otomatik açıldı.':'Kalite/adet kararı kaydedildi.');
+      render(); break;
+    }
+    case 'openProductionIssue': state.modal={type:'productionIssue',payload:{partId:el.getAttribute('data-part'),stage:el.getAttribute('data-stage')||''}}; render(); break;
+    case 'saveProductionIssue': {
+      const company=getCompany(state.selectedCompanyId);
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      if(!part) return;
+      ensurePartQualityData(part);
+      const issue={id:uid('pi'),date:todayStr(),stage:document.getElementById('issueStageSelect')?.value||'',type:document.getElementById('issueTypeSelect')?.value||'Diğer',qty:Number(document.getElementById('issueQtyInput')?.value)||0,description:(document.getElementById('issueDescInput')?.value||'').trim(),status:'acik',user:state.currentUser};
+      part.productionIssues.push(issue); state.modal=null; await persistParts(company.id); showToast('Üretim problemi kaydedildi.'); render(); break;
+    }
+    case 'closeProductionIssue': {
+      const company=getCompany(state.selectedCompanyId); const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      const issue=part&&(part.productionIssues||[]).find(x=>x.id===el.getAttribute('data-issue'));
+      if(issue){issue.status='kapali';issue.closedAt=todayStr();issue.closedBy=state.currentUser;await persistParts(company.id);showToast('Üretim problemi kapatıldı.');render();} break;
+    }
+    case 'openNcrSuggestion': {
+      const company=getCompany(state.selectedCompanyId), part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      const key=el.getAttribute('data-key'), s=ncrSuggestionsForPart(part,company).find(x=>x.key===key);
+      if(!s) return;
+      state.modal={type:'ncr',payload:{partId:part.id,stage:s.stage,category:s.category,disposition:s.disposition,qty:s.qty,description:s.desc,sourceKey:s.key}};
+      render(); break;
+    }
+    case 'dismissNcrSuggestion': {
+      const company=getCompany(state.selectedCompanyId), part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
+      if(!part)return;ensurePartQualityData(part);const key=el.getAttribute('data-key');if(key&&!part.dismissedNcrSuggestions.includes(key))part.dismissedNcrSuggestions.push(key);
+      await persistParts(company.id);render();break;
+    }
     case 'zoomMeasurementIn': syncTrackingFormToState(); state.measureImageZoom=Math.min(3,(Number(state.measureImageZoom)||1)+0.25); render(); break;
     case 'zoomMeasurementOut': syncTrackingFormToState(); state.measureImageZoom=Math.max(.75,(Number(state.measureImageZoom)||1)-0.25); render(); break;
     case 'resetMeasurementZoom': syncTrackingFormToState(); state.measureImageZoom=1; render(); break;
@@ -4083,9 +4697,14 @@ async function handleAction(action, el){
       const stage = document.getElementById('ncrStageSelect').value;
       const description = document.getElementById('ncrDescInput').value.trim();
       const correctiveAction = document.getElementById('ncrActionInput').value.trim();
+      const rootCause=(document.getElementById('ncrRootCauseInput')?.value||'').trim();
+      const category=document.getElementById('ncrCategorySelect')?.value||'Diğer';
+      const disposition=document.getElementById('ncrDispositionSelect')?.value||'Karantina';
+      const qty=Math.max(0,Number(document.getElementById('ncrQtyInput')?.value)||0);
       if(!description){ showToast('Açıklama girilmelidir.'); return; }
-      part.ncrs = part.ncrs || [];
-      part.ncrs.push({id: uid('ncr'), date: todayStr(), stage, description, correctiveAction, status:'acik', user: state.currentUser});
+      ensurePartQualityData(part);
+      const payload=state.modal&&state.modal.payload?state.modal.payload:{};
+      createNcrObject(part,{stage,description,correctiveAction,rootCause,category,disposition,qty,source:payload.sourceKey?'suggestion':'manual',sourceKey:payload.sourceKey||null,autoCreated:false});
       state.modal = null;
       await persistParts(companyId);
       showToast('Uygunsuzluk kaydı açıldı.');
@@ -4180,6 +4799,13 @@ async function handleAction(action, el){
       break;
     }
 
+    case 'saveQualitySettings': {
+      if(!isAdmin()) return;
+      const v=parseDecimal(document.getElementById('ncrRejectThresholdInput')?.value);
+      if(!Number.isFinite(v)||v<=0||v>100){showToast('Ret eşiği 0 ile 100 arasında olmalı.');return;}
+      state.errorTracking.ncrRejectThresholdPct=v;
+      await persistErrorTracking();showToast('NCR ret öneri eşiği kaydedildi.');render();break;
+    }
     case 'savePpmTable': {
       if(!isAdmin()) return;
       const months = genMonthLabels(5, 13);
@@ -4229,10 +4855,21 @@ async function handleAction(action, el){
       const adet = Number(document.getElementById('disHataAdetInput').value)||0;
       if(!tarih || !hataNedeni){ showToast('Tarih ve hata nedeni zorunludur.'); return; }
       state.errorTracking.disHatalar = state.errorTracking.disHatalar || [];
-      state.errorTracking.disHatalar.push({id: uid('dh'), tarih, parcaKodu, hataNedeni, adet, addedBy: state.currentUser});
+      const dh={id: uid('dh'), tarih, parcaKodu, hataNedeni, adet, addedBy: state.currentUser};
+      state.errorTracking.disHatalar.push(dh);
+      let linkedNcr=false;
+      if(parcaKodu){
+        const matches=[];
+        state.companies.forEach(c=>getParts(c.id).forEach(p=>{if(String(p.partNo||'').trim().toLocaleLowerCase('tr-TR')===parcaKodu.toLocaleLowerCase('tr-TR'))matches.push({c,p});}));
+        if(matches.length===1){
+          const {c,p}=matches[0];ensurePartQualityData(p);
+          createNcrObject(p,{stage:'Kalite Kontrol',category:'Müşteri şikâyeti',disposition:'Karantina',qty:adet,description:`Dış hata / müşteri bildirimi: ${hataNedeni}`,source:'externalError',sourceKey:'externalError:'+dh.id,autoCreated:true});
+          await persistParts(c.id);linkedNcr=true;
+        }
+      }
       state.modal = null;
       await persistErrorTracking();
-      showToast('Dış hata kaydı eklendi.');
+      showToast(linkedNcr?'Dış hata kaydı eklendi ve eşleşen parça için NCR otomatik açıldı.':'Dış hata kaydı eklendi.');
       render();
       break;
     }
@@ -4525,7 +5162,10 @@ function ncrSheetData(){
       (p.ncrs||[]).forEach(n=>{
         rows.push({
           'Şirket': c.name, 'Parça No': p.partNo, 'Parça Adı': p.partName, 'Aşama': n.stage,
-          'Tarih': n.date, 'Açıklama': n.description, 'Düzeltici Faaliyet': n.correctiveAction || '',
+          'Tarih': n.date, 'Kayıt Türü': n.recordType || 'Kalite Uygunsuzluğu', 'Uygunsuzluk Türü': n.category || '',
+          'Etkilenen Adet': Number(n.qty)||0, 'Açıklama': n.description, 'Kök Neden': n.rootCause || '',
+          'Karar / Disposition': n.disposition || '', 'Düzeltici Faaliyet': n.correctiveAction || '',
+          'Kaynak': n.autoCreated ? 'Otomatik' : 'Manuel',
           'Durum': n.status==='acik' ? 'Açık' : 'Kapatıldı', 'Kaydeden': n.user,
           'Kapatma Tarihi': n.closedDate || '', 'Kapatan': n.closedBy || ''
         });
@@ -4534,6 +5174,41 @@ function ncrSheetData(){
   });
   return rows;
 }
+
+function qualityEventSheetData(companyId){
+  const rows=[];
+  visibleCompanies().filter(c=>!companyId||c.id===companyId).forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      (p.qualityEvents||[]).forEach(e=>{
+        const meta=QUALITY_EVENT_META[e.type]||{label:e.type};
+        rows.push({'Tarih':e.date,'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Kayıt Türü':meta.label,'Adet':Number(e.qty)||0,'Proses':e.stage||'','Sebep':e.reason||'','Not':e.note||'','Kaydeden':e.user||''});
+      });
+    });
+  });
+  return rows;
+}
+function productionIssueSheetData(companyId){
+  const rows=[];
+  visibleCompanies().filter(c=>!companyId||c.id===companyId).forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      (p.productionIssues||[]).forEach(i=>rows.push({'Tarih':i.date,'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Proses':i.stage||'','Problem Türü':i.type||'','Etkilenen Adet':Number(i.qty)||0,'Açıklama':i.description||'','Durum':i.status==='kapali'?'Kapatıldı':'Açık','Kaydeden':i.user||'','Kapanış':i.closedAt||''}));
+    });
+  });
+  return rows;
+}
+function processEstimateSheetData(companyId){
+  const rows=[];
+  visibleCompanies().filter(c=>!companyId||c.id===companyId).forEach(c=>{
+    getParts(c.id).forEach(p=>{
+      const prof=processProfile(p);
+      c.stages.filter(s=>s!=='Sevkiyat').forEach(stage=>{
+        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Tahmini Gün':Number(estimateStageDays(p,stage).toFixed(2)),'Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
+      });
+    });
+  });
+  return rows;
+}
+
 function returnSheetData(companyId){
   const rows=[];
   visibleCompanies().filter(c=>!companyId || c.id===companyId).forEach(c=>{
@@ -4558,6 +5233,12 @@ function exportCompanyExcel(companyId){
   }
   const returns=returnSheetData(companyId);
   if(returns.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(returns),'Proses Geri Donusleri'); }
+  const qevents=qualityEventSheetData(companyId);
+  if(qevents.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(qevents),'Kalite Adet Kararlari'); }
+  const issues=productionIssueSheetData(companyId);
+  if(issues.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(issues),'Uretim Problemleri'); }
+  const estimates=processEstimateSheetData(companyId);
+  if(estimates.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(estimates),'Proses Tahminleri'); }
   XLSX.writeFile(wb, `${company.name.replace(/[^a-z0-9ığüşöçİĞÜŞÖÇ_\- ]/gi,'_')}_uretim_raporu.xlsx`);
   showToast('Excel raporu indirildi.');
 }
@@ -4576,6 +5257,12 @@ function exportAllExcel(){
   }
   const returns=returnSheetData();
   if(returns.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(returns),'Proses Geri Donusleri'); }
+  const qevents=qualityEventSheetData();
+  if(qevents.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(qevents),'Kalite Adet Kararlari'); }
+  const issues=productionIssueSheetData();
+  if(issues.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(issues),'Uretim Problemleri'); }
+  const estimates=processEstimateSheetData();
+  if(estimates.length){ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(estimates),'Proses Tahminleri'); }
   if(vc.length===0){ showToast('Aktarılacak veri yok.'); return; }
   XLSX.writeFile(wb, 'tum_sirketler_uretim_raporu.xlsx');
   showToast('Birleşik Excel raporu indirildi.');
@@ -4583,30 +5270,20 @@ function exportAllExcel(){
 
 /* ============================= INIT ============================= */
 fbAuth.onAuthStateChanged(async (user)=>{
-  state.authChecking = false;
+  state.authChecking=false;
   if(user){
     try{
-      const token = await user.getIdToken();
-      const res = await fetch(`${FIREBASE_URL}/users/${user.uid}.json?auth=${token}`);
-      const profile = await res.json();
-      state.currentUser = (profile && profile.name) || user.displayName || user.email;
-      state.currentUserUid = user.uid;
-      state.currentUserRole = (profile && profile.role) || null;
-      state.clientCompanyId = (profile && profile.companyId) || null;
-      render();
-      loadLocalPrefs();
-      await loadAll();
-      checkAndNotify();
-    }catch(e){
-      console.error('Oturum bilgisi okunamadı', e);
-      state.currentUser = null;
-      render();
-    }
-  } else {
-    state.currentUser = null;
-    state.currentUserUid = null;
-    state.currentUserRole = null;
-    render();
+      const profile=await storageGet('users/'+user.uid);
+      if(!profile || !profile.role){
+        state.currentUser=null; state.currentUserUid=user.uid; state.currentUserRole=null; state.clientCompanyId=null; state.authView='login';
+        render(); return;
+      }
+      state.currentUser=profile.name||user.displayName||user.email;
+      state.currentUserUid=user.uid; state.currentUserRole=profile.role; state.clientCompanyId=profile.companyId||null;
+      render(); loadLocalPrefs(); await loadAll(); checkAndNotify();
+    }catch(e){ console.error('Oturum bilgisi okunamadı',e); state.currentUser=null; render(); }
+  }else{
+    state.currentUser=null; state.currentUserUid=null; state.currentUserRole=null; state.clientCompanyId=null; render();
   }
 });
 render();
