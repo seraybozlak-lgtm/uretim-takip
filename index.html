@@ -1176,6 +1176,77 @@ async function legacyStorageDelete(key){
   }catch(e){ return false; }
 }
 
+// Güvenlik geçişinden önceki `parts:COMPANY_ID` kayıtlarını güvenli şemaya kurtarmak için.
+async function legacyStorageGetDetailed(key){
+  try{
+    const token = await getIdToken();
+    const url = `${FIREBASE_URL}/${encodeURIComponent(key)}.json${token ? '?auth='+encodeURIComponent(token) : ''}`;
+    const res = await fetch(url);
+    if(!res.ok) return {ok:false,status:res.status,data:null};
+    return {ok:true,status:res.status,data:await res.json()};
+  }catch(e){ return {ok:false,status:0,data:null,error:e}; }
+}
+function legacyValueMissing(v){
+  if(v===undefined || v===null || v==='') return true;
+  if(Array.isArray(v)) return v.length===0;
+  if(typeof v==='object') return Object.keys(v).length===0;
+  return false;
+}
+function mergeLegacyPartRecord(oldPart,newPart){
+  if(!newPart) return (typeof structuredClone==='function') ? structuredClone(oldPart) : JSON.parse(JSON.stringify(oldPart));
+  const merged={...(oldPart||{}),...(newPart||{})};
+  Object.keys(oldPart||{}).forEach(k=>{
+    if(legacyValueMissing(newPart[k]) && !legacyValueMissing(oldPart[k])) merged[k]=oldPart[k];
+  });
+  ['qtys','rejects','processProfile'].forEach(k=>{
+    if(oldPart && oldPart[k] && typeof oldPart[k]==='object' && !Array.isArray(oldPart[k])){
+      merged[k]={...(oldPart[k]||{}),...((newPart&&newPart[k])||{})};
+    }
+  });
+  ['drawings','measurements','history','ncrs','returnEvents','qualityEvents','productionIssues','dismissedNcrSuggestions'].forEach(k=>{
+    const a=Array.isArray(oldPart&&oldPart[k])?oldPart[k]:[];
+    const b=Array.isArray(newPart&&newPart[k])?newPart[k]:[];
+    if(a.length && !b.length) merged[k]=a;
+  });
+  if((!newPart.note || !String(newPart.note).trim()) && oldPart && oldPart.note) merged.note=oldPart.note;
+  return merged;
+}
+async function recoverLegacyParts(){
+  if(!isAdmin()) return {ok:false,message:'Yalnızca yönetici kurtarma yapabilir.'};
+  const companies=companyArrayFromRaw(await storageGet('companies'));
+  let restored=0, mergedCount=0, legacyCompanies=0, permissionDenied=false, writeFailed=false;
+  for(const c of companies){
+    if(!c || !c.id) continue;
+    const legacyRes=await legacyStorageGetDetailed('parts:'+c.id);
+    if(!legacyRes.ok){
+      if(legacyRes.status===401 || legacyRes.status===403) permissionDenied=true;
+      continue;
+    }
+    const legacy=asArray(legacyRes.data);
+    if(!legacy.length) continue;
+    legacyCompanies++;
+    const current=asArray(await storageGet('parts/'+c.id));
+    const out=current.slice();
+    for(const oldPart of legacy){
+      if(!oldPart) continue;
+      const idx=oldPart.id ? out.findIndex(x=>x&&x.id===oldPart.id) : -1;
+      if(idx<0){ out.push(oldPart); restored++; }
+      else{
+        const before=JSON.stringify(out[idx]);
+        out[idx]=mergeLegacyPartRecord(oldPart,out[idx]);
+        if(JSON.stringify(out[idx])!==before) mergedCount++;
+      }
+    }
+    const ok=await storageSet('parts/'+c.id,out);
+    if(!ok) writeFailed=true;
+  }
+  if(!writeFailed && (restored||mergedCount||legacyCompanies)){
+    await storageSet('meta/legacyRecoveryAt',todayStr());
+    await storageSet('meta/legacyRecoveryCompleted',true);
+  }
+  return {ok:!writeFailed,restored,mergedCount,legacyCompanies,permissionDenied,writeFailed};
+}
+
 const DEFAULT_STAGES = ['Kesim','CNC','Torna','Büküm','Kaynak','Taşlama','Boya','Kaplama','Montaj','Paketleme','Sevkiyat'];
 // Örnekleme / kontrol sıklığı tablosu (kullanıcının verdiği tabloya göre)
 const SAMPLING_TABLE = [
@@ -3314,6 +3385,11 @@ function renderAccessView(){
   const invites=Object.entries(state.staffInvites||{}).map(([code,v])=>({code,...(v||{})})).filter(x=>x.active!==false);
   return `
     <div class="page-head"><div><div class="page-title">Erişim Yönetimi</div><div class="page-sub">Personel davetleri, kayıtlı kullanıcılar ve yönetici yetkileri burada yönetilir. Yönetici kaydı halka açık değildir.</div></div></div>
+    <div class="card" style="padding:18px;margin-bottom:20px;border-left:3px solid var(--red-600);">
+      <div class="section-title" style="margin:0 0 8px 0;">Eski Veri Kurtarma</div>
+      <div class="helper-text" style="margin:0 0 12px 0;line-height:1.6;">Güvenlik geçişinden önceki <span class="mono">parts:ŞİRKET_ID</span> kayıtlarını tarar; eski parçaları, notları, teknik resimleri, ölçümleri ve geçmişi yeni güvenli yapıya <b>silmeden</b> birleştirir.</div>
+      <button class="btn btn-primary" data-action="recoverLegacyParts">Eski Parçaları ve Notları Geri Yükle</button>
+    </div>
     <div class="card" style="padding:18px;margin-bottom:20px;">
       <div class="section-title" style="margin:0 0 12px 0;">Personel Daveti Oluştur</div>
       <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
@@ -4240,6 +4316,21 @@ async function handleAction(action, el){
       state.currentUser = null; state.currentUserUid = null; state.currentUserRole = null;
       state.companies = []; state.partsByCompany = {}; state.selectedCompanyId = null; state.companyAccessCodes={}; state.staffInvites={}; state.accessUsers={};
       state.authView = 'login';
+      render();
+      break;
+    }
+    case 'recoverLegacyParts': {
+      if(!isAdmin()) return;
+      if(!confirm('Eski parça kayıtları taranıp mevcut güvenli verilerle birleştirilecek. Hiçbir eski kayıt silinmeyecek. Devam edilsin mi?')) return;
+      showToast('Eski veriler taranıyor…');
+      const result=await recoverLegacyParts();
+      if(result.permissionDenied && result.legacyCompanies===0){
+        alert('Eski kayıtların bulunduğu yola Firebase Rules erişimi şu anda engelliyor. Önce geçici KURTARMA Rules dosyasını Publish edin, bu butona tekrar basın; kurtarma tamamlanınca güvenli Rules\'a geri dönün.');
+        break;
+      }
+      if(result.writeFailed){ alert('Kurtarma sırasında yeni güvenli veri yoluna yazma hatası oluştu. Veriler silinmedi.'); break; }
+      await loadAll();
+      alert(`Kurtarma tamamlandı.\n\nYeni geri eklenen parça: ${result.restored}\nMevcut kayıtla birleştirilen: ${result.mergedCount}\nEski veri bulunan şirket: ${result.legacyCompanies}\n\nEski parts:... kayıtları silinmedi.`);
       render();
       break;
     }
