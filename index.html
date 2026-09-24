@@ -2698,6 +2698,45 @@ function parseTechnicalTextCandidates(text,sourceLabel,baseConfidence,store){
       if(Number.isFinite(v)&&v>=0.2&&v<=100) addTechnicalCandidate(store,'thickness',v,Math.min(99,conf),sourceLabel,m[0]);
     }
   }
+
+  // Sheet/plate notation is very common: 2x300x450, 300x450x2, PL2x300x450, SAC 2 x 300 x 450.
+  // The smallest sensible value is thickness; the two larger values are overall blank dimensions.
+  const tripletRx=/(?:\b(?:SAC|SHEET|PLATE|LEVHA|PL)\s*)?(\d{1,5}(?:[.,]\d+)?)\s*[xX*]\s*(\d{1,5}(?:[.,]\d+)?)\s*[xX*]\s*(\d{1,5}(?:[.,]\d+)?)/ig;
+  let tm; while((tm=tripletRx.exec(upper))){
+    const vals=[technicalToNum(tm[1]),technicalToNum(tm[2]),technicalToNum(tm[3])];
+    if(vals.every(Number.isFinite)){
+      const small=vals.filter(v=>v>=0.2&&v<=60).sort((a,b)=>a-b);
+      const large=vals.filter(v=>v>=20&&v<=20000).sort((a,b)=>a-b);
+      // Require exactly one clearly-small member when possible; avoids treating 100x200x300 as thickness.
+      const minv=Math.min(...vals), maxv=Math.max(...vals);
+      const thicknessLike=minv<=30 && maxv>=Math.max(80,minv*4);
+      if(thicknessLike && small.length){
+        const th=minv;
+        const dims=vals.filter((v,i)=>i!==vals.indexOf(th)).filter(v=>v>=20).sort((a,b)=>a-b);
+        addTechnicalCandidate(store,'thickness',th,Math.min(99,base+10+(titleSource?7:0)),sourceLabel,tm[0]);
+        if(dims.length>=2) addTechnicalCandidate(store,'size',{width:dims[0],length:dims[dims.length-1]},Math.min(99,base+8+(titleSource?6:0)),sourceLabel,tm[0]);
+      }
+    }
+  }
+  const compactPlateRx=/\b(?:PL|SAC|SHEET|LEVHA)\s*[-:=]?\s*(\d{1,2}(?:[.,]\d+)?)\b/ig;
+  while((tm=compactPlateRx.exec(upper))){
+    const v=technicalToNum(tm[1]);
+    if(Number.isFinite(v)&&v>=0.3&&v<=30) addTechnicalCandidate(store,'thickness',v,Math.min(94,base+4+(titleSource?8:0)),sourceLabel,tm[0]);
+  }
+  // OCR may place a title-block label and its value in neighbouring cells/lines.
+  // Allow a wider non-numeric gap in title scans, but still require an explicit semantic label.
+  if(titleSource){
+    const thNear=upper.match(/(?:KAL[Iİ1]NL[Iİ1][KX]|THI[C(][KX]NESS|THICKNESS|THK\.?)\b[^0-9]{0,90}(\d{1,2}(?:[.,]\d+)?)/i);
+    if(thNear){const v=technicalToNum(thNear[1]);if(Number.isFinite(v)&&v>=.3&&v<=30)addTechnicalCandidate(store,'thickness',v,Math.min(96,base+7),sourceLabel,thNear[0]);}
+    const enNear=upper.match(/(?:\bEN\b|WIDTH)\b[^0-9]{0,90}(\d{2,5}(?:[.,]\d+)?)/i);
+    const boyNear=upper.match(/(?:\bBOY\b|UZUNLUK|LENGTH)\b[^0-9]{0,90}(\d{2,5}(?:[.,]\d+)?)/i);
+    if(enNear&&boyNear){
+      const a=technicalToNum(enNear[1]),b=technicalToNum(boyNear[1]);
+      if(Number.isFinite(a)&&Number.isFinite(b)&&a>=10&&b>=10&&a<=20000&&b<=20000)
+        addTechnicalCandidate(store,'size',{width:a,length:b},Math.min(96,base+6),sourceLabel,`${enNear[0]} | ${boyNear[0]}`);
+    }
+  }
+
   // Title block fallback: material + nearby small mm value is often sheet thickness.
   if(titleSource){
     const nearMat=/(?:S235(?:JR|J0|J2)?|S275(?:JR|J0|J2)?|S355(?:JR|J0|J2)?|DC01|DC04|DKP|HRP|DX51D|AISI\s*(?:304|316L?|430)|AL\s*(?:5754|5083|6061|6082))[^\n]{0,34}?(\d{1,2}(?:[.,]\d+)?)\s*(?:MM)?\b/ig;
@@ -2774,6 +2813,53 @@ function parseTechnicalTextCandidates(text,sourceLabel,baseConfidence,store){
     addTechnicalCandidate(store,'toleranceClass',min<=.1?'precision':'normal',Math.min(97,base+2),sourceLabel,'±'+min);
   }
 }
+function isCommonSheetThickness(v){
+  const common=[0.4,0.5,0.6,0.7,0.8,1,1.2,1.5,2,2.5,3,4,5,6,8,10,12,15,16,20,25,30];
+  return common.some(x=>Math.abs(x-v)<=Math.max(.08,x*.025));
+}
+function pdfSpatialText(items){
+  const arr=(items||[]).map((it,i)=>{
+    const tr=Array.isArray(it.transform)?it.transform:[1,0,0,1,0,0];
+    return {text:String(it.str||'').trim(),x:Number(tr[4])||0,y:Number(tr[5])||0,a:Number(tr[0])||1,b:Number(tr[1])||0,i};
+  }).filter(x=>x.text);
+  const horiz=arr.filter(x=>{
+    const ang=((Math.atan2(x.b,x.a)*180/Math.PI)%180+180)%180;
+    return ang<35||ang>145;
+  });
+  horiz.sort((u,v)=>Math.abs(v.y-u.y)>4?v.y-u.y:u.x-v.x);
+  const lines=[];
+  for(const item of horiz){
+    let line=lines.find(l=>Math.abs(l.y-item.y)<=4.5);
+    if(!line){line={y:item.y,items:[]};lines.push(line);}
+    line.items.push(item);
+  }
+  return lines.sort((a,b)=>b.y-a.y).map(l=>l.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ')).join('\n');
+}
+function parsePdfTextItemsCandidates(items,sourceLabel,store){
+  if(!Array.isArray(items)||!items.length) return;
+  const xs=items.map(it=>Number(it?.transform?.[4])||0), ys=items.map(it=>Number(it?.transform?.[5])||0);
+  const maxX=Math.max(1,...xs), maxY=Math.max(1,...ys);
+  for(const it of items){
+    const raw=String(it.str||'').trim(); if(!raw) continue;
+    const tr=Array.isArray(it.transform)?it.transform:[1,0,0,1,0,0];
+    const angle=((Math.atan2(Number(tr[1])||0,Number(tr[0])||1)*180/Math.PI)%180+180)%180;
+    const vertical=angle>55&&angle<125;
+    const orient=vertical?'DIKEY PDF':'YATAY PDF';
+    const nums=[...raw.matchAll(/(?:^|[^0-9])([0-9]{1,5}(?:[.,][0-9]{1,3})?)(?=$|[^0-9])/g)];
+    for(const m of nums){
+      const v=technicalToNum(m[1]); if(!Number.isFinite(v)) continue;
+      if(v>=10&&v<=12000){
+        if(v>=1900&&v<=2100) continue;
+        addTechnicalCandidate(store,'linearDim',v,94,`${sourceLabel} · ${orient}`,raw);
+      }
+      const x=Number(tr[4])||0,y=Number(tr[5])||0;
+      const inTitle=x>maxX*.42 && y<maxY*.48;
+      if(inTitle && v>=0.3&&v<=30&&isCommonSheetThickness(v)){
+        addTechnicalCandidate(store,'thickness',v,48,`${sourceLabel} · PDF ANTET SAYI`,raw);
+      }
+    }
+  }
+}
 function selectTechnicalCandidate(list,minConfidence){
   if(!Array.isArray(list)||!list.length) return null;
   const groups=new Map();
@@ -2813,30 +2899,45 @@ function groupedLinearDimensions(list){
   return out.sort((a,b)=>b.score-a.score||b.count-a.count||b.value-a.value);
 }
 function deriveOverallSizeFromLinear(store){
-  const g=groupedLinearDimensions(store.linearDim).filter(x=>x.value>=20&&x.value<=10000);
+  const g=groupedLinearDimensions(store.linearDim).filter(x=>x.value>=20&&x.value<=12000);
   if(g.length<2) return null;
-  // First preference: repeated values seen in horizontal vs vertical edge scans.
-  const hs=g.filter(x=>x.horiz>0&&x.score>=58).sort((a,b)=>b.score-a.score||b.value-a.value);
-  const vs=g.filter(x=>x.vert>0&&x.score>=58).sort((a,b)=>b.score-a.score||b.value-a.value);
+
+  // Technical drawings normally place the overall horizontal dimension on top/bottom
+  // and the overall vertical dimension on left/right. Within each direction, prefer the
+  // largest credible value: internal feature dimensions are usually smaller.
+  const directionalRank=(arr)=>arr.map(x=>{
+    const repeatBonus=Math.min(18,(x.count-1)*4)+Math.min(10,(x.sources-1)*3);
+    const magnitudeBonus=Math.min(16,Math.log10(Math.max(20,x.value)/20)*10);
+    return {...x,overallScore:x.score+repeatBonus+magnitudeBonus};
+  }).sort((a,b)=>b.overallScore-a.overallScore || b.value-a.value);
+
+  const hs=directionalRank(g.filter(x=>x.horiz>0 && x.score>=42));
+  const vs=directionalRank(g.filter(x=>x.vert>0 && x.score>=42));
   if(hs.length&&vs.length){
-    const h=hs[0], v=vs.find(x=>Math.abs(x.value-h.value)>.05)||vs[0];
-    if(h&&v&&Math.abs(h.value-v.value)>.05){
-      return {value:{width:h.value,length:v.value},confidence:Math.min(91,Math.round((h.score+v.score)/2)),evidence:[...h.evidence.slice(0,2),...v.evidence.slice(0,2)],fallback:true};
+    // Prefer a high-valued candidate from each axis, not simply the OCR's highest confidence token.
+    const hPool=hs.filter(x=>x.value>=Math.max(20,hs[0].value*.45)).slice(0,6);
+    const vPool=vs.filter(x=>x.value>=Math.max(20,vs[0].value*.45)).slice(0,6);
+    const h=[...hPool].sort((a,b)=>b.value-a.value || b.overallScore-a.overallScore)[0]||hs[0];
+    let v=[...vPool].sort((a,b)=>b.value-a.value || b.overallScore-a.overallScore).find(x=>Math.abs(x.value-h.value)>.05);
+    if(!v) v=vPool[0]||vs[0];
+    if(h&&v){
+      return {value:{width:h.value,length:v.value},confidence:Math.min(94,Math.round((h.score+v.score)/2)+4),evidence:[...h.evidence.slice(0,3),...v.evidence.slice(0,3)],fallback:true};
     }
   }
-  // Second preference: two strongest repeated large dimensions. Overall dimensions are usually among the largest annotations.
-  const reliable=g.filter(x=>(x.count>=2||x.sources>=2)&&x.score>=58);
-  const pool=(reliable.length>=2?reliable:g.filter(x=>x.score>=66)).slice(0,12);
+
+  // If OCR could not preserve orientation, use the two largest credible/repeated drawing dimensions.
+  let pool=g.filter(x=>x.score>=48 && (x.count>=2||x.sources>=2));
+  if(pool.length<2) pool=g.filter(x=>x.score>=52);
+  if(pool.length<2) pool=g.filter(x=>x.score>=40);
   if(pool.length<2) return null;
-  const byValue=[...pool].sort((a,b)=>b.value-a.value);
+  const byValue=[...pool].sort((a,b)=>b.value-a.value || b.score-a.score);
   const a=byValue[0], b=byValue.find(x=>Math.abs(x.value-a.value)>.05);
   if(!b) return null;
-  const confidence=Math.min(86,Math.round((a.score+b.score)/2)-(reliable.length>=2?0:7));
-  return {value:{width:Math.min(a.value,b.value),length:Math.max(a.value,b.value)},confidence,evidence:[...a.evidence.slice(0,2),...b.evidence.slice(0,2)],fallback:true};
+  return {value:{width:Math.min(a.value,b.value),length:Math.max(a.value,b.value)},confidence:Math.min(88,Math.round((a.score+b.score)/2)),evidence:[...a.evidence.slice(0,3),...b.evidence.slice(0,3)],fallback:true};
 }
 function chooseTechnicalAnalysis(store){
   const prof=technicalBlankProfile(), found=[], confidenceMap={}, evidence={};
-  const thresholds={material:55,thickness:62,size:68,holeCount:60,bendCount:68,weldLengthMm:72,toleranceClass:55};
+  const thresholds={material:55,thickness:58,size:62,holeCount:60,bendCount:68,weldLengthMm:72,toleranceClass:55};
   for(const field of ['material','thickness','holeCount','bendCount','weldLengthMm','toleranceClass']){
     const pick=selectTechnicalCandidate(store[field],thresholds[field]);
     if(!pick) continue;
@@ -2854,6 +2955,7 @@ function chooseTechnicalAnalysis(store){
   }
   const linearGroups=groupedLinearDimensions(store.linearDim).slice(0,12);
   prof.autoAnalysisDetectedDimensions=linearGroups.map(x=>({value:x.value,confidence:Math.round(x.score),count:x.count,horizontal:x.horiz,vertical:x.vert}));
+  prof.autoAnalysisTopDimensionText=linearGroups.slice(0,8).map(x=>`${x.value} mm (%${Math.round(x.score)}${x.horiz?' H':''}${x.vert?' V':''})`).join(' · ');
   const confVals=Object.values(confidenceMap);
   prof.autoAnalysisConfidence=confVals.length?Math.round(confVals.reduce((a,b)=>a+b,0)/confVals.length):0;
   prof.autoAnalysisConfidenceMap=confidenceMap;
@@ -2922,42 +3024,96 @@ async function createTechnicalOcrWorker(){
   try{return await Tesseract.createWorker(['eng','tur'],Tesseract.OEM?.LSTM_ONLY,{logger});}
   catch(e){console.warn('Türkçe OCR modeli açılamadı, İngilizceye düşülüyor.',e);return await Tesseract.createWorker('eng',Tesseract.OEM?.LSTM_ONLY,{logger});}
 }
-async function runTechnicalOcr(worker,canvas,label,progressBase,progressSpan,psm,mode){
-  if(!worker) return {text:'',confidence:0};
+async function runTechnicalOcr(worker,canvas,label,progressBase,progressSpan,psm,mode,whitelist){
+  if(!worker) return {text:'',confidence:0,words:[]};
   technicalOcrProgressContext={label,base:progressBase,span:progressSpan};
-  try{await worker.setParameters({tessedit_pageseg_mode:String(psm||11),preserve_interword_spaces:'1',user_defined_dpi:'300'});}catch(_e){}
+  const params={tessedit_pageseg_mode:String(psm||11),preserve_interword_spaces:'1',user_defined_dpi:'300'};
+  // A number-only pass dramatically improves bare engineering dimensions such as 300 / 450.
+  params.tessedit_char_whitelist=whitelist||'';
+  try{await worker.setParameters(params);}catch(_e){}
   const enhanced=enhanceTechnicalCanvas(canvas,mode||'contrast');
   const result=await worker.recognize(enhanced);
-  return {text:result?.data?.text||'',confidence:Number(result?.data?.confidence)||0};
+  return {text:result?.data?.text||'',confidence:Number(result?.data?.confidence)||0,words:Array.isArray(result?.data?.words)?result.data.words:[]};
+}
+function parseTechnicalNumericPass(result,sourceLabel,orientation,store){
+  const text=cleanTechnicalOcrText(result?.text||'');
+  if(!text) return;
+  const conf=Math.max(35,Math.min(96,Number(result?.confidence)||55));
+  // Keep the normal parser too; it catches 2x300x450 and diameter callouts.
+  parseTechnicalTextCandidates(text,sourceLabel,conf,store);
+  const upper=text.toUpperCase();
+  const rx=/(?:^|[^0-9])([0-9]{2,5}(?:[.,][0-9]{1,3})?)(?=$|[^0-9])/g;
+  let m; while((m=rx.exec(upper))){
+    const v=technicalToNum(m[1]);
+    if(!Number.isFinite(v)||v<10||v>12000) continue;
+    // Years and obvious ISO-like dates are weak candidates unless this was a dimension strip.
+    if(v>=1900&&v<=2100 && !/YATAY|DIKEY|DIM|EDGE/i.test(sourceLabel)) continue;
+    let c=conf-8;
+    if(orientation==='h'||orientation==='v') c+=12;
+    if(/EDGE|KENAR|YATAY|DIKEY/i.test(sourceLabel)) c+=7;
+    addTechnicalCandidate(store,'linearDim',v,Math.max(38,Math.min(98,c)),sourceLabel,m[0]);
+  }
+  if(/ANTET|TITLE/i.test(sourceLabel||'')){
+    const smallRx=/(?:^|[^0-9])([0-9]{1,2}(?:[.,][0-9]{1,3})?)(?=$|[^0-9])/g;
+    let sm; while((sm=smallRx.exec(upper))){
+      const v=technicalToNum(sm[1]);
+      if(Number.isFinite(v)&&v>=.3&&v<=30&&isCommonSheetThickness(v))
+        addTechnicalCandidate(store,'thickness',v,46,sourceLabel,sm[0]);
+    }
+  }
 }
 async function scanTechnicalCanvas(worker,canvas,label,baseFrac,span,store){
-  // 1) Whole page sparse OCR: labels + dimensions.
-  const full=await runTechnicalOcr(worker,canvas,`${label} · tüm sayfa`,baseFrac,span*.30,11,'contrast');
-  parseTechnicalTextCandidates(full.text,`${label} · TÜM`,Math.max(48,Math.min(90,full.confidence)),store);
+  // Pass A: full-page general OCR for labels/material/title block text.
+  const full=await runTechnicalOcr(worker,canvas,`${label} · tüm sayfa`,baseFrac,span*.16,11,'contrast','');
+  parseTechnicalTextCandidates(full.text,`${label} · TÜM`,Math.max(46,Math.min(92,full.confidence)),store);
 
-  // 2) Title block: usually bottom-right, scan twice with different preprocessing/layout.
-  if(canvas.width>800&&canvas.height>600){
-    const title=cropTechnicalCanvas(canvas,.40,.54,.60,.46,2200);
-    const t1=await runTechnicalOcr(worker,title,`${label} · antet`,baseFrac+span*.31,span*.16,6,'contrast');
-    parseTechnicalTextCandidates(t1.text,`${label} · ANTET A`,Math.max(58,Math.min(96,t1.confidence+8)),store);
-    const t2=await runTechnicalOcr(worker,title,`${label} · antet net`,baseFrac+span*.47,span*.13,11,'binary');
-    parseTechnicalTextCandidates(t2.text,`${label} · ANTET B`,Math.max(56,Math.min(94,t2.confidence+6)),store);
+  // Pass B: full-page numeric OCR. This is intentionally separate from text OCR:
+  // bare dimension numbers are otherwise frequently lost among extension/dimension lines.
+  const numChars='0123456789.,+-xX*ØΦ⌀RrMm°';
+  const fullNum=await runTechnicalOcr(worker,canvas,`${label} · sayısal`,baseFrac+span*.16,span*.12,11,'binary',numChars);
+  parseTechnicalNumericPass(fullNum,`${label} · DIM FULL`,'',store);
 
-    // 3) Horizontal dimension bands.
-    const top=cropTechnicalCanvas(canvas,0,0,1,.34,2400);
-    const bottom=cropTechnicalCanvas(canvas,0,.64,1,.36,2400);
-    const h1=await runTechnicalOcr(worker,top,`${label} · yatay üst`,baseFrac+span*.60,span*.10,11,'contrast');
-    parseTechnicalTextCandidates(h1.text,`${label} · YATAY ÜST`,Math.max(48,Math.min(88,h1.confidence)),store);
-    const h2=await runTechnicalOcr(worker,bottom,`${label} · yatay alt`,baseFrac+span*.70,span*.10,11,'contrast');
-    parseTechnicalTextCandidates(h2.text,`${label} · YATAY ALT`,Math.max(48,Math.min(88,h2.confidence)),store);
+  if(canvas.width>700&&canvas.height>550){
+    // Title block: scan a deliberately oversized bottom-right area in three modes.
+    const title=cropTechnicalCanvas(canvas,.32,.48,.68,.52,3000);
+    const t1=await runTechnicalOcr(worker,title,`${label} · antet yazı`,baseFrac+span*.28,span*.09,6,'contrast','');
+    parseTechnicalTextCandidates(t1.text,`${label} · ANTET A`,Math.max(56,Math.min(97,t1.confidence+8)),store);
+    const t2=await runTechnicalOcr(worker,title,`${label} · antet seyrek`,baseFrac+span*.37,span*.08,11,'binary','');
+    parseTechnicalTextCandidates(t2.text,`${label} · ANTET B`,Math.max(54,Math.min(95,t2.confidence+7)),store);
+    const tn=await runTechnicalOcr(worker,title,`${label} · antet sayısal`,baseFrac+span*.45,span*.07,11,'binary',numChars);
+    parseTechnicalNumericPass(tn,`${label} · ANTET DIM`,'',store);
 
-    // 4) Vertical dimensions are commonly rotated 90°. Crop both sides and rotate into OCR orientation.
-    const left=rotateTechnicalCanvas(cropTechnicalCanvas(canvas,0,0,.34,1,1800),90);
-    const right=rotateTechnicalCanvas(cropTechnicalCanvas(canvas,.66,0,.34,1,1800),270);
-    const v1=await runTechnicalOcr(worker,left,`${label} · dikey sol`,baseFrac+span*.80,span*.095,11,'contrast');
-    parseTechnicalTextCandidates(v1.text,`${label} · DIKEY SOL`,Math.max(48,Math.min(88,v1.confidence)),store);
-    const v2=await runTechnicalOcr(worker,right,`${label} · dikey sağ`,baseFrac+span*.895,span*.095,11,'contrast');
-    parseTechnicalTextCandidates(v2.text,`${label} · DIKEY SAĞ`,Math.max(48,Math.min(88,v2.confidence)),store);
+    // Horizontal overall dimensions can sit above/below the view or across its centre.
+    const hBands=[
+      ['YATAY ÜST',cropTechnicalCanvas(canvas,0,0,1,.30,3200)],
+      ['YATAY ORTA',cropTechnicalCanvas(canvas,0,.25,1,.50,3200)],
+      ['YATAY ALT',cropTechnicalCanvas(canvas,0,.70,1,.30,3200)]
+    ];
+    let off=.52;
+    for(const [name,band] of hBands){
+      const r=await runTechnicalOcr(worker,band,`${label} · ${name.toLowerCase()}`,baseFrac+span*off,span*.065,11,'binary',numChars);
+      parseTechnicalNumericPass(r,`${label} · ${name} EDGE`,'h',store); off+=.065;
+    }
+
+    // Vertical dimensions: crop wide side bands, then rotate each BOTH ways because drawing orientation varies.
+    const sideDefs=[
+      ['DIKEY SOL',cropTechnicalCanvas(canvas,0,0,.31,1,2200)],
+      ['DIKEY SAĞ',cropTechnicalCanvas(canvas,.69,0,.31,1,2200)]
+    ];
+    for(const [name,side] of sideDefs){
+      for(const deg of [90,270]){
+        const rr=rotateTechnicalCanvas(side,deg);
+        const r=await runTechnicalOcr(worker,rr,`${label} · ${name.toLowerCase()} ${deg}°`,baseFrac+span*Math.min(.94,off),span*.045,11,'binary',numChars);
+        parseTechnicalNumericPass(r,`${label} · ${name} EDGE ${deg}`,'v',store); off+=.045;
+      }
+    }
+
+    // Last-resort rotated full-page numeric scans. Expensive, but catches dimensions placed inside views.
+    for(const deg of [90,270]){
+      const rr=rotateTechnicalCanvas(canvas,deg);
+      const r=await runTechnicalOcr(worker,rr,`${label} · tam dönüş ${deg}°`,baseFrac+span*Math.min(.97,off),span*.025,11,'binary',numChars);
+      parseTechnicalNumericPass(r,`${label} · ROTATED DIM ${deg}`,deg===90||deg===270?'v':'',store); off+=.025;
+    }
   }
 }
 async function deepAnalyzeTechnicalDrawings(part){
@@ -2985,9 +3141,15 @@ async function deepAnalyzeTechnicalDrawings(part){
           try{
             const tc=await page.getTextContent();
             const nativeText=tc.items.map(x=>x.str).join(' ');
-            if(nativeText.replace(/\s/g,'').length>8){parseTechnicalTextCandidates(nativeText,`${drawing.name} · s.${pn} METIN`,99,store);textLayers++;}
+            const spatialText=pdfSpatialText(tc.items);
+            if(nativeText.replace(/\s/g,'').length>8){
+              parseTechnicalTextCandidates(nativeText,`${drawing.name} · s.${pn} METIN`,99,store);
+              parseTechnicalTextCandidates(spatialText,`${drawing.name} · s.${pn} PDF ANTET/TEXT`,99,store);
+              parsePdfTextItemsCandidates(tc.items,`${drawing.name} · s.${pn}`,store);
+              textLayers++;
+            }
           }catch(_e){}
-          setDrawingAnalysisStatus(`${drawing.name} · sayfa ${pn}/${pages} 4200px hazırlanıyor…`);
+          setDrawingAnalysisStatus(`${drawing.name} · sayfa ${pn}/${pages} 4200px hazırlanıyor… çoklu ölçü taraması uygulanacak`);
           const canvas=await technicalPdfPageToCanvas(page,4200);
           const unitSpan=span/pages;
           await scanTechnicalCanvas(worker,canvas,`${drawing.name} · s.${pn}`,baseFrac+(pn-1)*unitSpan,unitSpan,store);
@@ -3008,7 +3170,7 @@ async function deepAnalyzeTechnicalDrawings(part){
   prof.autoAnalysisSource=drawings.map(d=>d.name||'teknik resim').join(', ');
   prof.autoAnalysisScannedVisuals=scannedVisuals;
   prof.autoAnalysisTextLayers=textLayers;
-  prof.autoAnalysisMethod='4200px çoklu-bölge OCR + Türkçe/İngilizce + antet + yatay/dikey ölçü taraması';
+  prof.autoAnalysisMethod='çoklu-geçiş genel + sayısal OCR, 4200px, antet, merkez/kenar bantları, çift yön dikey tarama, sac üçlü ebat çözümleme';
   return prof;
 }
 function currentStageEstimateStatus(part, company){
@@ -3075,7 +3237,7 @@ function renderProductionEstimateSection(part,company){
         <div class="field"><label>Tolerans Seviyesi</label><select id="ppTolerance"><option value="rough" ${profile.toleranceClass==='rough'?'selected':''}>Geniş</option><option value="normal" ${profile.toleranceClass==='normal'?'selected':''}>Normal</option><option value="precision" ${profile.toleranceClass==='precision'?'selected':''}>Hassas</option></select></div>
       </div>
       ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:10px;">Son teknik resim taraması: <b>${escapeHtml(profile.autoAnalyzedAt)}</b> · Yöntem: ${escapeHtml(profile.autoAnalysisMethod||'teknik resim taraması')} · Güven: <b>%${Number(profile.autoAnalysisConfidence)||0}</b> · Bulunan alan: <b>${Number(profile.autoAnalysisFoundCount)||0}</b>${profile.autoAnalysisSizeDerived?' · En/Boy dış ölçü adaylarından çıkarıldı':''}${Array.isArray(profile.autoAnalysisMissing)&&profile.autoAnalysisMissing.length?` · Bulunamayan: ${escapeHtml(profile.autoAnalysisMissing.join(', '))}`:''}</div>`:''}
-      ${Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0})`).join(' · ')}</div>`:''}
+      ${Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
       <div id="drawingAnalysisStatus" class="helper-text" style="margin-top:8px;min-height:18px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d && d.data && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
       <div class="process-estimate-grid">
