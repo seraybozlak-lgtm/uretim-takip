@@ -2216,7 +2216,7 @@ function renderTrackingView(){
                 ${d.type && d.type.startsWith('image/') ?
                   `<img src="${d.data}" class="drawing-thumb" data-view-drawing="${part.id}" data-drawing-idx="${i}"/>` :
                   `<div class="drawing-file-icon" data-view-drawing="${part.id}" data-drawing-idx="${i}">&#128196;</div>`}
-                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">Görüntülemek için tıklayın</div></div>
+                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">${d.detectedDrawingNo?`Antet resim no: <b>${escapeHtml(d.detectedDrawingNo)}</b>${normalizeTechnicalPartNo(d.detectedDrawingNo)===normalizeTechnicalPartNo(part.partNo)?' · <span style="color:var(--green-signal);font-weight:700;">ESAS RESİM</span>':''}`:'Görüntülemek için tıklayın'}</div></div>
                 ${isAdmin() ? `<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button>` : ''}
               </div>`).join('')}
           </div>
@@ -3116,25 +3116,238 @@ async function scanTechnicalCanvas(worker,canvas,label,baseFrac,span,store){
     }
   }
 }
+
+function normalizeTechnicalPartNo(value){
+  return String(value||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+function technicalDrawingStem(name){
+  return normalizeTechnicalPartNo(String(name||'').replace(/\.[^.]+$/,''));
+}
+function drawingFilenameMatchScore(drawing, partNo){
+  const target=normalizeTechnicalPartNo(partNo);
+  const stem=technicalDrawingStem(drawing?.name||'');
+  if(!target||!stem) return 0;
+  if(stem===target) return 98;
+  if(stem.startsWith(target)||stem.endsWith(target)) return 86;
+  if(stem.includes(target)) return 72;
+  return 0;
+}
+function drawingIdentityTokenCandidates(result,canvas){
+  const out=[];
+  const H=Math.max(1,Number(canvas?.height)||1), W=Math.max(1,Number(canvas?.width)||1);
+  const words=Array.isArray(result?.words)?result.words:[];
+  for(const w of words){
+    const raw=String(w?.text||'').trim();
+    const token=normalizeTechnicalPartNo(raw);
+    if(token.length<5||token.length>28||!/[0-9]/.test(token)||!/^[A-Z0-9]+$/.test(token)) continue;
+    if(/^(ISO|RAL|PAGE|SCALE|SIZE|DATE|REV|QTY|MASS|A0ISO|A1ISO|A2ISO)/.test(token)) continue;
+    const b=w?.bbox||{};
+    const x0=Number(b.x0)||0,y0=Number(b.y0)||0,x1=Number(b.x1)||0,y1=Number(b.y1)||0;
+    const hh=Math.max(1,y1-y0), ww=Math.max(1,x1-x0), cy=(y0+y1)/2;
+    let score=(Number(w?.confidence)||0) + Math.min(110,hh*1.9) + Math.min(35,(cy/H)*35);
+    if(/[A-Z]/.test(token)&&/[0-9]/.test(token)) score+=18;
+    if(token.length>=7&&token.length<=14) score+=12;
+    if(cy/H>.55) score+=16;
+    if(ww/W>.12) score+=8;
+    out.push({token,raw,score,confidence:Number(w?.confidence)||0,cyRatio:cy/H,height:hh});
+  }
+  if(!out.length){
+    const lines=String(result?.text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    lines.forEach((line,i)=>{
+      const toks=line.match(/[A-Z]?[A-Z0-9._/-]{4,30}/ig)||[];
+      toks.forEach(raw=>{
+        const token=normalizeTechnicalPartNo(raw);
+        if(token.length<5||token.length>28||!/[0-9]/.test(token)||!/^[A-Z0-9]+$/.test(token)) return;
+        if(/^(ISO|RAL|PAGE|SCALE|SIZE|DATE|REV|QTY|MASS|A0ISO|A1ISO|A2ISO)/.test(token)) return;
+        let score=45 + (i/Math.max(1,lines.length-1))*45 + (/[A-Z]/.test(token)?10:0) + Math.min(14,token.length);
+        out.push({token,raw,score,confidence:0,cyRatio:i/Math.max(1,lines.length-1),height:0});
+      });
+    });
+  }
+  return out.sort((a,b)=>b.score-a.score);
+}
+function likelyDrawingNumberFromOcr(result,canvas){
+  const cands=drawingIdentityTokenCandidates(result,canvas);
+  return cands.length?cands[0]:null;
+}
+async function technicalPdfRegionToCanvas(page,xRatio,yRatio,wRatio,hRatio,targetWidth){
+  const base=page.getViewport({scale:1});
+  const regionBaseW=Math.max(1,base.width*wRatio);
+  const scale=Math.min(10,Math.max(2.5,(Number(targetWidth)||3000)/regionBaseW));
+  const full=page.getViewport({scale});
+  const cropX=full.width*xRatio, cropY=full.height*yRatio;
+  const viewport=page.getViewport({scale,offsetX:-cropX,offsetY:-cropY});
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(full.width*wRatio));
+  c.height=Math.max(1,Math.round(full.height*hRatio));
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+  await page.render({canvasContext:ctx,viewport,background:'white'}).promise;
+  return c;
+}
+async function technicalImageRegionToCanvas(dataUrl,xRatio,yRatio,wRatio,hRatio,targetWidth){
+  const img=new Image();img.decoding='async';
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=dataUrl;});
+  const sx=Math.max(0,Math.round(img.naturalWidth*xRatio)),sy=Math.max(0,Math.round(img.naturalHeight*yRatio));
+  const sw=Math.max(1,Math.min(img.naturalWidth-sx,Math.round(img.naturalWidth*wRatio)));
+  const sh=Math.max(1,Math.min(img.naturalHeight-sy,Math.round(img.naturalHeight*hRatio)));
+  const scale=Math.min(8,Math.max(1,(Number(targetWidth)||3000)/sw));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
+  const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+  return c;
+}
+async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBase,progressSpan){
+  const target=normalizeTechnicalPartNo(partNo);
+  const filenameScore=drawingFilenameMatchScore(drawing,partNo);
+  const result={drawing,target,filenameScore,detectedDrawingNo:'',matched:false,matchReason:'',identityText:'',pdfDoc:null,imageData:null};
+  const isPdf=drawing.type==='application/pdf'||/\.pdf$/i.test(drawing.name||'');
+  try{
+    if(isPdf){
+      const raw=await (await fetch(drawing.data)).arrayBuffer();
+      const doc=await pdfjsLib.getDocument({data:raw}).promise;
+      result.pdfDoc=doc;
+      const pages=Math.min(doc.numPages,12);
+      const candidates=[];
+      const texts=[];
+      for(let pn=1;pn<=pages;pn++){
+        const page=await doc.getPage(pn);
+        const broad=await technicalPdfRegionToCanvas(page,.66,.77,.34,.23,3300);
+        const r1=await runTechnicalOcr(worker,broad,`${drawing.name} · s.${pn} antet kimliği`,progressBase+progressSpan*((pn-1)/pages),progressSpan/pages*.38,6,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
+        texts.push(r1.text||'');
+        const c1=likelyDrawingNumberFromOcr(r1,broad); if(c1)candidates.push({...c1,page:pn,source:'broad'});
+        const narrow=await technicalPdfRegionToCanvas(page,.76,.875,.24,.115,3300);
+        const r2=await runTechnicalOcr(worker,narrow,`${drawing.name} · s.${pn} resim no`,progressBase+progressSpan*((pn-.60)/pages),progressSpan/pages*.38,6,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/');
+        texts.push(r2.text||'');
+        const c2=likelyDrawingNumberFromOcr(r2,narrow); if(c2)candidates.push({...c2,page:pn,source:'narrow'});
+      }
+      candidates.sort((a,b)=>b.score-a.score);
+      if(candidates[0]) result.detectedDrawingNo=candidates[0].token;
+      result.identityText=texts.join('\n');
+    }else{
+      result.imageData=drawing.data;
+      const broad=await technicalImageRegionToCanvas(drawing.data,.66,.77,.34,.23,3300);
+      const r1=await runTechnicalOcr(worker,broad,`${drawing.name} · antet kimliği`,progressBase,progressSpan*.45,6,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
+      const narrow=await technicalImageRegionToCanvas(drawing.data,.76,.875,.24,.115,3300);
+      const r2=await runTechnicalOcr(worker,narrow,`${drawing.name} · resim no`,progressBase+progressSpan*.48,progressSpan*.45,6,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/');
+      const cands=[likelyDrawingNumberFromOcr(r1,broad),likelyDrawingNumberFromOcr(r2,narrow)].filter(Boolean).sort((a,b)=>b.score-a.score);
+      if(cands[0])result.detectedDrawingNo=cands[0].token;
+      result.identityText=(r1.text||'')+'\n'+(r2.text||'');
+    }
+  }catch(e){
+    console.warn('Teknik resim kimlik taraması başarısız:',drawing?.name,e);
+  }
+  if(result.detectedDrawingNo && result.detectedDrawingNo===target){
+    result.matched=true;result.matchReason='antet-resim-no';result.matchScore=100;
+  }else if(filenameScore>=98 && !result.detectedDrawingNo){
+    result.matched=true;result.matchReason='dosya-adi-tam';result.matchScore=98;
+  }else if(filenameScore>=86 && !result.detectedDrawingNo){
+    result.matched=true;result.matchReason='dosya-adi';result.matchScore=86;
+  }else{
+    result.matchScore=Math.max(filenameScore,0);
+  }
+  drawing.detectedDrawingNo=result.detectedDrawingNo||drawing.detectedDrawingNo||'';
+  drawing.identityScannedAt=todayStr();
+  drawing.primaryForPart=!!result.matched;
+  return result;
+}
+async function choosePrimaryTechnicalDrawings(worker,drawings,part){
+  const target=normalizeTechnicalPartNo(part?.partNo||'');
+  if(!target) return {selected:drawings.map(d=>({drawing:d,verified:false})),verified:false,detected:[]};
+  const infos=[];
+  for(let i=0;i<drawings.length;i++){
+    setDrawingAnalysisStatus(`Teknik resim kimliği kontrol ediliyor ${i+1}/${drawings.length} · aranan parça: ${part.partNo}`);
+    infos.push(await inspectTechnicalDrawingIdentity(worker,drawings[i],part.partNo,i/Math.max(1,drawings.length)*.12,.12/Math.max(1,drawings.length)));
+  }
+  const exact=infos.filter(x=>x.matched&&x.detectedDrawingNo===target);
+  if(exact.length) return {selected:exact,verified:true,detected:infos};
+  const byFile=infos.filter(x=>x.matched);
+  if(byFile.length) return {selected:byFile,verified:true,detected:infos};
+  if(drawings.length===1 && !infos[0].detectedDrawingNo) return {selected:[infos[0]],verified:false,detected:infos};
+  const seen=infos.map(x=>`${x.drawing?.name||'dosya'} → ${x.detectedDrawingNo||'okunamadı'}`).join(' | ');
+  throw new Error(`Parça no ${part.partNo} ile antette eşleşen teknik resim bulunamadı. Yanlış resimlerin ölçülerini karıştırmamak için analiz durduruldu. Okunan resim noları: ${seen}`);
+}
+async function scanPdfPageUltraDimensions(worker,page,label,baseFrac,span,store){
+  const numChars='0123456789.,+-xX*ØΦ⌀RrMmTtSsPpLl°';
+  const tiles=[
+    [0,0,.38,.56,'KARO SOL ÜST'],
+    [.31,0,.38,.56,'KARO ORTA ÜST'],
+    [.62,0,.38,.56,'KARO SAĞ ÜST'],
+    [0,.44,.38,.56,'KARO SOL ALT'],
+    [.31,.44,.38,.56,'KARO ORTA ALT'],
+    [.62,.44,.38,.56,'KARO SAĞ ALT']
+  ];
+  let k=0;
+  for(const [x,y,w,h,name] of tiles){
+    const c=await technicalPdfRegionToCanvas(page,x,y,w,h,3400);
+    const r=await runTechnicalOcr(worker,c,`${label} · ${name.toLowerCase()} yüksek çözünürlük`,baseFrac+span*(k/10),span*.075,11,'binary',numChars);
+    parseTechnicalNumericPass(r,`${label} · ${name} HIRES`,'',store);
+    if(k===2||k===5||k===3){
+      const g=await runTechnicalOcr(worker,c,`${label} · ${name.toLowerCase()} yazı`,baseFrac+span*(k/10+.035),span*.04,11,'contrast','');
+      parseTechnicalTextCandidates(g.text,`${label} · ${name} HIRES TEXT`,Math.max(48,Math.min(93,g.confidence)),store);
+    }
+    k++;
+  }
+  const verticals=[
+    [.0,0,.30,1,'DİKEY SOL'],
+    [.70,0,.30,1,'DİKEY SAĞ']
+  ];
+  for(const [x,y,w,h,name] of verticals){
+    const c=await technicalPdfRegionToCanvas(page,x,y,w,h,2700);
+    for(const deg of [90,270]){
+      const rr=rotateTechnicalCanvas(c,deg);
+      const r=await runTechnicalOcr(worker,rr,`${label} · ${name.toLowerCase()} ${deg}° ultra`,baseFrac+span*(.70+k*.025),span*.025,11,'binary',numChars);
+      parseTechnicalNumericPass(r,`${label} · ${name} HIRES ${deg}`,'v',store);
+      k++;
+    }
+  }
+}
+async function scanImageUltraDimensions(worker,drawing,label,baseFrac,span,store){
+  const numChars='0123456789.,+-xX*ØΦ⌀RrMmTtSsPpLl°';
+  const tiles=[
+    [0,0,.38,.56,'KARO SOL ÜST'],[.31,0,.38,.56,'KARO ORTA ÜST'],[.62,0,.38,.56,'KARO SAĞ ÜST'],
+    [0,.44,.38,.56,'KARO SOL ALT'],[.31,.44,.38,.56,'KARO ORTA ALT'],[.62,.44,.38,.56,'KARO SAĞ ALT']
+  ];
+  let k=0;
+  for(const [x,y,w,h,name] of tiles){
+    const c=await technicalImageRegionToCanvas(drawing.data,x,y,w,h,3400);
+    const r=await runTechnicalOcr(worker,c,`${label} · ${name.toLowerCase()} ultra`,baseFrac+span*(k/8),span*.09,11,'binary',numChars);
+    parseTechnicalNumericPass(r,`${label} · ${name} HIRES`,'',store);
+    if(k===2||k===5||k===3){
+      const g=await runTechnicalOcr(worker,c,`${label} · ${name.toLowerCase()} yazı`,baseFrac+span*(k/8+.045),span*.045,11,'contrast','');
+      parseTechnicalTextCandidates(g.text,`${label} · ${name} HIRES TEXT`,Math.max(48,Math.min(93,g.confidence)),store);
+    }
+    k++;
+  }
+}
 async function deepAnalyzeTechnicalDrawings(part){
   const drawings=(part.drawings||[]).filter(d=>d && d.data && ((d.type||'').startsWith('image/') || d.type==='application/pdf' || /\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')));
   if(!drawings.length) throw new Error('Analiz edilecek PDF/JPG/PNG teknik resim yok.');
   if(!window.Tesseract) throw new Error('Görsel OCR kütüphanesi yüklenemedi. İnternet bağlantısını kontrol edin.');
   const store=createTechnicalCandidateStore();
-  let scannedVisuals=0, textLayers=0, sourceIndex=0;
-  const totalSources=Math.max(1,drawings.length);
+  let scannedVisuals=0,textLayers=0;
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  setDrawingAnalysisStatus('OCR motoru hazırlanıyor…');
+  setDrawingAnalysisStatus(`Önce parça no ${part.partNo||'—'} ile eşleşen esas teknik resim bulunuyor…`);
   const worker=await createTechnicalOcrWorker();
   if(!worker) throw new Error('OCR motoru başlatılamadı.');
   try{
-    for(const drawing of drawings){
-      sourceIndex++;
-      const baseFrac=(sourceIndex-1)/totalSources, span=1/totalSources;
+    const primary=await choosePrimaryTechnicalDrawings(worker,drawings,part);
+    const selected=primary.selected;
+    const totalSources=Math.max(1,selected.length);
+    const identityDetails=primary.detected||[];
+    for(let si=0;si<selected.length;si++){
+      const info=selected[si],drawing=info.drawing||info;
+      const baseFrac=.12+(si/totalSources)*.88,span=.88/totalSources;
       const isPdf=drawing.type==='application/pdf'||/\.pdf$/i.test(drawing.name||'');
+      if(info.identityText){
+        parseTechnicalTextCandidates(info.identityText,`${drawing.name} · ESAS ANTET`,93,store);
+      }
       if(isPdf){
-        const raw=await (await fetch(drawing.data)).arrayBuffer();
-        const doc=await pdfjsLib.getDocument({data:raw}).promise;
+        let doc=info.pdfDoc;
+        if(!doc){
+          const raw=await (await fetch(drawing.data)).arrayBuffer();
+          doc=await pdfjsLib.getDocument({data:raw}).promise;
+        }
         const pages=Math.min(doc.numPages,12);
         for(let pn=1;pn<=pages;pn++){
           const page=await doc.getPage(pn);
@@ -3149,29 +3362,43 @@ async function deepAnalyzeTechnicalDrawings(part){
               textLayers++;
             }
           }catch(_e){}
-          setDrawingAnalysisStatus(`${drawing.name} · sayfa ${pn}/${pages} 4200px hazırlanıyor… çoklu ölçü taraması uygulanacak`);
-          const canvas=await technicalPdfPageToCanvas(page,4200);
-          const unitSpan=span/pages;
-          await scanTechnicalCanvas(worker,canvas,`${drawing.name} · s.${pn}`,baseFrac+(pn-1)*unitSpan,unitSpan,store);
+          const pageBase=baseFrac+(pn-1)*(span/pages),pageSpan=span/pages;
+          setDrawingAnalysisStatus(`${drawing.name} · sayfa ${pn}/${pages} · yüksek çözünürlüklü bölgesel ölçü taraması`);
+          const canvas=await technicalPdfPageToCanvas(page,3800);
+          const general=await runTechnicalOcr(worker,canvas,`${drawing.name} · s.${pn} genel`,pageBase,pageSpan*.10,11,'contrast','');
+          parseTechnicalTextCandidates(general.text,`${drawing.name} · s.${pn} GENEL`,Math.max(45,Math.min(91,general.confidence)),store);
+          const num=await runTechnicalOcr(worker,canvas,`${drawing.name} · s.${pn} genel sayısal`,pageBase+pageSpan*.10,pageSpan*.08,11,'binary','0123456789.,+-xX*ØΦ⌀RrMmTtSsPpLl°');
+          parseTechnicalNumericPass(num,`${drawing.name} · s.${pn} DIM FULL`,'',store);
+          await scanPdfPageUltraDimensions(worker,page,`${drawing.name} · s.${pn}`,pageBase+pageSpan*.18,pageSpan*.80,store);
           scannedVisuals++;
         }
       }else{
-        setDrawingAnalysisStatus(`${drawing.name} yüksek çözünürlükte hazırlanıyor…`);
+        setDrawingAnalysisStatus(`${drawing.name} · esas resim yüksek çözünürlükte taranıyor…`);
         const canvas=await technicalImageDataToCanvas(drawing.data,4200);
-        await scanTechnicalCanvas(worker,canvas,drawing.name,baseFrac,span,store);
+        const general=await runTechnicalOcr(worker,canvas,`${drawing.name} genel`,baseFrac,span*.15,11,'contrast','');
+        parseTechnicalTextCandidates(general.text,`${drawing.name} · GENEL`,Math.max(45,Math.min(91,general.confidence)),store);
+        await scanImageUltraDimensions(worker,drawing,drawing.name,baseFrac+span*.16,span*.82,store);
         scannedVisuals++;
       }
     }
+    const prof=chooseTechnicalAnalysis(store);
+    prof.autoAnalyzedAt=todayStr();
+    prof.autoAnalysisSource=selected.map(x=>(x.drawing||x).name||'teknik resim').join(', ');
+    prof.autoAnalysisScannedVisuals=scannedVisuals;
+    prof.autoAnalysisTextLayers=textLayers;
+    prof.autoAnalysisMethod='parça-no eşleşmeli esas resim seçimi + A0/A1 yüksek çözünürlüklü bölgesel OCR + sayısal ölçü taraması';
+    prof.autoAnalysisPrimaryVerified=!!primary.verified;
+    prof.autoAnalysisExpectedPartNo=part.partNo||'';
+    prof.autoAnalysisPrimaryDrawings=selected.map(x=>({
+      name:(x.drawing||x).name||'',
+      detectedDrawingNo:x.detectedDrawingNo||((x.drawing||x).detectedDrawingNo)||'',
+      matchReason:x.matchReason||'tek-resim-fallback'
+    }));
+    prof.autoAnalysisDetectedDrawingNumbers=identityDetails.map(x=>({name:x.drawing?.name||'',drawingNo:x.detectedDrawingNo||'',matched:!!x.matched}));
+    return prof;
   }finally{
     try{await worker.terminate();}catch(_e){}
   }
-  const prof=chooseTechnicalAnalysis(store);
-  prof.autoAnalyzedAt=todayStr();
-  prof.autoAnalysisSource=drawings.map(d=>d.name||'teknik resim').join(', ');
-  prof.autoAnalysisScannedVisuals=scannedVisuals;
-  prof.autoAnalysisTextLayers=textLayers;
-  prof.autoAnalysisMethod='çoklu-geçiş genel + sayısal OCR, 4200px, antet, merkez/kenar bantları, çift yön dikey tarama, sac üçlü ebat çözümleme';
-  return prof;
 }
 function currentStageEstimateStatus(part, company){
   const idx=getCurrentStageIndex(part,company.stages);
@@ -3237,6 +3464,8 @@ function renderProductionEstimateSection(part,company){
         <div class="field"><label>Tolerans Seviyesi</label><select id="ppTolerance"><option value="rough" ${profile.toleranceClass==='rough'?'selected':''}>Geniş</option><option value="normal" ${profile.toleranceClass==='normal'?'selected':''}>Normal</option><option value="precision" ${profile.toleranceClass==='precision'?'selected':''}>Hassas</option></select></div>
       </div>
       ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:10px;">Son teknik resim taraması: <b>${escapeHtml(profile.autoAnalyzedAt)}</b> · Yöntem: ${escapeHtml(profile.autoAnalysisMethod||'teknik resim taraması')} · Güven: <b>%${Number(profile.autoAnalysisConfidence)||0}</b> · Bulunan alan: <b>${Number(profile.autoAnalysisFoundCount)||0}</b>${profile.autoAnalysisSizeDerived?' · En/Boy dış ölçü adaylarından çıkarıldı':''}${Array.isArray(profile.autoAnalysisMissing)&&profile.autoAnalysisMissing.length?` · Bulunamayan: ${escapeHtml(profile.autoAnalysisMissing.join(', '))}`:''}</div>`:''}
+      ${profile.autoAnalyzedAt&&Array.isArray(profile.autoAnalysisPrimaryDrawings)&&profile.autoAnalysisPrimaryDrawings.length?`<div class="analytics-note" style="margin-top:8px;border-left:3px solid ${profile.autoAnalysisPrimaryVerified?'var(--green-signal)':'var(--brass)'};">Esas alınan teknik resim: <b>${escapeHtml(profile.autoAnalysisPrimaryDrawings.map(x=>x.name).join(', '))}</b> · Aranan parça no: <b>${escapeHtml(profile.autoAnalysisExpectedPartNo||part.partNo||'—')}</b> · Antette okunan resim no: <b>${escapeHtml(profile.autoAnalysisPrimaryDrawings.map(x=>x.detectedDrawingNo||'okunamadı').join(', '))}</b>${profile.autoAnalysisPrimaryVerified?' · Parça no eşleşmesi doğrulandı':' · Tek resim olduğu için eşleşme doğrulanmadan kullanıldı'}</div>`:''}
+      ${profile.autoAnalyzedAt&&profile.autoAnalysisTopDimensionText?`<div class="analytics-note" style="margin-top:8px;">OCR ölçü adayları: <b>${escapeHtml(profile.autoAnalysisTopDimensionText)}</b></div>`:''}
       ${Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
       <div id="drawingAnalysisStatus" class="helper-text" style="margin-top:8px;min-height:18px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d && d.data && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
