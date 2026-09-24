@@ -1248,7 +1248,7 @@ async function recoverLegacyParts(){
   return {ok:!writeFailed,restored,mergedCount,legacyCompanies,permissionDenied,writeFailed};
 }
 
-const DEFAULT_STAGES = ['Kesim','CNC','Torna','Büküm','Kaynak','Taşlama','Boya','Kaplama','Montaj','Paketleme','Sevkiyat'];
+const DEFAULT_STAGES = ['Kesim','CNC','Torna','Büküm','Kaynak','Montaj','Taşlama','Boya','Kaplama','Paketleme','Sevkiyat'];
 // Örnekleme / kontrol sıklığı tablosu (kullanıcının verdiği tabloya göre)
 const SAMPLING_TABLE = [
   {min:1,   max:3,     full:true},           // 1-3 arası -> %100 kontrol
@@ -1433,13 +1433,23 @@ function inferPartMonth(part){
 }
 function ensureRequiredStages(stages){
   let out = Array.isArray(stages) && stages.length ? stages.slice() : DEFAULT_STAGES.slice();
+  const sameStage=(a,b)=>String(a||'').toLocaleLowerCase('tr-TR')===String(b||'').toLocaleLowerCase('tr-TR');
   const insertAfter = (name, after)=>{
-    if(out.some(s=>s.toLocaleLowerCase('tr-TR')===name.toLocaleLowerCase('tr-TR'))) return;
-    const idx = out.findIndex(s=>s.toLocaleLowerCase('tr-TR')===after.toLocaleLowerCase('tr-TR'));
+    if(out.some(s=>sameStage(s,name))) return;
+    const idx = out.findIndex(s=>sameStage(s,after));
     if(idx>=0) out.splice(idx+1,0,name); else out.push(name);
+  };
+  const moveAfter = (name, after)=>{
+    const currentIdx=out.findIndex(s=>sameStage(s,name));
+    if(currentIdx<0) return;
+    const [item]=out.splice(currentIdx,1);
+    const afterIdx=out.findIndex(s=>sameStage(s,after));
+    if(afterIdx>=0) out.splice(afterIdx+1,0,item); else out.push(item);
   };
   insertAfter('CNC','Kesim');
   insertAfter('Torna','CNC');
+  insertAfter('Montaj','Kaynak');
+  moveAfter('Montaj','Kaynak');
   insertAfter('Kaplama','Boya');
   return out;
 }
@@ -2216,8 +2226,8 @@ function renderTrackingView(){
                 ${d.type && d.type.startsWith('image/') ?
                   `<img src="${d.data}" class="drawing-thumb" data-view-drawing="${part.id}" data-drawing-idx="${i}"/>` :
                   `<div class="drawing-file-icon" data-view-drawing="${part.id}" data-drawing-idx="${i}">&#128196;</div>`}
-                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?'<span style="color:var(--green-signal);font-weight:800;">MANUEL ESAS RESİM</span> · ':''}${d.detectedDrawingNo?`Antet resim no: <b>${escapeHtml(d.detectedDrawingNo)}</b>${normalizeTechnicalPartNo(d.detectedDrawingNo)===normalizeTechnicalPartNo(part.partNo)?' · <span style="color:var(--green-signal);font-weight:700;">PARÇA NO EŞLEŞTİ</span>':''}`:'Antet henüz taranmadı'}</div></div>
-                ${isAdmin() ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?`<button class="btn btn-ghost btn-sm" data-clear-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Seçimi Kaldır</button>`:`<button class="btn btn-ghost btn-sm" data-set-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Resim Yap</button>`}<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button></div>` : ''}
+                <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?'<span style="color:var(--green-signal);font-weight:800;">MANUEL ESAS RESİM</span> · ':''}${d.manualDrawingType?`<span style="font-weight:800;">${d.manualDrawingType==='assembly'?'MONTAJ RESMİ':'TEK PARÇA RESMİ'}</span> · `:''}${d.detectedDrawingNo?`Antet resim no: <b>${escapeHtml(d.detectedDrawingNo)}</b>${normalizeTechnicalPartNo(d.detectedDrawingNo)===normalizeTechnicalPartNo(part.partNo)?' · <span style="color:var(--green-signal);font-weight:700;">PARÇA NO EŞLEŞTİ</span>':''}`:'Antet henüz taranmadı'}</div></div>
+                ${isAdmin() ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?`<button class="btn btn-ghost btn-sm" data-clear-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Seçimi Kaldır</button>`:`<button class="btn btn-ghost btn-sm" data-set-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Resim Yap</button>`}<button class="btn btn-ghost btn-sm" data-set-drawing-type="assembly" data-part="${part.id}" data-drawing-idx="${i}">Montaj</button><button class="btn btn-ghost btn-sm" data-set-drawing-type="single_part" data-part="${part.id}" data-drawing-idx="${i}">Tek Parça</button>${d.manualDrawingType?`<button class="btn btn-ghost btn-sm" data-set-drawing-type="auto" data-part="${part.id}" data-drawing-idx="${i}">Tipi Otomatikleştir</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button></div>` : ''}
               </div>`).join('')}
           </div>
         ` : (!isAdmin() ? `<div class="helper-text" style="margin:0 0 8px 0;">Henüz teknik resim eklenmedi.</div>` : '')}
@@ -2965,6 +2975,103 @@ function chooseTechnicalAnalysis(store){
   prof.autoAnalysisMissing=['Malzeme','Kalınlık','En/Boy','Delik sayısı','Büküm sayısı','Kaynak uzunluğu'].filter(x=>!found.includes(x));
   return prof;
 }
+
+function technicalDrawingClassification(primary,part){
+  const target=normalizeTechnicalPartNo(part?.partNo||'');
+  const selectedDrawings=(primary?.selected||[]).map(x=>x?.drawing||x).filter(Boolean);
+  const manualTypes=[...new Set(selectedDrawings.map(d=>d.manualDrawingType).filter(x=>x==='assembly'||x==='single_part'))];
+  const identity=(primary?.detected||[]).map(x=>x?.identityText||'').join('\n').toUpperCase();
+  const tokens=[...identity.matchAll(/\b[A-Z][0-9]{5,12}\b/g)].map(m=>normalizeTechnicalPartNo(m[0])).filter(Boolean);
+  const child=[...new Set(tokens.filter(x=>x!==target))];
+  const bomWords=/(?:PART\s*NUMBER|PART\s*NO|PAR[CÇ]A\s*NO|QUANTITY|QTY|ADET|ITEM\s*NO|POS\.?|BOM|BILL\s*OF\s*MATERIAL)/i.test(identity);
+  const assemblyWords=/(?:ASSEMBLY|MONTAJ|WELD(?:ED|MENT)?\s*ASSEMBLY|KAYNAKLI\s*MONTAJ)/i.test(identity);
+  const verified=!!primary?.verified;
+  let type='uncertain',confidence=55,manual=false;
+  if(manualTypes.length===1){type=manualTypes[0];confidence=100;manual=true;}
+  else if(assemblyWords || (bomWords&&child.length>=2) || child.length>=4){type='assembly';confidence=Math.min(99,78+Math.min(18,child.length*3)+(verified?3:0));}
+  else if(verified && child.length<=1 && !bomWords){type='single_part';confidence=88;}
+  else if(verified && child.length<=2){type='single_part';confidence=74;}
+  return {type,confidence,manual,childPartNumbers:child.slice(0,30),bomDetected:bomWords||assemblyWords,identityText:identity};
+}
+function technicalEvidenceRows(prof,field){
+  return Array.isArray(prof?.autoAnalysisEvidence?.[field])?prof.autoAnalysisEvidence[field]:[];
+}
+function technicalHasExplicitEvidence(prof,field){
+  const rows=technicalEvidenceRows(prof,field);
+  if(!rows.length) return false;
+  return rows.some(e=>{
+    const raw=String(e.raw||'').toUpperCase();
+    const src=String(e.source||'').toUpperCase();
+    if(field==='thickness') return /THICK|THK|KAL[Iİ1]NL[Iİ1]K|SAC\s*KAL|\b(?:PL|SAC|SHEET|LEVHA)\s*[-:=]?\s*\d|\d+(?:[.,]\d+)?\s*MM\s*(?:THK|THICK)/i.test(raw);
+    if(field==='size') return /(?:EBAT|ÖL[CÇ][UÜ]|DIMENSION|OVERALL|SIZE|BLANK|EN|WIDTH|BOY|UZUNLUK|LENGTH|LEVHA|PLATE)|\d{2,5}(?:[.,]\d+)?\s*[xX*]\s*\d{2,5}/i.test(raw) && !/DIM FULL|ROTATED DIM/i.test(src);
+    if(field==='material') return /MATERIAL|MALZEME|S235|S275|S355|DC0[14]|DX51|AISI|EN\s*AW|AL\s*\d{4}|ST\s*(?:37|52)/i.test(raw);
+    if(field==='holeCount') return /HOLE|DEL[Iİ1]K|[xX]\s*(?:Ø|DIA|DIAM)/i.test(raw);
+    if(field==='bendCount') return /BEND|B[UÜ]K[UÜ]M/i.test(raw);
+    if(field==='weldLengthMm') return /WELD|KAYNAK/i.test(raw);
+    if(field==='toleranceClass') return /±|TOLER/i.test(raw);
+    return false;
+  });
+}
+function recomputeTechnicalProfileSummary(prof){
+  const found=[];
+  const map=[['material','Malzeme'],['thickness','Kalınlık'],['holeCount','Delik sayısı'],['bendCount','Büküm sayısı'],['weldLengthMm','Kaynak uzunluğu'],['toleranceClass','Tolerans']];
+  for(const [k,label] of map){
+    if(k==='material' ? !!String(prof[k]||'').trim() : (k==='toleranceClass'?!!prof[k]:(Number(prof[k])>0))) found.push(label);
+  }
+  if(Number(prof.width)>0&&Number(prof.length)>0) found.push('En/Boy');
+  prof.autoAnalysisFound=found;
+  prof.autoAnalysisFoundCount=found.length;
+  prof.autoAnalysisMissing=['Malzeme','Kalınlık','En/Boy','Delik sayısı','Büküm sayısı','Kaynak uzunluğu'].filter(x=>!found.includes(x));
+  const cmap=prof.autoAnalysisConfidenceMap||{};
+  const active=[];
+  if(prof.material&&cmap.material)active.push(cmap.material);
+  if(Number(prof.thickness)>0&&cmap.thickness)active.push(cmap.thickness);
+  if(Number(prof.width)>0&&Number(prof.length)>0&&cmap.size)active.push(cmap.size);
+  if(Number(prof.holeCount)>0&&cmap.holeCount)active.push(cmap.holeCount);
+  if(Number(prof.bendCount)>0&&cmap.bendCount)active.push(cmap.bendCount);
+  if(Number(prof.weldLengthMm)>0&&cmap.weldLengthMm)active.push(cmap.weldLengthMm);
+  prof.autoAnalysisConfidence=active.length?Math.round(active.reduce((a,b)=>a+b,0)/active.length):0;
+}
+function applyReliableTechnicalPolicy(prof,classification){
+  prof.autoAnalysisDrawingType=classification.type;
+  prof.autoAnalysisDrawingTypeConfidence=Math.round(classification.confidence||0);
+  prof.autoAnalysisAssemblyLikely=classification.type==='assembly';
+  prof.autoAnalysisAssemblyPartNumbers=classification.childPartNumbers||[];
+  prof.autoAnalysisBomDetected=!!classification.bomDetected;
+  // Preserve OCR dimension candidates as references even when we deliberately do not map them to En/Boy.
+  prof.autoAnalysisReferenceDimensions=Array.isArray(prof.autoAnalysisDetectedDimensions)?prof.autoAnalysisDetectedDimensions.slice(0,12):[];
+
+  if(classification.type==='assembly'){
+    // Assembly drawings contain dimensions from several child parts. Do not write them into manufacturing fields.
+    prof.material=''; prof.thickness=''; prof.width=0; prof.length=0;
+    prof.holeCount=0; prof.bendCount=0; prof.weldLengthMm=0;
+    prof.toleranceClass='normal';
+    prof.autoAnalysisSizeDerived=false;
+    prof.autoAnalysisThicknessNote='Montaj resmi: üretim kalınlığı alt parçanın kendi teknik resminden alınmalıdır.';
+    prof.autoAnalysisPolicyNote='Montaj resmi doğrulandı. Alt parçalara ait ölçüler birbirine karışmasın diye malzeme/kalınlık/en-boy otomatik doldurulmadı.';
+    recomputeTechnicalProfileSummary(prof);
+    return prof;
+  }
+
+  // For single/uncertain drawings, only retain fields with semantic evidence.
+  const strict=classification.type==='uncertain';
+  if(prof.material && !technicalHasExplicitEvidence(prof,'material')) prof.material='';
+  if(Number(prof.thickness)>0 && !technicalHasExplicitEvidence(prof,'thickness')) prof.thickness='';
+  if(Number(prof.width)>0&&Number(prof.length)>0){
+    const explicitSize=technicalHasExplicitEvidence(prof,'size');
+    const sizeConf=Number(prof.autoAnalysisConfidenceMap?.size)||0;
+    if(!explicitSize && (strict || prof.autoAnalysisSizeDerived || sizeConf<82)){prof.width=0;prof.length=0;prof.autoAnalysisSizeDerived=false;}
+  }
+  if(Number(prof.holeCount)>0&&!technicalHasExplicitEvidence(prof,'holeCount')) prof.holeCount=0;
+  if(Number(prof.bendCount)>0&&!technicalHasExplicitEvidence(prof,'bendCount')) prof.bendCount=0;
+  if(Number(prof.weldLengthMm)>0&&!technicalHasExplicitEvidence(prof,'weldLengthMm')) prof.weldLengthMm=0;
+  if(prof.toleranceClass==='precision'&&!technicalHasExplicitEvidence(prof,'toleranceClass')) prof.toleranceClass='normal';
+  prof.autoAnalysisPolicyNote=classification.type==='single_part'
+    ?'Tek parça resmi: yalnızca açık etiket/ölçü kanıtı olan alanlar otomatik dolduruldu.'
+    :'Çizim tipi kesinleşmedi: yalnızca çok açık kanıtı olan alanlar tutuldu.';
+  recomputeTechnicalProfileSummary(prof);
+  return prof;
+}
 function enhanceTechnicalCanvas(sourceCanvas,mode){
   const c=document.createElement('canvas'); c.width=sourceCanvas.width; c.height=sourceCanvas.height;
   const ctx=c.getContext('2d',{willReadFrequently:true}); ctx.drawImage(sourceCanvas,0,0);
@@ -3239,7 +3346,7 @@ async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBas
       for(let pn=1;pn<=pages;pn++){
         const page=await doc.getPage(pn);
         // IMPORTANT: only the real bottom-right title block. This avoids BOM child part numbers.
-        const title=await technicalPdfRegionToCanvas(page,.60,.80,.40,.20,4200);
+        const title=await technicalPdfRegionToCanvas(page,.55,.70,.45,.30,4200);
         const r11=await runTechnicalOcr(worker,title,`${drawing.name} · s.${pn} antet 11`,progressBase+progressSpan*((pn-1)/pages),progressSpan/pages*.28,11,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
         const r12=await runTechnicalOcr(worker,title,`${drawing.name} · s.${pn} antet 12`,progressBase+progressSpan*((pn-.70)/pages),progressSpan/pages*.25,12,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
         const r6=await runTechnicalOcr(worker,title,`${drawing.name} · s.${pn} antet binary`,progressBase+progressSpan*((pn-.43)/pages),progressSpan/pages*.20,11,'binary','ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/');
@@ -3247,7 +3354,7 @@ async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBas
       }
     }else{
       result.imageData=drawing.data;
-      const title=await technicalImageRegionToCanvas(drawing.data,.60,.80,.40,.20,4200);
+      const title=await technicalImageRegionToCanvas(drawing.data,.55,.70,.45,.30,4200);
       const r11=await runTechnicalOcr(worker,title,`${drawing.name} · antet 11`,progressBase,progressSpan*.34,11,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
       const r12=await runTechnicalOcr(worker,title,`${drawing.name} · antet 12`,progressBase+progressSpan*.35,progressSpan*.28,12,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
       const r6=await runTechnicalOcr(worker,title,`${drawing.name} · antet binary`,progressBase+progressSpan*.64,progressSpan*.26,11,'binary','ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/');
@@ -3424,20 +3531,14 @@ async function deepAnalyzeTechnicalDrawings(part){
         scannedVisuals++;
       }
     }
-    const prof=chooseTechnicalAnalysis(store);
-    const identityCombined=(primary.detected||[]).map(x=>x.identityText||'').join('\n');
-    const partTokens=[...identityCombined.toUpperCase().matchAll(/\b[A-Z][0-9]{6,12}\b/g)].map(m=>normalizeTechnicalPartNo(m[0]));
-    const uniqueChildTokens=[...new Set(partTokens.filter(x=>x&&x!==normalizeTechnicalPartNo(part.partNo)))];
-    prof.autoAnalysisAssemblyLikely=uniqueChildTokens.length>=3 || /PART\s*NUMBER|QUANTITY/i.test(identityCombined);
-    prof.autoAnalysisAssemblyPartNumbers=uniqueChildTokens.slice(0,20);
-    if(prof.autoAnalysisAssemblyLikely && !prof.thickness){
-      prof.autoAnalysisThicknessNote='Montaj resmi: antette tek bir sac kalınlığı belirtilmemiş olabilir.';
-    }
+    const classification=technicalDrawingClassification(primary,part);
+    let prof=chooseTechnicalAnalysis(store);
+    prof=applyReliableTechnicalPolicy(prof,classification);
     prof.autoAnalyzedAt=todayStr();
     prof.autoAnalysisSource=selected.map(x=>(x.drawing||x).name||'teknik resim').join(', ');
     prof.autoAnalysisScannedVisuals=scannedVisuals;
     prof.autoAnalysisTextLayers=textLayers;
-    prof.autoAnalysisMethod='parça-no eşleşmeli esas resim seçimi + A0/A1 yüksek çözünürlüklü bölgesel OCR + sayısal ölçü taraması';
+    prof.autoAnalysisMethod='parça-no eşleşmeli esas resim + çizim tipi sınıflandırma + güvenilir-alan filtresi + yüksek çözünürlüklü OCR';
     prof.autoAnalysisPrimaryVerified=!!primary.verified;
     prof.autoAnalysisExpectedPartNo=part.partNo||'';
     prof.autoAnalysisPrimaryDrawings=selected.map(x=>({
@@ -3502,7 +3603,7 @@ function renderProductionEstimateSection(part,company){
   return `
     <div class="section-title">Tahmini Proses Süreleri</div>
     <div class="card" style="padding:16px;margin-bottom:14px;">
-      <div class="analytics-note" style="margin-bottom:12px;">Teknik resim taraması PDF metnini ve teknik resmin gerçek görüntüsünü yüksek çözünürlüklü OCR ile birlikte inceler. Yalnızca yeterli güvene ulaşan değerler otomatik doldurulur; yine de üretime esas almadan önce bulunan değerleri kontrol edin. Süreler sipariş adedi ve onaylanan parça özelliklerinden operasyonel tahmin üretir.</div>
+      <div class="analytics-note" style="margin-bottom:12px;">Analiz önce doğru esas resmi ve çizim tipini belirler. Montaj resminde alt parça ölçülerini üretim ölçüsü diye yazmaz; tek-parça resminde yalnızca açık etiket/ölçü kanıtı bulunan alanları doldurur. Böylece az veri bulsa bile yanlış veri üretmek yerine güvenilir kalır.</div>
       ${isAdmin()?`<div class="profile-grid">
         <div class="field"><label>Malzeme</label><input id="ppMaterial" type="text" value="${escapeHtml(profile.material||'')}" placeholder="Bulunamadı"/></div>
         <div class="field"><label>Kalınlık (mm)</label><input id="ppThickness" type="text" inputmode="decimal" value="${escapeHtml(decimalDisplay(profile.thickness))}" placeholder="Bulunamadı"/></div>
@@ -3515,10 +3616,12 @@ function renderProductionEstimateSection(part,company){
         <div class="field"><label>Tolerans Seviyesi</label><select id="ppTolerance"><option value="rough" ${profile.toleranceClass==='rough'?'selected':''}>Geniş</option><option value="normal" ${profile.toleranceClass==='normal'?'selected':''}>Normal</option><option value="precision" ${profile.toleranceClass==='precision'?'selected':''}>Hassas</option></select></div>
       </div>
       ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:10px;">Son teknik resim taraması: <b>${escapeHtml(profile.autoAnalyzedAt)}</b> · Yöntem: ${escapeHtml(profile.autoAnalysisMethod||'teknik resim taraması')} · Güven: <b>%${Number(profile.autoAnalysisConfidence)||0}</b> · Bulunan alan: <b>${Number(profile.autoAnalysisFoundCount)||0}</b>${profile.autoAnalysisSizeDerived?' · En/Boy dış ölçü adaylarından çıkarıldı':''}${Array.isArray(profile.autoAnalysisMissing)&&profile.autoAnalysisMissing.length?` · Bulunamayan: ${escapeHtml(profile.autoAnalysisMissing.join(', '))}`:''}</div>`:''}
-      ${profile.autoAnalysisAssemblyLikely?`<div class="analytics-note" style="margin-top:8px;border-left:3px solid var(--brass);"><b>Montaj resmi algılandı.</b> Bu resimde alt parçalar bulunduğu için tek bir sac kalınlığı/malzeme olmayabilir. Uygulama kalınlık uydurmaz; alt parçanın kendi Drawing Nr. eşleşen teknik resmini esas alır.</div>`:''}
+      ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:8px;border-left:3px solid ${profile.autoAnalysisDrawingType==='single_part'?'var(--green-signal)':profile.autoAnalysisDrawingType==='assembly'?'var(--brass)':'var(--gray-500)'};"><b>Çizim tipi:</b> ${profile.autoAnalysisDrawingType==='single_part'?'Tek parça':profile.autoAnalysisDrawingType==='assembly'?'Montaj':'Belirsiz'} ${profile.autoAnalysisDrawingTypeConfidence===100?' · manuel tip':' · sınıflandırma güveni %'+(Number(profile.autoAnalysisDrawingTypeConfidence)||0)}${profile.autoAnalysisAssemblyLikely?` · BOM/alt parça: ${Number((profile.autoAnalysisAssemblyPartNumbers||[]).length)}`:''}</div>`:''}
+      ${profile.autoAnalysisPolicyNote?`<div class="analytics-note" style="margin-top:8px;">${escapeHtml(profile.autoAnalysisPolicyNote)}</div>`:''}
+      ${profile.autoAnalysisAssemblyLikely&&Array.isArray(profile.autoAnalysisReferenceDimensions)&&profile.autoAnalysisReferenceDimensions.length?`<div class="helper-text" style="margin-top:6px;">Montajdaki referans ölçü adayları (En/Boy alanına yazılmaz): ${profile.autoAnalysisReferenceDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
       ${profile.autoAnalyzedAt&&Array.isArray(profile.autoAnalysisPrimaryDrawings)&&profile.autoAnalysisPrimaryDrawings.length?`<div class="analytics-note" style="margin-top:8px;border-left:3px solid ${profile.autoAnalysisPrimaryVerified?'var(--green-signal)':'var(--brass)'};">Esas alınan teknik resim: <b>${escapeHtml(profile.autoAnalysisPrimaryDrawings.map(x=>x.name).join(', '))}</b> · Aranan parça no: <b>${escapeHtml(profile.autoAnalysisExpectedPartNo||part.partNo||'—')}</b> · Antette okunan resim no: <b>${escapeHtml(profile.autoAnalysisPrimaryDrawings.map(x=>x.detectedDrawingNo||'okunamadı').join(', '))}</b>${profile.autoAnalysisPrimaryVerified?' · Parça no eşleşmesi doğrulandı':' · Tek resim olduğu için eşleşme doğrulanmadan kullanıldı'}</div>`:''}
       ${profile.autoAnalyzedAt&&profile.autoAnalysisTopDimensionText?`<div class="analytics-note" style="margin-top:8px;">OCR ölçü adayları: <b>${escapeHtml(profile.autoAnalysisTopDimensionText)}</b></div>`:''}
-      ${Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
+      ${!profile.autoAnalysisAssemblyLikely&&Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
       <div id="drawingAnalysisStatus" class="helper-text" style="margin-top:8px;min-height:18px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d && d.data && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
       <div class="process-estimate-grid">
@@ -4467,7 +4570,7 @@ function renderModal(){
         <table class="preview-table">
           <thead><tr><th>Dosya</th><th>Eşleşen Parça</th></tr></thead>
           <tbody>
-            ${preview.matches.slice(0,10).map(m=>`<tr><td>${escapeHtml(m.file.name)}</td><td><span class="part-no-tag">${escapeHtml(m.part.partNo)}</span> ${escapeHtml(m.part.partName||'')}</td></tr>`).join('')}
+            ${preview.matches.slice(0,10).map(m=>`<tr><td>${escapeHtml(m.file.webkitRelativePath||m.file.name)}</td><td><span class="part-no-tag">${escapeHtml(m.part.partNo)}</span> ${escapeHtml(m.part.partName||'')}</td></tr>`).join('')}
           </tbody>
         </table>
         ${preview.matches.length>10 ? `<div class="helper-text">…ve ${preview.matches.length-10} tane daha</div>` : ''}
@@ -4477,7 +4580,7 @@ function renderModal(){
         <table class="preview-table">
           <thead><tr><th>Dosya</th><th>Sebep</th></tr></thead>
           <tbody>
-            ${preview.unmatched.slice(0,10).map(u=>`<tr><td>${escapeHtml(u.file.name)}</td><td style="color:var(--red-700);">${escapeHtml(u.reason)}</td></tr>`).join('')}
+            ${preview.unmatched.slice(0,10).map(u=>`<tr><td>${escapeHtml(u.file.webkitRelativePath||u.file.name)}</td><td style="color:var(--red-700);">${escapeHtml(u.reason)}</td></tr>`).join('')}
           </tbody>
         </table>
         ${preview.unmatched.length>10 ? `<div class="helper-text">…ve ${preview.unmatched.length-10} tane daha</div>` : ''}
@@ -4883,6 +4986,18 @@ function attachHandlers(){
           showToast('Dosya açılamadı.');
         }
       }
+    });
+  });
+  app.querySelectorAll('[data-set-drawing-type]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part')); if(!part) return;
+      const idx=Number(el.getAttribute('data-drawing-idx')); const d=(part.drawings||[])[idx]; if(!d) return;
+      const type=el.getAttribute('data-set-drawing-type');
+      if(type==='assembly'||type==='single_part') d.manualDrawingType=type; else delete d.manualDrawingType;
+      await persistParts(company.id);
+      showToast(type==='assembly'?'Teknik resim Montaj olarak işaretlendi.':type==='single_part'?'Teknik resim Tek Parça olarak işaretlendi.':'Çizim tipi tekrar otomatik algılanacak.');
+      render();
     });
   });
   app.querySelectorAll('[data-set-primary-drawing]').forEach(el=>{
@@ -5589,10 +5704,11 @@ async function handleAction(action, el){
         await persistParts(company.id);
         const missing=Array.isArray(prof.autoAnalysisMissing)?prof.autoAnalysisMissing:[];
         const missingText=missing.length?'Bulunamayan: '+missing.join(', '):'Temel alanların tamamı bulundu.';
-        const assemblyText=prof.autoAnalysisAssemblyLikely?' Montaj resmi algılandı; tek sac kalınlığı olmayabilir.':'';
-        const msg=prof.autoAnalysisFoundCount
-          ? `${prof.autoAnalysisFoundCount} alan bulundu · ortalama güven %${prof.autoAnalysisConfidence}. ${missingText}${assemblyText}`
-          : `Görseller tarandı ancak güvenilir üretim ölçüsü çıkarılamadı. Değer uydurulmadı.${assemblyText}`;
+        const msg=prof.autoAnalysisAssemblyLikely
+          ? `Montaj resmi doğrulandı. Esas Drawing Nr. kontrol edildi; ${Number((prof.autoAnalysisAssemblyPartNumbers||[]).length)} alt parça/BOM adayı görüldü. Karışmaması için parça üretim ölçüleri otomatik doldurulmadı.`
+          : (prof.autoAnalysisFoundCount
+            ? `${prof.autoAnalysisFoundCount} güvenilir alan bulundu · ortalama güven %${prof.autoAnalysisConfidence}. ${missingText}`
+            : `Tarama tamamlandı; güvenilir üretim alanı çıkarılamadı. Yanlış değer yazılmadı.`);
         showToast(msg);
         render();
       }catch(err){
@@ -5991,34 +6107,44 @@ function readFileAsDataURL(file){
 function findMatchingPart(file, parts){
   const relPath = file.webkitRelativePath || '';
   const pathParts = relPath.split('/').filter(Boolean);
-  const nameNoExt = file.name.replace(/\.[^.\/\\]+$/, '');
+  const nameNoExt = file.name.replace(/\.[^.]+$/, '');
 
-  // 1) Klasör yapısı varsa: dosyanın bulunduğu klasörün adı parça no'suyla TAM eşleşiyor mu (en güvenilir yöntem)
-  if(pathParts.length >= 2){
-    const folderName = pathParts[pathParts.length-2].trim().toLowerCase();
-    const exact = parts.find(p=> (p.partNo||'').trim().toLowerCase() === folderName);
+  // Klasör seçimi alt klasörleri zaten recursive getirir. Burada dosyanın yalnızca
+  // hemen üst klasörüne değil, köke kadar tüm ata klasörlerine bakıyoruz.
+  // Örn: E3808761/DETAYLAR/KAYNAK/resim.pdf -> E3808761 parçasına bağlanır.
+  const ancestorFolders = pathParts.length >= 2 ? pathParts.slice(0,-1) : [];
+  const norm=s=>String(s||'').trim().toLocaleLowerCase('tr-TR');
+
+  // 1) Herhangi bir ata klasör adı parça numarasıyla TAM eşleşiyorsa kullan.
+  // En iç klasörden köke doğru kontrol edilir.
+  for(let i=ancestorFolders.length-1;i>=0;i--){
+    const folderName=norm(ancestorFolders[i]);
+    const exact=parts.find(p=>norm(p.partNo)===folderName);
     if(exact) return exact;
   }
-  // 2) Klasör adının İÇİNDE parça no geçiyor mu (klasör ismi ekstra açıklama içeriyor olabilir)
-  if(pathParts.length >= 2){
-    const folderName = pathParts[pathParts.length-2].toLowerCase();
-    let best = null;
+
+  // 2) Ata klasör adının içinde parça no geçiyorsa da eşleştir.
+  // Örn: "E3808761 - KAYNAKLI MONTAJ".
+  for(let i=ancestorFolders.length-1;i>=0;i--){
+    const folderName=norm(ancestorFolders[i]);
+    let bestFolderMatch=null;
     parts.forEach(p=>{
-      const no = (p.partNo||'').trim();
+      const no=String(p.partNo||'').trim();
       if(!no) return;
-      if(folderName.includes(no.toLowerCase())){
-        if(!best || no.length > best.partNo.length) best = p;
+      if(folderName.includes(norm(no))){
+        if(!bestFolderMatch || no.length>String(bestFolderMatch.partNo||'').length) bestFolderMatch=p;
       }
     });
-    if(best) return best;
+    if(bestFolderMatch) return bestFolderMatch;
   }
-  // 3) Klasör yoksa veya eşleşmediyse: dosya adının içinde parça no geçiyor mu (eski yöntem, yedek olarak)
+
+  // 3) Klasörlerden eşleşme çıkmazsa dosya adını yedek yöntem olarak kullan.
   let best = null;
   parts.forEach(p=>{
-    const no = (p.partNo||'').trim();
+    const no = String(p.partNo||'').trim();
     if(!no) return;
-    if(nameNoExt.toLowerCase().includes(no.toLowerCase())){
-      if(!best || no.length > best.partNo.length) best = p;
+    if(norm(nameNoExt).includes(norm(no))){
+      if(!best || no.length > String(best.partNo||'').length) best = p;
     }
   });
   return best;
@@ -6060,7 +6186,7 @@ async function confirmBulkDrawings(){
       const livePart = parts.find(p=>p.id===m.part.id);
       if(livePart){
         if(!Array.isArray(livePart.drawings)) livePart.drawings = [];
-        livePart.drawings.push({ name: m.file.name, type: m.file.type, data: dataUrl });
+        livePart.drawings.push({ name: m.file.name, type: m.file.type, data: dataUrl, relativePath: m.file.webkitRelativePath || m.file.name });
         ok++;
       }
     }catch(e){ fail++; }
