@@ -2051,8 +2051,11 @@ function renderPartsView(){
         <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
         ${isAdmin() ? `
+        <button class="btn btn-ghost" data-action="selectAllMonthParts">☑ Tümünü Seç</button>
+        <button class="btn btn-danger-ghost" data-action="openDeleteSelectedParts" ${state.selectedPartIds.size===0?'disabled':''}>🗑 Seçilenleri Sil${state.selectedPartIds.size?` (${state.selectedPartIds.size})`:''}</button>
+        <button class="btn btn-danger-ghost" data-action="openDeleteAllMonthParts" ${rawMonthParts.length===0?'disabled':''}>🗑 Bu Ayın Tümünü Sil</button>
         <button class="btn btn-ghost" data-action="openStages">Proses Aşamaları</button>
         <button class="btn btn-ghost" data-action="openDrawingTrash">&#128465; Çöp Kutusu${state.drawingTrash.length?` (${state.drawingTrash.length})`:''}</button>
         <button class="btn btn-navy" data-action="openImport">&#128228; Excel / CSV Yükle</button>
@@ -2083,13 +2086,12 @@ function renderPartsView(){
         ${rawMonthParts.length===0 && isAdmin() ? `<button class="btn btn-primary" data-action="openAddPart">+ Bu Aya Parça Ekle</button>` : ''}
       </div>
     ` : `
-      ${isAdmin() ? `
+      ${isAdmin() && state.selectedPartIds.size>0 ? `
       <div class="bulk-bar" style="margin-bottom:10px;">
-        <span class="bulk-count">${state.selectedPartIds.size>0?`<b>${state.selectedPartIds.size}</b> parça seçili`:`Bu ay toplam <b>${rawMonthParts.length}</b> parça`}</span>
+        <span class="bulk-count"><b>${state.selectedPartIds.size}</b> parça seçili</span>
         <div class="spacer"></div>
-        <button class="btn btn-ghost btn-sm" data-action="selectAllMonthParts">Tümünü Seç</button>
-        ${state.selectedPartIds.size>0?`<button class="btn btn-ghost btn-sm" data-action="openBulkRename">Toplu İsim Değiştir</button><button class="btn btn-danger-ghost btn-sm" data-action="openDeleteSelectedParts">Seçilenleri Sil</button><button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>`:''}
-        ${rawMonthParts.length>0?`<button class="btn btn-danger-ghost btn-sm" data-action="openDeleteAllMonthParts">Tümünü Sil</button>`:''}
+        <button class="btn btn-ghost btn-sm" data-action="openBulkRename">Toplu İsim Değiştir</button>
+        <button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>
       </div>` : ''}
       <div style="overflow-x:auto;">
       <table class="data-table">
