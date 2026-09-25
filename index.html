@@ -2108,16 +2108,6 @@ function renderPartsView(){
         <option value="has" ${state.drawingFilter==='has'?'selected':''}>Teknik Resmi Olanlar</option>
       </select>
     </div>
-    ${isInternal() ? `
-    <div class="bulk-bar" style="margin:10px 0 14px;border:2px solid rgba(153,27,27,.28);background:#fff;box-shadow:0 4px 18px rgba(15,23,42,.05);">
-      <span class="bulk-count"><b>PARÇA İŞLEMLERİ</b> · ${state.selectedPartIds.size>0?`<b>${state.selectedPartIds.size}</b> seçili`:`Bu ay <b>${rawMonthParts.length}</b> parça`}</span>
-      <div class="spacer"></div>
-      <button class="btn btn-ghost btn-sm" data-action="selectAllMonthParts">☑ Tümünü Seç</button>
-      <button class="btn btn-danger-ghost btn-sm" data-action="openDeleteSelectedParts" ${state.selectedPartIds.size===0?'disabled':''}>🗑 Seçilenleri Sil${state.selectedPartIds.size?` (${state.selectedPartIds.size})`:''}</button>
-      <button class="btn btn-danger-ghost btn-sm" data-action="openDeleteAllMonthParts" ${rawMonthParts.length===0?'disabled':''}>🗑 Bu Ayın Tümünü Sil</button>
-      ${state.selectedPartIds.size>0?`<button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>`:''}
-      <span style="font-size:10px;font-weight:800;color:var(--gray-500);">UI v2026.09.25.3</span>
-    </div>` : ''}
     ${parts.length===0 ? `
       <div class="empty-state">
         <div class="ico">&#128230;</div>
