@@ -2025,6 +2025,37 @@ function renderCompaniesView(){
   `;
 }
 
+
+function normalizePartSearchText(value){
+  return String(value||'').trim().toLocaleLowerCase('tr-TR');
+}
+function findPartDrawingSearchMatch(part, query){
+  const q=normalizePartSearchText(query);
+  if(!q) return null;
+  const drawings=Array.isArray(part&&part.drawings)?part.drawings:[];
+  return drawings.find(d=>{
+    if(!d) return false;
+    const fields=[
+      d.name,
+      d.relativePath,
+      d.detectedDrawingNo,
+      d.manualPrimaryPartNo
+    ];
+    return fields.some(v=>normalizePartSearchText(v).includes(q));
+  }) || null;
+}
+function partMatchesSearch(part, query){
+  const q=normalizePartSearchText(query);
+  if(!q) return true;
+  if(normalizePartSearchText(part&&part.partNo).includes(q)) return true;
+  if(normalizePartSearchText(part&&part.partName).includes(q)) return true;
+  return !!findPartDrawingSearchMatch(part,q);
+}
+function drawingSearchDisplayName(drawing){
+  if(!drawing) return '';
+  return drawing.relativePath || drawing.name || drawing.detectedDrawingNo || '';
+}
+
 /* ============================= PARTS VIEW ============================= */
 function renderPartsView(){
   const company = getCompany(state.selectedCompanyId);
@@ -2034,8 +2065,7 @@ function renderPartsView(){
   let parts = getMonthParts(company.id, monthKey);
   const rawMonthParts = parts.slice();
   if(state.search.trim()){
-    const q = state.search.trim().toLowerCase();
-    parts = parts.filter(p => (p.partNo||'').toLowerCase().includes(q) || (p.partName||'').toLowerCase().includes(q));
+    parts = parts.filter(p => partMatchesSearch(p, state.search));
   }
   if(state.drawingFilter==='missing') parts = parts.filter(p => !(p.drawings && p.drawings.length));
   if(state.drawingFilter==='has') parts = parts.filter(p => p.drawings && p.drawings.length);
@@ -2066,7 +2096,7 @@ function renderPartsView(){
     </div>
     ${renderCompanyMonthBar(company)}
     <div class="toolbar">
-      <div class="search-box"><input type="text" id="searchInput" placeholder="Parça no veya adı ile ara…" value="${escapeHtml(state.search)}"/></div>
+      <div class="search-box"><input type="text" id="searchInput" placeholder="Parça no, adı veya teknik resim adı ile ara…" value="${escapeHtml(state.search)}"/></div>
       <select class="filter-select" id="shipmentFilterSelect">
         <option value="all" ${state.shipmentFilter==='all'?'selected':''}>Tüm Durumlar (${rawMonthParts.length})</option>
         <option value="active" ${state.shipmentFilter==='active'?'selected':''}>Aktif / Sevk Edilmemiş (${activeCount})</option>
@@ -2078,6 +2108,16 @@ function renderPartsView(){
         <option value="has" ${state.drawingFilter==='has'?'selected':''}>Teknik Resmi Olanlar</option>
       </select>
     </div>
+    ${isInternal() ? `
+    <div class="bulk-bar" style="margin:10px 0 14px;border:2px solid rgba(153,27,27,.28);background:#fff;box-shadow:0 4px 18px rgba(15,23,42,.05);">
+      <span class="bulk-count"><b>PARÇA İŞLEMLERİ</b> · ${state.selectedPartIds.size>0?`<b>${state.selectedPartIds.size}</b> seçili`:`Bu ay <b>${rawMonthParts.length}</b> parça`}</span>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost btn-sm" data-action="selectAllMonthParts">☑ Tümünü Seç</button>
+      <button class="btn btn-danger-ghost btn-sm" data-action="openDeleteSelectedParts" ${state.selectedPartIds.size===0?'disabled':''}>🗑 Seçilenleri Sil${state.selectedPartIds.size?` (${state.selectedPartIds.size})`:''}</button>
+      <button class="btn btn-danger-ghost btn-sm" data-action="openDeleteAllMonthParts" ${rawMonthParts.length===0?'disabled':''}>🗑 Bu Ayın Tümünü Sil</button>
+      ${state.selectedPartIds.size>0?`<button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>`:''}
+      <span style="font-size:10px;font-weight:800;color:var(--gray-500);">UI v2026.09.25.3</span>
+    </div>` : ''}
     ${parts.length===0 ? `
       <div class="empty-state">
         <div class="ico">&#128230;</div>
@@ -2086,7 +2126,7 @@ function renderPartsView(){
         ${rawMonthParts.length===0 && isAdmin() ? `<button class="btn btn-primary" data-action="openAddPart">+ Bu Aya Parça Ekle</button>` : ''}
       </div>
     ` : `
-      ${isAdmin() && state.selectedPartIds.size>0 ? `
+      ${isInternal() && state.selectedPartIds.size>0 ? `
       <div class="bulk-bar" style="margin-bottom:10px;">
         <span class="bulk-count"><b>${state.selectedPartIds.size}</b> parça seçili</span>
         <div class="spacer"></div>
@@ -2097,7 +2137,7 @@ function renderPartsView(){
       <table class="data-table">
         <thead><tr>
           <th style="width:30px;"></th>
-          ${isAdmin() ? `<th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>` : ''}
+          ${isInternal() ? `<th class="row-check"><input type="checkbox" class="sel-check" id="selectAllCheck" ${parts.length>0 && parts.every(p=>state.selectedPartIds.has(p.id))?'checked':''}/></th>` : ''}
           <th>Parça No</th><th>Parça Adı</th><th>Mevcut Aşama</th><th>Termin</th><th>İstenen</th><th>${escapeHtml(stages[stages.length-1])}</th><th>Ret</th><th>Kalan</th><th>İlerleme</th><th>Durum</th><th>Son Güncelleme</th><th></th>
         </tr></thead>
         <tbody>
@@ -2114,11 +2154,12 @@ function renderPartsView(){
             const curEntry = curStage ? getStageLastEntry(p, curStage) : null;
             const curDays = curEntry ? daysSince(curEntry.date) : null;
             const isPinned = state.pinnedParts.includes(p.id);
+            const searchMatchedDrawing = state.search.trim() ? findPartDrawingSearchMatch(p, state.search) : null;
             return `
             <tr class="part-row-clickable" data-row-part="${p.id}" data-row-company="${company.id}">
               <td><span class="part-row-pin ${isPinned?'pinned':''}" data-pin-part="${p.id}" title="${isPinned?'Sabitlemeyi kaldır':'En üste sabitle'}">${isPinned?'📌':'📍'}</span></td>
-              ${isAdmin() ? `<td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>` : ''}
-              <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${(p.drawings&&p.drawings.length)?` <span title="${p.drawings.length} teknik resim eklendi" class="drawing-attach-icon">&#128206; ${p.drawings.length}</span>`:''}</td>
+              ${isInternal() ? `<td class="row-check"><input type="checkbox" class="sel-check part-check" data-part-check="${p.id}" ${state.selectedPartIds.has(p.id)?'checked':''}/></td>` : ''}
+              <td><span class="part-no-tag">${escapeHtml(p.partNo)}</span>${openNcr?` <span title="Açık uygunsuzluk kaydı" style="color:var(--red-600);font-weight:700;font-size:11px;">⚠ ${openNcr}</span>`:''}${(p.drawings&&p.drawings.length)?` <span title="${p.drawings.length} teknik resim eklendi" class="drawing-attach-icon">&#128206; ${p.drawings.length}</span>`:''}${searchMatchedDrawing?`<div class="helper-text" style="margin:3px 0 0;color:var(--navy-700);">📎 ${escapeHtml(drawingSearchDisplayName(searchMatchedDrawing))}</div>`:''}</td>
               <td>${p.partName ? escapeHtml(p.partName) : '<span style="color:var(--gray-500);font-style:italic;">(isim yok)</span>'}</td>
               <td>${curStage ? `<b style="color:var(--navy-800);">${escapeHtml(curStage)}</b>${curDays!=null?`<div class="helper-text" style="margin:0;">${curDays} gündür</div>`:''}` : '<span style="color:var(--gray-500);">—</span>'}</td>
               <td>${p.dueDate ? `<span style="font-size:12px;font-weight:700;color:${dueDateStatus(p.dueDate)==='overdue'?'var(--red-700)':dueDateStatus(p.dueDate)==='soon'?'var(--red-600)':'var(--gray-700)'};">${fmtDueDate(p.dueDate)}</span>` : '<span style="color:var(--gray-500);">—</span>'}</td>
@@ -2177,20 +2218,23 @@ function renderTrackingView(){
       <div style="display:flex;gap:8px;align-items:center;position:relative;flex-wrap:wrap;">
         <select class="filter-select" id="shipmentFilterSelect" title="Parça durum filtresi"><option value="all" ${state.shipmentFilter==='all'?'selected':''}>Tüm Durumlar</option><option value="active" ${state.shipmentFilter==='active'?'selected':''}>Aktif / Sevk Edilmemiş</option><option value="shipped" ${state.shipmentFilter==='shipped'?'selected':''}>Sevk Edilen</option></select>
         <div class="part-search-wrap">
-          <input type="text" class="stage-select" id="partSearchInput" placeholder="Parça no veya adı yazın…" value="" autocomplete="off"/>
+          <input type="text" class="stage-select" id="partSearchInput" placeholder="Parça no, adı veya teknik resim adı yazın…" value="" autocomplete="off"/>
           <div class="part-search-dropdown" id="partSearchDropdown" style="display:${state.partSearchOpen?'block':'none'};">
             ${pinnedPartsInCompany.filter(p=>{
               if(state.shipmentFilter==='active' && partStatus(p,stages)==='shipped') return false;
               if(state.shipmentFilter==='shipped' && partStatus(p,stages)!=='shipped') return false;
-              const q = state.partSearchQuery.trim().toLowerCase();
+              const q = state.partSearchQuery.trim();
               if(!q) return true;
-              return (p.partNo||'').toLowerCase().includes(q) || (p.partName||'').toLowerCase().includes(q);
-            }).map(p=>`
+              return partMatchesSearch(p, q);
+            }).map(p=>{
+              const searchMatchedDrawing=findPartDrawingSearchMatch(p,state.partSearchQuery);
+              return `
               <div class="part-search-item ${p.id===part.id?'active':''}" data-search-select-part="${p.id}">
                 <span class="part-no-tag">${escapeHtml(p.partNo)}</span>
-                <span class="psi-name">${escapeHtml(p.partName||'(isim yok)')}</span>
+                <span class="psi-name">${escapeHtml(p.partName||'(isim yok)')}${searchMatchedDrawing?`<span class="helper-text" style="display:block;margin:2px 0 0;color:var(--navy-700);">📎 ${escapeHtml(drawingSearchDisplayName(searchMatchedDrawing))}</span>`:''}</span>
                 ${state.pinnedParts.includes(p.id)?'<span class="psi-pin">📌</span>':''}
-              </div>`).join('') || `<div class="part-search-empty">Eşleşen parça yok</div>`}
+              </div>`;
+            }).join('') || `<div class="part-search-empty">Eşleşen parça yok</div>`}
           </div>
         </div>
         <button class="btn btn-primary btn-sm" data-action="openAddPart" style="white-space:nowrap;" ${!isAdmin()?'disabled':''}>+ Parça Ekle</button>
@@ -4891,8 +4935,7 @@ function attachHandlers(){
       const stages = company.stages;
       let parts = getMonthParts(company.id, activeMonthKey(company.id));
       if(state.search.trim()){
-        const q = state.search.trim().toLowerCase();
-        parts = parts.filter(p => (p.partNo||'').toLowerCase().includes(q) || (p.partName||'').toLowerCase().includes(q));
+        parts = parts.filter(p => partMatchesSearch(p, state.search));
       }
       if(state.drawingFilter==='missing') parts = parts.filter(p => !(p.drawings && p.drawings.length));
       if(state.drawingFilter==='has') parts = parts.filter(p => p.drawings && p.drawings.length);
@@ -5849,18 +5892,18 @@ async function handleAction(action, el){
     }
 
     case 'selectAllMonthParts': {
-      if(!isAdmin()) return;
+      if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId);
       if(!company) return;
       getMonthParts(company.id,activeMonthKey(company.id)).forEach(p=>state.selectedPartIds.add(p.id));
       render(); break;
     }
     case 'openDeleteSelectedParts': {
-      if(!isAdmin() || !state.selectedPartIds.size) return;
+      if(!isInternal() || !state.selectedPartIds.size) return;
       state.modal={type:'deleteSelectedParts'}; render(); break;
     }
     case 'confirmDeleteSelectedParts': {
-      if(!isAdmin()) return;
+      if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId); if(!company) return;
       const ids=new Set(state.selectedPartIds);
       const before=getParts(company.id).length;
@@ -5873,13 +5916,13 @@ async function handleAction(action, el){
       showToast(`${deleted} seçili parça silindi.`); render(); break;
     }
     case 'openDeleteAllMonthParts': {
-      if(!isAdmin()) return;
+      if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId); if(!company) return;
       if(!getMonthParts(company.id,activeMonthKey(company.id)).length){showToast('Bu ayda silinecek parça yok.');return;}
       state.modal={type:'deleteAllMonthParts'}; render(); break;
     }
     case 'confirmDeleteAllMonthParts': {
-      if(!isAdmin()) return;
+      if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId); if(!company) return;
       const monthKey=activeMonthKey(company.id);
       const ids=new Set(getMonthParts(company.id,monthKey).map(p=>p.id));
@@ -6536,7 +6579,7 @@ window.addEventListener('online', ()=>{ state.isOffline = false; render(); });
 window.addEventListener('offline', ()=>{ state.isOffline = true; render(); });
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(e=> console.error('Service worker kaydedilemedi', e));
+    navigator.serviceWorker.register('sw.js?v=20260925-2', {updateViaCache:'none'}).then(reg=>reg.update()).catch(e=> console.error('Service worker kaydedilemedi', e));
   });
 }
 </script>
