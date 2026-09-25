@@ -2083,12 +2083,13 @@ function renderPartsView(){
         ${rawMonthParts.length===0 && isAdmin() ? `<button class="btn btn-primary" data-action="openAddPart">+ Bu Aya Parça Ekle</button>` : ''}
       </div>
     ` : `
-      ${state.selectedPartIds.size>0 && isAdmin() ? `
-      <div class="bulk-bar">
-        <span class="bulk-count"><b>${state.selectedPartIds.size}</b> parça seçili</span>
+      ${isAdmin() ? `
+      <div class="bulk-bar" style="margin-bottom:10px;">
+        <span class="bulk-count">${state.selectedPartIds.size>0?`<b>${state.selectedPartIds.size}</b> parça seçili`:`Bu ay toplam <b>${rawMonthParts.length}</b> parça`}</span>
         <div class="spacer"></div>
-        <button class="btn btn-ghost btn-sm" data-action="openBulkRename">Toplu İsim Değiştir</button>
-        <button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>
+        <button class="btn btn-ghost btn-sm" data-action="selectAllMonthParts">Tümünü Seç</button>
+        ${state.selectedPartIds.size>0?`<button class="btn btn-ghost btn-sm" data-action="openBulkRename">Toplu İsim Değiştir</button><button class="btn btn-danger-ghost btn-sm" data-action="openDeleteSelectedParts">Seçilenleri Sil</button><button class="btn btn-ghost btn-sm" data-action="clearSelection">Seçimi Temizle</button>`:''}
+        ${rawMonthParts.length>0?`<button class="btn btn-danger-ghost btn-sm" data-action="openDeleteAllMonthParts">Tümünü Sil</button>`:''}
       </div>` : ''}
       <div style="overflow-x:auto;">
       <table class="data-table">
@@ -4487,6 +4488,33 @@ function renderModal(){
       </div>
     `);
   }
+  if(m.type==='deleteSelectedParts'){
+    const company = getCompany(state.selectedCompanyId);
+    const selected = getParts(company.id).filter(p=>state.selectedPartIds.has(p.id));
+    return modalWrap(`
+      <h2>Seçilen Parçaları Sil</h2>
+      <div class="modal-sub"><b>${selected.length}</b> seçili parçayı silmek istediğinize emin misiniz? Bu işlem parçaların üretim, kalite, not ve teknik resim kayıtlarını da kaldırır.</div>
+      ${selected.length?`<div class="card" style="padding:10px 12px;margin:10px 0;max-height:180px;overflow:auto;">${selected.slice(0,12).map(p=>`<div style="padding:4px 0;"><span class="part-no-tag">${escapeHtml(p.partNo)}</span> ${escapeHtml(p.partName||'')}</div>`).join('')}${selected.length>12?`<div class="helper-text">…ve ${selected.length-12} parça daha</div>`:''}</div>`:''}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" style="background:var(--red-700);" data-action="confirmDeleteSelectedParts">${selected.length} Parçayı Sil</button>
+      </div>
+    `);
+  }
+  if(m.type==='deleteAllMonthParts'){
+    const company = getCompany(state.selectedCompanyId);
+    const monthKey = activeMonthKey(company.id);
+    const monthParts = getMonthParts(company.id, monthKey);
+    return modalWrap(`
+      <h2>Bu Ayın Tüm Parçalarını Sil</h2>
+      <div class="modal-sub"><b>${escapeHtml(monthLabel(monthKey))}</b> içindeki <b>${monthParts.length}</b> parçanın tamamı silinecek. Diğer aylardaki parçalar etkilenmez.</div>
+      <div class="card" style="padding:12px;margin:12px 0;border-color:rgba(220,38,38,.45);"><div style="font-size:12.5px;line-height:1.55;color:var(--red-500);"><b>Dikkat:</b> Bu işlem bu aya ait parça, proses, not, kalite ve teknik resim kayıtlarını topluca kaldırır.</div></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-action="closeModal">Vazgeç</button>
+        <button class="btn btn-primary" style="background:var(--red-700);" data-action="confirmDeleteAllMonthParts">Tümünü Sil</button>
+      </div>
+    `);
+  }
   if(m.type==='stages'){
     const company = getCompany(state.selectedCompanyId);
     return modalWrap(`
@@ -5818,6 +5846,49 @@ async function handleAction(action, el){
       break;
     }
 
+    case 'selectAllMonthParts': {
+      if(!isAdmin()) return;
+      const company=getCompany(state.selectedCompanyId);
+      if(!company) return;
+      getMonthParts(company.id,activeMonthKey(company.id)).forEach(p=>state.selectedPartIds.add(p.id));
+      render(); break;
+    }
+    case 'openDeleteSelectedParts': {
+      if(!isAdmin() || !state.selectedPartIds.size) return;
+      state.modal={type:'deleteSelectedParts'}; render(); break;
+    }
+    case 'confirmDeleteSelectedParts': {
+      if(!isAdmin()) return;
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const ids=new Set(state.selectedPartIds);
+      const before=getParts(company.id).length;
+      state.partsByCompany[company.id]=getParts(company.id).filter(p=>!ids.has(p.id));
+      const deleted=before-state.partsByCompany[company.id].length;
+      state.pinnedParts=(state.pinnedParts||[]).filter(id=>!ids.has(id));
+      if(state.selectedPartId&&ids.has(state.selectedPartId)) state.selectedPartId=null;
+      state.selectedPartIds=new Set(); state.modal=null;
+      await persistParts(company.id);
+      showToast(`${deleted} seçili parça silindi.`); render(); break;
+    }
+    case 'openDeleteAllMonthParts': {
+      if(!isAdmin()) return;
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      if(!getMonthParts(company.id,activeMonthKey(company.id)).length){showToast('Bu ayda silinecek parça yok.');return;}
+      state.modal={type:'deleteAllMonthParts'}; render(); break;
+    }
+    case 'confirmDeleteAllMonthParts': {
+      if(!isAdmin()) return;
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const monthKey=activeMonthKey(company.id);
+      const ids=new Set(getMonthParts(company.id,monthKey).map(p=>p.id));
+      const deleted=ids.size;
+      state.partsByCompany[company.id]=getParts(company.id).filter(p=>!ids.has(p.id));
+      state.pinnedParts=(state.pinnedParts||[]).filter(id=>!ids.has(id));
+      if(state.selectedPartId&&ids.has(state.selectedPartId)) state.selectedPartId=null;
+      state.selectedPartIds=new Set(); state.modal=null;
+      await persistParts(company.id);
+      showToast(`${escapeHtml(monthLabel(monthKey))} içindeki ${deleted} parça silindi.`); render(); break;
+    }
     case 'clearSelection': state.selectedPartIds = new Set(); render(); break;
     case 'openBulkRename': state.modal = {type:'bulkRename'}; render(); break;
     case 'applyBulkRename': {
@@ -6064,6 +6135,40 @@ async function restoreTrashEntries(ids){
 }
 
 /* ============================= TEKNİK RESİM YÜKLEME ============================= */
+function normalizeDrawingName(v){
+  return String(v||'').trim().toLocaleLowerCase('tr-TR').replace(/\\/g,'/');
+}
+function drawingDataFingerprint(data){
+  const s=String(data||'');
+  if(!s) return '';
+  let h1=2166136261>>>0, h2=0x9e3779b9>>>0;
+  const step=Math.max(1,Math.floor(s.length/4096));
+  for(let i=0;i<s.length;i+=step){const c=s.charCodeAt(i);h1=Math.imul(h1^c,16777619)>>>0;h2=(Math.imul(h2^c,2246822519)+c)>>>0;}
+  return `${s.length.toString(36)}-${h1.toString(36)}-${h2.toString(36)}`;
+}
+function isDuplicateDrawing(existingDrawings,file,dataUrl){
+  const fileName=normalizeDrawingName(file&&file.name);
+  const rel=normalizeDrawingName((file&&file.webkitRelativePath)||'');
+  const type=String((file&&file.type)||'').toLowerCase();
+  const size=Number(file&&file.size)||0;
+  const fp=drawingDataFingerprint(dataUrl);
+  return (existingDrawings||[]).some(d=>{
+    if(!d) return false;
+    if(dataUrl && d.data===dataUrl) return true;
+    const dFp=d.contentFingerprint||drawingDataFingerprint(d.data);
+    if(fp && dFp===fp) return true;
+    const dRel=normalizeDrawingName(d.relativePath||'');
+    const dName=normalizeDrawingName(d.name||'');
+    const dType=String(d.type||'').toLowerCase();
+    const dSize=Number(d.size)||0;
+    if(rel&&dRel&&rel===dRel&&(!size||!dSize||size===dSize)) return true;
+    if(fileName&&dName===fileName&&(!type||!dType||type===dType)){
+      if(size&&dSize&&size===dSize) return true;
+      if(!dSize&&d.data&&dataUrl&&Math.abs(String(d.data).length-String(dataUrl).length)<=8) return true;
+    }
+    return false;
+  });
+}
 async function handleDrawingUpload(fileList){
   const files = Array.from(fileList);
   const MAX_BYTES = 3 * 1024 * 1024;
@@ -6072,12 +6177,13 @@ async function handleDrawingUpload(fileList){
   if(!part) return;
   if(!Array.isArray(part.drawings)) part.drawings = [];
   const prevDrawings = part.drawings.slice();
-  let added = 0, tooBig = 0;
+  let added = 0, tooBig = 0, duplicate = 0;
   for(const file of files){
     if(file.size > MAX_BYTES){ tooBig++; continue; }
     try{
       const dataUrl = await readFileAsDataURL(file);
-      part.drawings.push({ name: file.name, type: file.type, data: dataUrl });
+      if(isDuplicateDrawing(part.drawings,file,dataUrl)){ duplicate++; continue; }
+      part.drawings.push({ name:file.name, type:file.type, data:dataUrl, size:Number(file.size)||0, relativePath:file.webkitRelativePath||file.name, contentFingerprint:drawingDataFingerprint(dataUrl) });
       added++;
     }catch(e){ /* atla */ }
   }
@@ -6091,7 +6197,10 @@ async function handleDrawingUpload(fileList){
       return;
     }
   }
-  showToast(`${added} teknik resim eklendi${tooBig?`, ${tooBig} dosya 3 MB sınırını aştığı için atlandı`:''}.`);
+  const notes=[];
+  if(duplicate) notes.push(`${duplicate} tekrar dosya zaten mevcut olduğu için atlandı`);
+  if(tooBig) notes.push(`${tooBig} dosya 3 MB sınırını aştığı için atlandı`);
+  showToast(`${added} teknik resim eklendi${notes.length?' · '+notes.join(' · '):''}.`);
   render();
 }
 
@@ -6178,7 +6287,7 @@ async function confirmBulkDrawings(){
   const company = getCompany(state.selectedCompanyId);
   const preview = state.bulkDrawingPreview;
   if(!company || !preview) return;
-  let ok = 0, fail = 0;
+  let ok = 0, fail = 0, duplicate = 0;
   for(const m of preview.matches){
     try{
       const dataUrl = await readFileAsDataURL(m.file);
@@ -6186,7 +6295,8 @@ async function confirmBulkDrawings(){
       const livePart = parts.find(p=>p.id===m.part.id);
       if(livePart){
         if(!Array.isArray(livePart.drawings)) livePart.drawings = [];
-        livePart.drawings.push({ name: m.file.name, type: m.file.type, data: dataUrl, relativePath: m.file.webkitRelativePath || m.file.name });
+        if(isDuplicateDrawing(livePart.drawings,m.file,dataUrl)){ duplicate++; continue; }
+        livePart.drawings.push({ name:m.file.name, type:m.file.type, data:dataUrl, size:Number(m.file.size)||0, relativePath:m.file.webkitRelativePath||m.file.name, contentFingerprint:drawingDataFingerprint(dataUrl) });
         ok++;
       }
     }catch(e){ fail++; }
@@ -6194,11 +6304,14 @@ async function confirmBulkDrawings(){
   state.bulkDrawingPreview = null;
   state.modal = null;
   render();
-  const saved = await persistParts(company.id);
+  const saved = ok>0 ? await persistParts(company.id) : true;
   if(saved===false){
     showToast('Kaydedilemedi — toplam dosya boyutu depolama sınırını aşmış olabilir. Daha az dosyayla tekrar deneyin.');
   } else {
-    showToast(`${ok} teknik resim eklendi${fail?`, ${fail} tanesi okunamadı`:''}.`);
+    const notes=[];
+    if(duplicate) notes.push(`${duplicate} tekrar resim zaten bulunduğu için yüklenmedi`);
+    if(fail) notes.push(`${fail} dosya okunamadı`);
+    showToast(`${ok} teknik resim eklendi${notes.length?' · '+notes.join(' · '):''}.`);
   }
   render();
 }
