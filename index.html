@@ -1157,6 +1157,88 @@ async function storageDelete(path){
   try{ await firebaseFetch(path, { method:'DELETE' }); return true; }
   catch(e){ console.error('storage delete error', path, e); return false; }
 }
+
+/* ============================= ÜCRETSİZ TEKNİK RESİM DEPOSU (RTDB, AYRI DÜĞÜMLER) ============================= */
+// Spark planda Cloud Storage gerektirmeden teknik resim verisini parça JSON'undan ayırır.
+// parts/<companyId> içinde yalnızca metadata, gerçek Base64 dosya drawingFiles/<companyId>/<drawingId> altında tutulur.
+const drawingDataCache = new Map();
+function ensureDrawingId(drawing){ if(drawing && !drawing.id) drawing.id=uid('drw'); return drawing&&drawing.id; }
+function drawingFilePath(companyId,drawing){ const id=ensureDrawingId(drawing); return id?`drawingFiles/${companyId}/${id}`:''; }
+function drawingHasPayload(drawing){ return !!(drawing&&(drawing.data||drawing.id)); }
+function drawingCacheKey(companyId,drawing){ return `${companyId}|${drawing&&drawing.id||''}`; }
+async function getDrawingData(companyId,drawing){
+  if(!drawing) return null;
+  if(drawing.data) return drawing.data;
+  if(!drawing.id) return null;
+  const key=drawingCacheKey(companyId,drawing);
+  if(drawingDataCache.has(key)) return drawingDataCache.get(key);
+  const raw=await storageGet(drawingFilePath(companyId,drawing));
+  const data=typeof raw==='string'?raw:(raw&&raw.data)||null;
+  if(data) drawingDataCache.set(key,data);
+  return data;
+}
+async function putDrawingData(companyId,drawing,dataUrl){
+  ensureDrawingId(drawing);
+  const ok=await storageSet(drawingFilePath(companyId,drawing),dataUrl);
+  if(ok) drawingDataCache.set(drawingCacheKey(companyId,drawing),dataUrl);
+  return ok;
+}
+async function deleteDrawingData(companyId,drawing){
+  if(!drawing||!drawing.id) return true;
+  drawingDataCache.delete(drawingCacheKey(companyId,drawing));
+  return await storageDelete(drawingFilePath(companyId,drawing));
+}
+function embeddedDrawingCount(companyId){
+  return getParts(companyId).reduce((n,p)=>n+(p.drawings||[]).filter(d=>d&&d.data).length,0)
+    +(state.drawingTrash||[]).filter(t=>t&&t.companyId===companyId&&t.drawing&&t.drawing.data).length;
+}
+async function migrateEmbeddedDrawings(companyId){
+  const company=getCompany(companyId); if(!company) return {moved:0,failed:0};
+  let moved=0,failed=0;
+  showToast('Teknik resimler ücretsiz ayrı depoya taşınıyor…');
+  for(const part of getParts(companyId)){
+    if(!Array.isArray(part.drawings)) continue;
+    for(const d of part.drawings){
+      if(!d||!d.data) continue;
+      ensureDrawingId(d); d.size=Number(d.size)||0;
+      d.contentFingerprint=d.contentFingerprint||drawingDataFingerprint(d.data);
+      const data=d.data, ok=await putDrawingData(companyId,d,data);
+      if(ok){ delete d.data; moved++; } else failed++;
+    }
+  }
+  for(const t of (state.drawingTrash||[])){
+    if(!t||t.companyId!==companyId||!t.drawing||!t.drawing.data) continue;
+    const d=t.drawing; ensureDrawingId(d); d.contentFingerprint=d.contentFingerprint||drawingDataFingerprint(d.data);
+    const data=d.data, ok=await putDrawingData(companyId,d,data);
+    if(ok){ delete d.data; moved++; } else failed++;
+  }
+  const partsOk=await persistParts(companyId), trashOk=await persistDrawingTrash();
+  if(!partsOk||!trashOk) failed++;
+  return {moved,failed};
+}
+async function hydrateRemoteDrawingImages(){
+  const company=getCompany(state.selectedCompanyId);
+  if(company){
+    const parts=getParts(company.id);
+    document.querySelectorAll('img[data-lazy-drawing-part]').forEach(async img=>{
+      const part=parts.find(p=>p.id===img.dataset.lazyDrawingPart);
+      const d=part&&(part.drawings||[])[Number(img.dataset.lazyDrawingIndex)];
+      const data=await getDrawingData(company.id,d); if(data&&img.isConnected) img.src=data;
+    });
+    const measure=document.querySelector('img#measureDrawingSurface[data-drawing-index]');
+    if(measure){
+      const part=parts.find(p=>p.id===state.selectedPartId);
+      const d=part&&(part.drawings||[])[Number(measure.dataset.drawingIndex)];
+      const data=await getDrawingData(company.id,d); if(data&&measure.isConnected) measure.src=data;
+    }
+  }
+  document.querySelectorAll('img[data-trash-thumb]').forEach(async img=>{
+    const t=(state.drawingTrash||[]).find(x=>x.id===img.dataset.trashThumb);
+    const data=t?await getDrawingData(t.companyId,t.drawing):null; if(data&&img.isConnected) img.src=data;
+  });
+}
+async function deleteDrawingPayloadsForParts(companyId,parts){ for(const p of (parts||[])) for(const d of (p.drawings||[])) await deleteDrawingData(companyId,d); }
+async function deleteDrawingPayloadsForTrash(entries){ for(const t of (entries||[])) if(t&&t.drawing) await deleteDrawingData(t.companyId,t.drawing); }
 // Yalnızca eski şemayı bir kez taşımak için: önceki sürüm "parts:COMPANY_ID" gibi
 // iki noktalı anahtarları tek segment olarak saklıyordu.
 async function legacyStorageGet(key){
@@ -1629,6 +1711,7 @@ async function loadAll(){
         if(!p) return;
         if(!p.qtys) p.qtys={}; if(!p.rejects) p.rejects={}; if(!p.ncrs) p.ncrs=[]; if(!p.history) p.history=[];
         if(!Array.isArray(p.drawings)) p.drawings=[]; if(p.drawing){p.drawings.push(p.drawing);p.drawing=undefined;}
+        p.drawings.forEach(d=>{ if(d){ ensureDrawingId(d); if(d.data&&!d.contentFingerprint) d.contentFingerprint=drawingDataFingerprint(d.data); } });
         if(p.color===undefined) p.color=''; if(!Array.isArray(p.measurements)) p.measurements=[]; if(!Array.isArray(p.returnEvents)) p.returnEvents=[];
         if(!Array.isArray(p.qualityEvents)) p.qualityEvents=[];
         if(!Array.isArray(p.productionIssues)) p.productionIssues=[];
@@ -1648,7 +1731,9 @@ async function loadAll(){
       const etRaw=await storageGet('errortracking');
       state.errorTracking={ppmMonthly:(etRaw&&etRaw.ppmMonthly)||{},ppmTarget:Number(etRaw&&etRaw.ppmTarget)||3000,ncrRejectThresholdPct:Number(etRaw&&etRaw.ncrRejectThresholdPct)||3,deptMonthly:(etRaw&&etRaw.deptMonthly)||{},disHatalar:asArray(etRaw&&etRaw.disHatalar),icHatalar:asArray(etRaw&&etRaw.icHatalar)};
       const trashRaw=await storageGet('drawingtrash'); let trash=asArray(trashRaw); const before=trash.length;
+      const expiredTrash=trash.filter(t=>{const d=daysSince(t.deletedAt);return d!==null&&d>=TRASH_RETENTION_DAYS;});
       trash=trash.filter(t=>{const d=daysSince(t.deletedAt);return d===null||d<TRASH_RETENTION_DAYS;}); state.drawingTrash=trash;
+      if(expiredTrash.length && isAdmin()) await deleteDrawingPayloadsForTrash(expiredTrash);
       if(trash.length!==before && isAdmin()) await persistDrawingTrash();
     }
     if(isAdmin()){
@@ -2075,10 +2160,11 @@ function renderPartsView(){
   const missingDrawingCount = rawMonthParts.filter(p => !(p.drawings && p.drawings.length)).length;
   const shippedCount = rawMonthParts.filter(p => partStatus(p, stages)==='shipped').length;
   const activeCount = rawMonthParts.length - shippedCount;
+  const embeddedCount = embeddedDrawingCount(company.id);
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.09.25.5</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2090,6 +2176,7 @@ function renderPartsView(){
         <button class="btn btn-ghost" data-action="openDrawingTrash">&#128465; Çöp Kutusu${state.drawingTrash.length?` (${state.drawingTrash.length})`:''}</button>
         <button class="btn btn-navy" data-action="openImport">&#128228; Excel / CSV Yükle</button>
         <button class="btn btn-navy" data-action="openBulkDrawings">&#128193; Teknik Resimleri Toplu Yükle</button>
+        ${embeddedCount?`<button class="btn btn-ghost" data-action="migrateEmbeddedDrawings">☁ Eski Resimleri Hafiflet (${embeddedCount})</button>`:''}
         <button class="btn btn-primary" data-action="openAddPart">+ Parça Ekle</button>
         ` : ''}
       </div>
@@ -2261,7 +2348,7 @@ function renderTrackingView(){
             ${part.drawings.map((d,i)=> `
               <div class="drawing-box">
                 ${d.type && d.type.startsWith('image/') ?
-                  `<img src="${d.data}" class="drawing-thumb" data-view-drawing="${part.id}" data-drawing-idx="${i}"/>` :
+                  `<img ${d.data?`src="${d.data}"`:''} data-lazy-drawing-part="${part.id}" data-lazy-drawing-index="${i}" class="drawing-thumb" data-view-drawing="${part.id}" data-drawing-idx="${i}"/>` :
                   `<div class="drawing-file-icon" data-view-drawing="${part.id}" data-drawing-idx="${i}">&#128196;</div>`}
                 <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?'<span style="color:var(--green-signal);font-weight:800;">MANUEL ESAS RESİM</span> · ':''}${d.manualDrawingType?`<span style="font-weight:800;">${d.manualDrawingType==='assembly'?'MONTAJ RESMİ':'TEK PARÇA RESMİ'}</span> · `:''}${d.detectedDrawingNo?`Antet resim no: <b>${escapeHtml(d.detectedDrawingNo)}</b>${normalizeTechnicalPartNo(d.detectedDrawingNo)===normalizeTechnicalPartNo(part.partNo)?' · <span style="color:var(--green-signal);font-weight:700;">PARÇA NO EŞLEŞTİ</span>':''}`:'Antet henüz taranmadı'}</div></div>
                 ${isAdmin() ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?`<button class="btn btn-ghost btn-sm" data-clear-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Seçimi Kaldır</button>`:`<button class="btn btn-ghost btn-sm" data-set-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Resim Yap</button>`}<button class="btn btn-ghost btn-sm" data-set-drawing-type="assembly" data-part="${part.id}" data-drawing-idx="${i}">Montaj</button><button class="btn btn-ghost btn-sm" data-set-drawing-type="single_part" data-part="${part.id}" data-drawing-idx="${i}">Tek Parça</button>${d.manualDrawingType?`<button class="btn btn-ghost btn-sm" data-set-drawing-type="auto" data-part="${part.id}" data-drawing-idx="${i}">Tipi Otomatikleştir</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button></div>` : ''}
@@ -3365,6 +3452,8 @@ async function technicalImageRegionToCanvas(dataUrl,xRatio,yRatio,wRatio,hRatio,
   return c;
 }
 async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBase,progressSpan){
+  const drawingData=await getDrawingData(state.selectedCompanyId,drawing);
+  if(!drawingData) throw new Error('Teknik resim verisi yüklenemedi: '+(drawing?.name||'dosya'));
   const target=normalizeTechnicalPartNo(partNo);
   const filenameScore=drawingFilenameMatchScore(drawing,partNo);
   const manualMatch=normalizeTechnicalPartNo(drawing?.manualPrimaryPartNo)===target && !!target;
@@ -3376,7 +3465,7 @@ async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBas
   try{
     const scans=[];
     if(isPdf){
-      const raw=await (await fetch(drawing.data)).arrayBuffer();
+      const raw=await (await fetch(drawingData)).arrayBuffer();
       const doc=await pdfjsLib.getDocument({data:raw}).promise;
       result.pdfDoc=doc;
       const pages=Math.min(doc.numPages,12);
@@ -3390,8 +3479,8 @@ async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBas
         scans.push({r:r11,canvas:title,page:pn,source:'title-11'},{r:r12,canvas:title,page:pn,source:'title-12'},{r:r6,canvas:title,page:pn,source:'title-bin'});
       }
     }else{
-      result.imageData=drawing.data;
-      const title=await technicalImageRegionToCanvas(drawing.data,.55,.70,.45,.30,4200);
+      result.imageData=drawingData;
+      const title=await technicalImageRegionToCanvas(drawingData,.55,.70,.45,.30,4200);
       const r11=await runTechnicalOcr(worker,title,`${drawing.name} · antet 11`,progressBase,progressSpan*.34,11,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
       const r12=await runTechnicalOcr(worker,title,`${drawing.name} · antet 12`,progressBase+progressSpan*.35,progressSpan*.28,12,'contrast','ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.:');
       const r6=await runTechnicalOcr(worker,title,`${drawing.name} · antet binary`,progressBase+progressSpan*.64,progressSpan*.26,11,'binary','ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_/');
@@ -3489,7 +3578,9 @@ async function scanPdfPageUltraDimensions(worker,page,label,baseFrac,span,store)
     }
   }
 }
-async function scanImageUltraDimensions(worker,drawing,label,baseFrac,span,store){
+async function scanImageUltraDimensions(worker,drawing,label,baseFrac,span,store,drawingDataOverride){
+  const drawingData=drawingDataOverride||await getDrawingData(state.selectedCompanyId,drawing);
+  if(!drawingData) return;
   const numChars='0123456789.,+-xX*ØΦ⌀RrMmTtSsPpLl°';
   const tiles=[
     [0,0,.38,.56,'KARO SOL ÜST'],[.31,0,.38,.56,'KARO ORTA ÜST'],[.62,0,.38,.56,'KARO SAĞ ÜST'],
@@ -3497,7 +3588,7 @@ async function scanImageUltraDimensions(worker,drawing,label,baseFrac,span,store
   ];
   let k=0;
   for(const [x,y,w,h,name] of tiles){
-    const c=await technicalImageRegionToCanvas(drawing.data,x,y,w,h,3400);
+    const c=await technicalImageRegionToCanvas(drawingData,x,y,w,h,3400);
     const r=await runTechnicalOcr(worker,c,`${label} · ${name.toLowerCase()} ultra`,baseFrac+span*(k/8),span*.09,11,'binary',numChars);
     parseTechnicalNumericPass(r,`${label} · ${name} HIRES`,'',store);
     if(k===2||k===5||k===3){
@@ -3508,7 +3599,7 @@ async function scanImageUltraDimensions(worker,drawing,label,baseFrac,span,store
   }
 }
 async function deepAnalyzeTechnicalDrawings(part){
-  const drawings=(part.drawings||[]).filter(d=>d && d.data && ((d.type||'').startsWith('image/') || d.type==='application/pdf' || /\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')));
+  const drawings=(part.drawings||[]).filter(d=>d && drawingHasPayload(d) && ((d.type||'').startsWith('image/') || d.type==='application/pdf' || /\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')));
   if(!drawings.length) throw new Error('Analiz edilecek PDF/JPG/PNG teknik resim yok.');
   if(!window.Tesseract) throw new Error('Görsel OCR kütüphanesi yüklenemedi. İnternet bağlantısını kontrol edin.');
   const store=createTechnicalCandidateStore();
@@ -3524,6 +3615,8 @@ async function deepAnalyzeTechnicalDrawings(part){
     const identityDetails=primary.detected||[];
     for(let si=0;si<selected.length;si++){
       const info=selected[si],drawing=info.drawing||info;
+      const drawingData=await getDrawingData(state.selectedCompanyId,drawing);
+      if(!drawingData) throw new Error('Teknik resim verisi yüklenemedi: '+(drawing.name||'dosya'));
       const baseFrac=.12+(si/totalSources)*.88,span=.88/totalSources;
       const isPdf=drawing.type==='application/pdf'||/\.pdf$/i.test(drawing.name||'');
       if(info.identityText){
@@ -3532,7 +3625,7 @@ async function deepAnalyzeTechnicalDrawings(part){
       if(isPdf){
         let doc=info.pdfDoc;
         if(!doc){
-          const raw=await (await fetch(drawing.data)).arrayBuffer();
+          const raw=await (await fetch(drawingData)).arrayBuffer();
           doc=await pdfjsLib.getDocument({data:raw}).promise;
         }
         const pages=Math.min(doc.numPages,12);
@@ -3561,10 +3654,10 @@ async function deepAnalyzeTechnicalDrawings(part){
         }
       }else{
         setDrawingAnalysisStatus(`${drawing.name} · esas resim yüksek çözünürlükte taranıyor…`);
-        const canvas=await technicalImageDataToCanvas(drawing.data,4200);
+        const canvas=await technicalImageDataToCanvas(drawingData,4200);
         const general=await runTechnicalOcr(worker,canvas,`${drawing.name} genel`,baseFrac,span*.15,11,'contrast','');
         parseTechnicalTextCandidates(general.text,`${drawing.name} · GENEL`,Math.max(45,Math.min(91,general.confidence)),store);
-        await scanImageUltraDimensions(worker,drawing,drawing.name,baseFrac+span*.16,span*.82,store);
+        await scanImageUltraDimensions(worker,drawing,drawing.name,baseFrac+span*.16,span*.82,store,drawingData);
         scannedVisuals++;
       }
     }
@@ -3660,7 +3753,7 @@ function renderProductionEstimateSection(part,company){
       ${profile.autoAnalyzedAt&&profile.autoAnalysisTopDimensionText?`<div class="analytics-note" style="margin-top:8px;">OCR ölçü adayları: <b>${escapeHtml(profile.autoAnalysisTopDimensionText)}</b></div>`:''}
       ${!profile.autoAnalysisAssemblyLikely&&Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
       <div id="drawingAnalysisStatus" class="helper-text" style="margin-top:8px;min-height:18px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d && d.data && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d && drawingHasPayload(d) && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
       <div class="process-estimate-grid">
         ${relevant.map(stage=>{
           const d=estimateStageDays(part,stage);
@@ -3767,7 +3860,7 @@ function renderMeasurementSection(part){
           <div class="measure-canvas" id="measureImageCanvas" style="cursor:${state.markingMeasurementId?'crosshair':'default'};">
             ${selectedIsPdf
               ? `<canvas id="measureDrawingSurface" data-pdf-measure="1" data-drawing-index="${selectedDrawingIndex}"></canvas>`
-              : `<img src="${selectedDrawing.d.data}" id="measureDrawingSurface" draggable="false" data-drawing-index="${selectedDrawingIndex}" style="height:${Math.round(440*zoom)}px;width:auto;max-width:none;"/>`}
+              : `<img ${selectedDrawing.d.data?`src="${selectedDrawing.d.data}"`:''} id="measureDrawingSurface" draggable="false" data-drawing-index="${selectedDrawingIndex}" style="height:${Math.round(440*zoom)}px;width:auto;max-width:none;"/>`}
             ${markersForDrawing.map(m=>`<div class="meas-marker ${measurementStatus(m)}" data-meas-marker="${m.id}" title="Ölçüm ${m.no} — sürükle / çift tıkla kaldır" style="left:${m.imgX}%;top:${m.imgY}%;">${m.no}</div>`).join('')}
           </div>
         </div>
@@ -3817,7 +3910,7 @@ async function renderPdfMeasurementSurface(){
   const part = company ? getParts(company.id).find(p=>p.id===state.selectedPartId) : null;
   const drawingIndex = Number(canvas.dataset.drawingIndex);
   const drawing = part && part.drawings ? part.drawings[drawingIndex] : null;
-  if(!drawing || !drawing.data) return;
+  if(!drawing || !drawingHasPayload(drawing)) return;
   if(!window.pdfjsLib){
     const ctx=canvas.getContext('2d'); canvas.width=760; canvas.height=440;
     ctx.fillStyle='#101A2E'; ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -3826,7 +3919,9 @@ async function renderPdfMeasurementSurface(){
   }
   try{
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const raw = new Uint8Array(await dataURLtoBlob(drawing.data).arrayBuffer());
+    const drawingData=await getDrawingData(company.id,drawing);
+    if(!drawingData) throw new Error('PDF verisi yüklenemedi.');
+    const raw = new Uint8Array(await dataURLtoBlob(drawingData).arrayBuffer());
     const pdf = await pdfjsLib.getDocument({data:raw}).promise;
     const page = await pdf.getPage(1);
     const baseViewport = page.getViewport({scale:1});
@@ -4832,7 +4927,7 @@ function renderModal(){
             <div class="drawing-box">
               <input type="checkbox" class="sel-check" data-trash-check="${t.id}" ${state.selectedTrashIds.has(t.id)?'checked':''}/>
               ${d.type && d.type.startsWith('image/') ?
-                `<img src="${d.data}" class="drawing-thumb"/>` :
+                `<img ${d.data?`src="${d.data}"`:''} data-trash-thumb="${t.id}" class="drawing-thumb"/>` :
                 `<div class="drawing-file-icon">&#128196;</div>`}
               <div class="drawing-info">
                 <div class="fname">${escapeHtml(d.name||'')}</div>
@@ -5024,14 +5119,16 @@ function attachHandlers(){
     drawingFileInput.addEventListener('change', (e)=>{ if(e.target.files.length) handleDrawingUpload(e.target.files); });
   }
   app.querySelectorAll('[data-view-drawing]').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', async ()=>{
       const company = getCompany(state.selectedCompanyId);
       const part = getParts(company.id).find(p=>p.id===el.getAttribute('data-view-drawing'));
       const idx = Number(el.getAttribute('data-drawing-idx'));
       const drawing = part && part.drawings && part.drawings[idx];
       if(drawing){
         try{
-          const blob = dataURLtoBlob(drawing.data);
+          const drawingData=await getDrawingData(company.id,drawing);
+          if(!drawingData) throw new Error('Dosya verisi bulunamadı.');
+          const blob = dataURLtoBlob(drawingData);
           const blobUrl = URL.createObjectURL(blob);
           if(drawing.type && drawing.type.startsWith('image/')){
             const w = window.open();
@@ -5318,6 +5415,8 @@ function attachHandlers(){
     el.addEventListener('click', async ()=>{
       const id = el.getAttribute('data-delete-trash');
       if(!confirm('Bu teknik resmi kalıcı olarak silmek istediğinize emin misiniz?')) return;
+      const deleting=(state.drawingTrash||[]).find(t=>t.id===id);
+      if(deleting) await deleteDrawingPayloadsForTrash([deleting]);
       state.drawingTrash = (state.drawingTrash||[]).filter(t=>t.id!==id);
       state.selectedTrashIds.delete(id);
       await persistDrawingTrash();
@@ -5376,6 +5475,7 @@ function attachHandlers(){
     companyNameInput.focus();
     companyNameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const btn = app.querySelector('[data-action="saveAddCompany"],[data-action="saveEditCompany"]'); if(btn) btn.click(); } });
   }
+  hydrateRemoteDrawingImages();
   renderPdfMeasurementSurface();
 }
 
@@ -5520,6 +5620,7 @@ async function handleAction(action, el){
       state.modal = null;
       await persistCompanies();
       await storageDelete('parts/'+id);
+      await storageDelete('drawingFiles/'+id);
       const oldCode=(state.companyAccessCodes||{})[id]||'';
       if(oldCode) await storageDelete('clientInvites/'+oldCode);
       await storageDelete('companyAccessCodes/'+id);
@@ -5593,6 +5694,8 @@ async function handleAction(action, el){
     case 'confirmDeletePart': {
       const company = getCompany(state.selectedCompanyId);
       const id = el.getAttribute('data-id');
+      const deletingPart=getParts(company.id).find(p=>p.id===id);
+      if(deletingPart) await deleteDrawingPayloadsForParts(company.id,[deletingPart]);
       state.partsByCompany[company.id] = getParts(company.id).filter(p=>p.id!==id);
       state.modal = null;
       await persistParts(company.id);
@@ -5881,6 +5984,16 @@ async function handleAction(action, el){
       break;
     }
 
+    case 'migrateEmbeddedDrawings': {
+      if(!isAdmin()) return;
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const before=embeddedDrawingCount(company.id);
+      if(!before){ showToast('Taşınacak eski teknik resim yok.'); return; }
+      const result=await migrateEmbeddedDrawings(company.id);
+      state.lastSaveFailed=!!result.failed;
+      showToast(result.failed?`${result.moved} teknik resim taşındı, ${result.failed} işlem başarısız. Database Rules içindeki drawingFiles iznini kontrol edin.`:`${result.moved} teknik resim ücretsiz ayrı depoya taşındı. Büyük parça kaydı hafifledi.`);
+      render(); break;
+    }
     case 'selectAllMonthParts': {
       if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId);
@@ -5896,6 +6009,8 @@ async function handleAction(action, el){
       if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId); if(!company) return;
       const ids=new Set(state.selectedPartIds);
+      const deletingParts=getParts(company.id).filter(p=>ids.has(p.id));
+      await deleteDrawingPayloadsForParts(company.id,deletingParts);
       const before=getParts(company.id).length;
       state.partsByCompany[company.id]=getParts(company.id).filter(p=>!ids.has(p.id));
       const deleted=before-state.partsByCompany[company.id].length;
@@ -5915,7 +6030,9 @@ async function handleAction(action, el){
       if(!isInternal()) return;
       const company=getCompany(state.selectedCompanyId); if(!company) return;
       const monthKey=activeMonthKey(company.id);
-      const ids=new Set(getMonthParts(company.id,monthKey).map(p=>p.id));
+      const deletingParts=getMonthParts(company.id,monthKey);
+      const ids=new Set(deletingParts.map(p=>p.id));
+      await deleteDrawingPayloadsForParts(company.id,deletingParts);
       const deleted=ids.size;
       state.partsByCompany[company.id]=getParts(company.id).filter(p=>!ids.has(p.id));
       state.pinnedParts=(state.pinnedParts||[]).filter(id=>!ids.has(id));
@@ -6132,6 +6249,8 @@ async function handleAction(action, el){
     }
     case 'trashDeleteSelected': {
       if(!confirm(`${state.selectedTrashIds.size} teknik resmi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) return;
+      const deleting=(state.drawingTrash||[]).filter(t=>state.selectedTrashIds.has(t.id));
+      await deleteDrawingPayloadsForTrash(deleting);
       state.drawingTrash = (state.drawingTrash||[]).filter(t=>!state.selectedTrashIds.has(t.id));
       state.selectedTrashIds = new Set();
       await persistDrawingTrash();
@@ -6141,6 +6260,7 @@ async function handleAction(action, el){
     }
     case 'trashDeleteAll': {
       if(!confirm('Çöp kutusundaki TÜM teknik resimleri kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
+      await deleteDrawingPayloadsForTrash(state.drawingTrash||[]);
       state.drawingTrash = [];
       state.selectedTrashIds = new Set();
       await persistDrawingTrash();
@@ -6212,22 +6332,26 @@ async function handleDrawingUpload(fileList){
   if(!part) return;
   if(!Array.isArray(part.drawings)) part.drawings = [];
   const prevDrawings = part.drawings.slice();
-  let added = 0, tooBig = 0, duplicate = 0;
+  const uploaded=[];
+  let added = 0, tooBig = 0, duplicate = 0, failed=0;
   for(const file of files){
     if(file.size > MAX_BYTES){ tooBig++; continue; }
     try{
       const dataUrl = await readFileAsDataURL(file);
       if(isDuplicateDrawing(part.drawings,file,dataUrl)){ duplicate++; continue; }
-      part.drawings.push({ name:file.name, type:file.type, data:dataUrl, size:Number(file.size)||0, relativePath:file.webkitRelativePath||file.name, contentFingerprint:drawingDataFingerprint(dataUrl) });
-      added++;
-    }catch(e){ /* atla */ }
+      const d={ id:uid('drw'), name:file.name, type:file.type, size:Number(file.size)||0, relativePath:file.webkitRelativePath||file.name, contentFingerprint:drawingDataFingerprint(dataUrl) };
+      const fileOk=await putDrawingData(company.id,d,dataUrl);
+      if(!fileOk){ failed++; continue; }
+      part.drawings.push(d); uploaded.push(d); added++;
+    }catch(e){ failed++; }
   }
   render();
   if(added>0){
     const ok = await persistParts(company.id);
     if(ok===false){
+      for(const d of uploaded) await deleteDrawingData(company.id,d);
       part.drawings = prevDrawings;
-      showToast('Dosyalar kaydedilemedi — depolama sınırına yaklaşılmış olabilir.');
+      showToast('Teknik resim metadata kaydı yapılamadı. İşlem geri alındı.');
       render();
       return;
     }
@@ -6235,6 +6359,7 @@ async function handleDrawingUpload(fileList){
   const notes=[];
   if(duplicate) notes.push(`${duplicate} tekrar dosya zaten mevcut olduğu için atlandı`);
   if(tooBig) notes.push(`${tooBig} dosya 3 MB sınırını aştığı için atlandı`);
+  if(failed) notes.push(`${failed} dosya kaydedilemedi`);
   showToast(`${added} teknik resim eklendi${notes.length?' · '+notes.join(' · '):''}.`);
   render();
 }
@@ -6323,6 +6448,7 @@ async function confirmBulkDrawings(){
   const preview = state.bulkDrawingPreview;
   if(!company || !preview) return;
   let ok = 0, fail = 0, duplicate = 0;
+  const uploaded=[];
   for(const m of preview.matches){
     try{
       const dataUrl = await readFileAsDataURL(m.file);
@@ -6331,8 +6457,10 @@ async function confirmBulkDrawings(){
       if(livePart){
         if(!Array.isArray(livePart.drawings)) livePart.drawings = [];
         if(isDuplicateDrawing(livePart.drawings,m.file,dataUrl)){ duplicate++; continue; }
-        livePart.drawings.push({ name:m.file.name, type:m.file.type, data:dataUrl, size:Number(m.file.size)||0, relativePath:m.file.webkitRelativePath||m.file.name, contentFingerprint:drawingDataFingerprint(dataUrl) });
-        ok++;
+        const d={ id:uid('drw'), name:m.file.name, type:m.file.type, size:Number(m.file.size)||0, relativePath:m.file.webkitRelativePath||m.file.name, contentFingerprint:drawingDataFingerprint(dataUrl) };
+        const fileOk=await putDrawingData(company.id,d,dataUrl);
+        if(!fileOk){ fail++; continue; }
+        livePart.drawings.push(d); uploaded.push(d); ok++;
       }
     }catch(e){ fail++; }
   }
@@ -6341,7 +6469,8 @@ async function confirmBulkDrawings(){
   render();
   const saved = ok>0 ? await persistParts(company.id) : true;
   if(saved===false){
-    showToast('Kaydedilemedi — toplam dosya boyutu depolama sınırını aşmış olabilir. Daha az dosyayla tekrar deneyin.');
+    for(const d of uploaded) await deleteDrawingData(company.id,d);
+    showToast('Parça metadata kaydı yapılamadı. Yeni yüklenen dosya verileri geri alındı.');
   } else {
     const notes=[];
     if(duplicate) notes.push(`${duplicate} tekrar resim zaten bulunduğu için yüklenmedi`);
