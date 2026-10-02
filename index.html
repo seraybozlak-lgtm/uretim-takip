@@ -1573,7 +1573,7 @@ let state = {
   lastEditedStageByPart: {}, // partId -> gerçekten en son değiştirilen proses
   stageDrafts: {},
   rejectDrafts: {},
-  trackingEventDateDraftByPart: {}, // partId -> YYYY-MM-DDTHH:mm (opsiyonel gerçek proses zamanı)
+  stageEventDateDraftsByPart: {}, // partId -> { stageName: YYYY-MM-DDTHH:mm } (proses bazlı gerçek zaman)
   errorTracking: { ppmMonthly:{}, ppmTarget:3000, ncrRejectThresholdPct:3, deptMonthly:{}, disHatalar:[], icHatalar:[] },
   errorTrackingTab: 'ppm', // ppm | dept | dis | ic
   drawingTrash: [],
@@ -2277,7 +2277,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.02.7</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.02.8</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2486,6 +2486,7 @@ function renderTrackingView(){
         ${stages.map((s,i)=>{
           const stageDraft=(state.stageDrafts[part.id]||{});
           const rejectDraft=(state.rejectDrafts[part.id]||{});
+          const stageDateDraft=((state.stageEventDateDraftsByPart||{})[part.id]||{});
           const val = Object.prototype.hasOwnProperty.call(stageDraft,s) ? Number(stageDraft[s]||0) : Number((part.qtys||{})[s]||0);
           const rej = Object.prototype.hasOwnProperty.call(rejectDraft,s) ? Number(rejectDraft[s]||0) : Number((part.rejects||{})[s]||0);
           const pct = part.orderedQty>0 ? Math.min(100, Math.round(val/part.orderedQty*100)) : 0;
@@ -2499,6 +2500,10 @@ function renderTrackingView(){
             <div class="stage-name">${escapeHtml(s)}${!editable?' 🔒':''}</div>
             <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}" ${!editable?'disabled title="Bu aşamayı sadece ilgili istasyon veya yönetici güncelleyebilir"':''}/>
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
+            <div style="margin-top:9px;">
+              <label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Gerçek tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label>
+              <input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" value="${escapeHtml(stageDateDraft[s]||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/>
+            </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
             <div class="stage-meta">${lastEntry ? `${escapeHtml(lastEntry.date)}<br/>${escapeHtml(lastEntry.user||'—')}` : 'Henüz giriş yok'}</div>
           </div>`;
@@ -2506,11 +2511,7 @@ function renderTrackingView(){
       </div>
 
       <div class="field" style="margin-top:18px;"><label>Not</label><textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea></div>
-      <div class="field" style="margin-top:12px;max-width:390px;">
-        <label>Proses Gerçekleşme Tarihi / Saati <span style="font-weight:500;color:var(--gray-500);">(opsiyonel)</span></label>
-        <input type="datetime-local" id="trackingEventDateTime" value="${escapeHtml((state.trackingEventDateDraftByPart||{})[part.id]||'')}" ${isClient()?'disabled':''}/>
-        <div class="helper-text" style="margin-top:5px;">Geçmişte gerçekleşen bir proses girişini sonradan kaydediyorsanız gerçek zamanı seçin. Boş bırakırsanız kayıt anındaki tarih ve saat otomatik kullanılır.</div>
-      </div>
+      <div class="helper-text" style="margin-top:10px;max-width:760px;">Her prosesin kendi kartındaki <b>Gerçek tarih / saat</b> alanı opsiyoneldir. Boş bıraktığınız proseslerde kayıt anındaki tarih ve saat otomatik kullanılır.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
         <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
         <div style="display:flex;gap:8px;">${isAdmin()?`<button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>`:''}<button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button></div>
@@ -2564,11 +2565,13 @@ function syncTrackingFormToState(){
   if(noteEl && !noteEl.disabled) part.note = noteEl.value;
   const colorEl = document.getElementById('partColorTrackInput');
   if(colorEl && !colorEl.disabled) part.color = colorEl.value.trim();
-  const eventDateEl=document.getElementById('trackingEventDateTime');
-  if(eventDateEl && !eventDateEl.disabled){
-    state.trackingEventDateDraftByPart=state.trackingEventDateDraftByPart||{};
-    state.trackingEventDateDraftByPart[part.id]=eventDateEl.value||'';
-  }
+  state.stageEventDateDraftsByPart=state.stageEventDateDraftsByPart||{};
+  state.stageEventDateDraftsByPart[part.id]=state.stageEventDateDraftsByPart[part.id]||{};
+  document.querySelectorAll('[data-stage-datetime]').forEach(inp=>{
+    if(inp.disabled) return;
+    const stage=inp.getAttribute('data-stage-datetime');
+    state.stageEventDateDraftsByPart[part.id][stage]=inp.value||'';
+  });
   part.measurements = part.measurements || [];
   document.querySelectorAll('[data-meas-value]').forEach(inp=>{
     if(inp.disabled) return;
@@ -5408,14 +5411,14 @@ function attachHandlers(){
       state.rejectDrafts[pid][stage]=Math.max(0,Number(inp.value)||0);
     });
   });
-  const trackingEventDateTime=document.getElementById('trackingEventDateTime');
-  if(trackingEventDateTime){
-    trackingEventDateTime.addEventListener('input', ()=>{
-      const pid=state.selectedPartId;
-      state.trackingEventDateDraftByPart=state.trackingEventDateDraftByPart||{};
-      state.trackingEventDateDraftByPart[pid]=trackingEventDateTime.value||'';
+  app.querySelectorAll('[data-stage-datetime]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const pid=state.selectedPartId, stage=inp.getAttribute('data-stage-datetime');
+      state.stageEventDateDraftsByPart=state.stageEventDateDraftsByPart||{};
+      state.stageEventDateDraftsByPart[pid]=state.stageEventDateDraftsByPart[pid]||{};
+      state.stageEventDateDraftsByPart[pid][stage]=inp.value||'';
     });
-  }
+  });
 
   const measureDrawingSelect = document.getElementById('measureDrawingSelect');
   if(measureDrawingSelect){
@@ -5897,20 +5900,25 @@ async function handleAction(action, el){
       const part = getParts(company.id).find(p=>p.id===partId);
       const inputs = document.querySelectorAll('[data-stage-input]');
       const rejectInputs = document.querySelectorAll('[data-reject-input]');
+      const dateInputs = Array.from(document.querySelectorAll('[data-stage-datetime]'));
       const recordedNow=new Date();
       const recordedAt=formatDateTimeTR(recordedNow);
-      const eventInput=document.getElementById('trackingEventDateTime');
-      const eventInputValue=(eventInput&&eventInput.value)||'';
-      let eventDateObj=recordedNow;
-      let customEventTime=false;
-      if(eventInputValue){
-        const parsed=localDateTimeInputToDate(eventInputValue);
-        if(!parsed){ showToast('Proses tarihi/saatini okuyamadım. Tarihi tekrar seçin.'); return; }
-        if(parsed.getTime()>Date.now()+60000){ showToast('Proses gerçekleşme zamanı gelecekte olamaz.'); return; }
-        eventDateObj=parsed; customEventTime=true;
+      const recordedTs=recordedNow.getTime();
+      const stageTiming={};
+      for(const dtInp of dateInputs){
+        const stage=dtInp.getAttribute('data-stage-datetime');
+        if(!canEditStage(stage)) continue;
+        const raw=dtInp.value||'';
+        let d=recordedNow, custom=false;
+        if(raw){
+          const parsed=localDateTimeInputToDate(raw);
+          if(!parsed){ showToast(`${stage} için proses tarihi/saatini okuyamadım. Tarihi tekrar seçin.`); return; }
+          if(parsed.getTime()>Date.now()+60000){ showToast(`${stage} için proses gerçekleşme zamanı gelecekte olamaz.`); return; }
+          d=parsed; custom=true;
+        }
+        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:formatDateTimeTR(d),custom};
       }
-      const eventTs=eventDateObj.getTime();
-      const eventDate=formatDateTimeTR(eventDateObj);
+      const timingFor=stage=>stageTiming[stage]||{eventDateObj:recordedNow,eventTs:recordedTs,eventDate:recordedAt,custom:false};
       let changed = false;
       const previousCurrentIdx=getCurrentStageIndex(part, company.stages);
       const previousCurrentStage=previousCurrentIdx>=0?company.stages[previousCurrentIdx]:null;
@@ -5933,17 +5941,25 @@ async function handleAction(action, el){
           if(b.stage===preferred && a.stage!==preferred) return -1;
           return company.stages.indexOf(a.stage)-company.stages.indexOf(b.stage);
         });
-        stageChanges.forEach(ch=>part.history.push({date:eventDate,eventTs,recordedAt,recordedTs:recordedNow.getTime(),stage:ch.stage,qty:ch.newVal,reject:false,user:state.currentUser}));
-        const lastChange=stageChanges[stageChanges.length-1];
-        const targetIdx=company.stages.indexOf(lastChange.stage);
-        const isHistoricalBackfill=customEventTime && previousCurrentEventTs>0 && eventTs<previousCurrentEventTs;
-        if(!isHistoricalBackfill && previousCurrentStage && targetIdx>=0 && targetIdx<previousCurrentIdx && lastChange.newVal>0){
-          part.returnEvents=part.returnEvents||[];
-          part.returnEvents.push({id:uid('ret'),date:eventDate,eventTs,recordedAt,recordedTs:recordedNow.getTime(),fromStage:previousCurrentStage,toStage:lastChange.stage,qty:lastChange.newVal,user:state.currentUser,note:'İleri bir prosesten önceki prosese geri dönüş'});
+        let lastChange=null,lastChangeTs=-Infinity;
+        stageChanges.forEach(ch=>{
+          const t=timingFor(ch.stage);
+          part.history.push({date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,stage:ch.stage,qty:ch.newVal,reject:false,user:state.currentUser});
+          if(t.eventTs>=lastChangeTs){ lastChange=ch; lastChangeTs=t.eventTs; }
+        });
+        if(lastChange){
+          const t=timingFor(lastChange.stage);
+          const targetIdx=company.stages.indexOf(lastChange.stage);
+          const isHistoricalBackfill=t.custom && previousCurrentEventTs>0 && t.eventTs<previousCurrentEventTs;
+          if(!isHistoricalBackfill && previousCurrentStage && targetIdx>=0 && targetIdx<previousCurrentIdx && lastChange.newVal>0){
+            part.returnEvents=part.returnEvents||[];
+            part.returnEvents.push({id:uid('ret'),date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,fromStage:previousCurrentStage,toStage:lastChange.stage,qty:lastChange.newVal,user:state.currentUser,note:'İleri bir prosesten önceki prosese geri dönüş'});
+          }
         }
       }
       delete state.lastEditedStageByPart[part.id];
       delete state.stageDrafts[part.id]; delete state.rejectDrafts[part.id];
+      const rejectChanges=[];
       rejectInputs.forEach(inp=>{
         const stage = inp.getAttribute('data-reject-input');
         if(!canEditStage(stage)) return;
@@ -5953,7 +5969,8 @@ async function handleAction(action, el){
         if(newVal !== oldVal){
           part.rejects[stage] = newVal;
           part.history = part.history || [];
-          part.history.push({date:eventDate,eventTs,recordedAt,recordedTs:recordedNow.getTime(),stage,qty:newVal,reject:true,user:state.currentUser});
+          const t=timingFor(stage); part.history.push({date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,stage,qty:newVal,reject:true,user:state.currentUser});
+          rejectChanges.push({stage,newVal,oldVal});
           changed = true;
         }
       });
@@ -5987,9 +6004,11 @@ async function handleAction(action, el){
       if(changed){ part.lastUpdate = recordedAt; part.updatedBy = state.currentUser; }
       const saved=await persistParts(company.id);
       if(saved!==false){
-        delete (state.trackingEventDateDraftByPart||{})[part.id];
+        delete (state.stageEventDateDraftsByPart||{})[part.id];
       }
-      const timeNote=customEventTime?` · Proses zamanı: ${eventDate}`:'';
+      const changedStageNames=[...new Set([...stageChanges.map(x=>x.stage), ...rejectChanges.map(x=>x.stage)])];
+      const customStages=changedStageNames.filter(stage=>timingFor(stage).custom);
+      const timeNote=customStages.length?` · Özel proses zamanı: ${customStages.join(', ')}`:'';
       showToast(autoNcrCount>0 ? `${autoNcrCount} tolerans dışı ölçüm için NCR otomatik açıldı.${timeNote}` : (changed ? `Üretim verileri güncellendi.${timeNote}` : 'Değişiklik yok.'));
       render();
       break;
