@@ -1465,8 +1465,20 @@ function historyEntryTime(entry){
   const d=parseTRDateTime(entry&&entry.date);
   return d?d.getTime():0;
 }
+function historyEntryToLocalInputValue(entry){
+  if(!entry) return '';
+  const ts=historyEntryTime(entry);
+  if(!ts) return '';
+  const d=new Date(ts);
+  if(isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 function sortByEventNewest(entries){
-  return (entries||[]).slice().sort((a,b)=>historyEntryTime(b)-historyEntryTime(a));
+  return (entries||[]).slice().sort((a,b)=>{
+    const byEvent=historyEntryTime(b)-historyEntryTime(a);
+    if(byEvent) return byEvent;
+    return (Number(b&&b.recordedTs)||0)-(Number(a&&a.recordedTs)||0);
+  });
 }
 /* ============================= İKON SETİ (SVG) ============================= */
 const ICONS = {
@@ -2277,7 +2289,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.02.8</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.02.9</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2493,6 +2505,9 @@ function renderTrackingView(){
           const isFinal = i === stages.length-1;
           const editable = canEditStage(s);
           const lastEntry = getStageLastEntry(part, s);
+          const savedStageDateValue=historyEntryToLocalInputValue(lastEntry);
+          const hasStageDateDraft=Object.prototype.hasOwnProperty.call(stageDateDraft,s);
+          const stageDateValue=hasStageDateDraft ? stageDateDraft[s] : savedStageDateValue;
           const isCurrent = i === currentIdx && !isShippedFully;
           return `
           <div class="pipeline-stage ${isFinal?'final':''} ${!editable?'locked':''} ${isCurrent?'current':''}">
@@ -2502,7 +2517,7 @@ function renderTrackingView(){
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
             <div style="margin-top:9px;">
               <label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Gerçek tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label>
-              <input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" value="${escapeHtml(stageDateDraft[s]||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/>
+              <input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" data-stage-datetime-original="${escapeHtml(savedStageDateValue)}" value="${escapeHtml(stageDateValue||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/>
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
             <div class="stage-meta">${lastEntry ? `${escapeHtml(lastEntry.date)}<br/>${escapeHtml(lastEntry.user||'—')}` : 'Henüz giriş yok'}</div>
@@ -2511,7 +2526,7 @@ function renderTrackingView(){
       </div>
 
       <div class="field" style="margin-top:18px;"><label>Not</label><textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea></div>
-      <div class="helper-text" style="margin-top:10px;max-width:760px;">Her prosesin kendi kartındaki <b>Gerçek tarih / saat</b> alanı opsiyoneldir. Boş bıraktığınız proseslerde kayıt anındaki tarih ve saat otomatik kullanılır.</div>
+      <div class="helper-text" style="margin-top:10px;max-width:900px;">Her prosesin kendi <b>Gerçek tarih / saat</b> alanı vardır. Kayıtlı tarih varsa burada görünür ve <b>adet aynı kalsa bile tarihi değiştirip düzeltebilirsiniz</b>. Yeni adet girişi yapıp tarihi değiştirmezseniz kayıt anındaki tarih/saat kullanılır. Tarih düzeltmesi proses geri dönüşü sayılmaz.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
         <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
         <div style="display:flex;gap:8px;">${isAdmin()?`<button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>`:''}<button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button></div>
@@ -2607,28 +2622,37 @@ function daysSince(dateStr){
   return Math.max(0, Math.round((a - d) / (1000*60*60*24)));
 }
 function getStageLastEntry(part, stage){
-  const hist = (part.history||[]).filter(h=>h.stage===stage && !h.reject);
-  if(!hist.length) return null;
-  let best=hist[0],bestTs=historyEntryTime(best),bestIdx=0;
-  hist.forEach((h,i)=>{
-    const ts=historyEntryTime(h);
-    if(ts>bestTs || (ts===bestTs && i>bestIdx)){ best=h;bestTs=ts;bestIdx=i; }
-  });
-  return best;
+  // Bir prosesin güncel adet durumu, o proses için en son KAYDEDİLEN miktar kaydıdır.
+  // Gerçekleşme tarihi sonradan geçmişe alınsa bile daha eski miktar kayıtları tekrar güncel sayılmaz.
+  const hist=(part.history||[]);
+  for(let i=hist.length-1;i>=0;i--){
+    const h=hist[i];
+    if(h&&h.stage===stage&&!h.reject) return h;
+  }
+  return null;
 }
 function getCurrentStageIndex(part, stages){
-  const hist = (part.history||[]).filter(h=>!h.reject && stages.includes(h.stage) && Number(h.qty)>0);
-  if(hist.length){
-    let last=hist[0],lastTs=historyEntryTime(last),lastIdx=0;
-    hist.forEach((h,i)=>{
-      const ts=historyEntryTime(h);
-      if(ts>lastTs || (ts===lastTs && i>lastIdx)){ last=h;lastTs=ts;lastIdx=i; }
-    });
-    return stages.indexOf(last.stage);
-  }
-  // Eski kayıtlarda history yoksa, önceki davranışa geri düş.
-  let idx = -1;
-  stages.forEach((s,i)=>{ if(Number((part.qtys||{})[s]||0) > 0) idx = i; });
+  // Önce her prosesin güncel miktar kaydını bulur, sonra prosesleri GERÇEK gerçekleşme
+  // tarih/saatlerine göre karşılaştırır. Böylece sonradan girilen eski kayıt akışı bozmaz;
+  // tarih düzeltmesi ise kronolojiyi gerçekten yeniden sıralar.
+  const hist=part.history||[];
+  let bestStageIdx=-1,bestTs=-Infinity,bestRecordIdx=-1;
+  stages.forEach((stage,stageIdx)=>{
+    let entry=null,recordIdx=-1;
+    for(let i=hist.length-1;i>=0;i--){
+      const h=hist[i];
+      if(h&&h.stage===stage&&!h.reject){ entry=h;recordIdx=i;break; }
+    }
+    if(!entry||Number(entry.qty)<=0) return;
+    const ts=historyEntryTime(entry);
+    if(ts>bestTs || (ts===bestTs && recordIdx>bestRecordIdx)){
+      bestStageIdx=stageIdx;bestTs=ts;bestRecordIdx=recordIdx;
+    }
+  });
+  if(bestStageIdx>=0) return bestStageIdx;
+  // Eski kayıtlarda history yoksa önceki davranışa geri düş.
+  let idx=-1;
+  stages.forEach((stage,i)=>{ if(Number((part.qtys||{})[stage]||0)>0) idx=i; });
   return idx;
 }
 
@@ -5909,21 +5933,21 @@ async function handleAction(action, el){
         const stage=dtInp.getAttribute('data-stage-datetime');
         if(!canEditStage(stage)) continue;
         const raw=dtInp.value||'';
-        let d=recordedNow, custom=false;
-        if(raw){
+        const originalRaw=dtInp.getAttribute('data-stage-datetime-original')||'';
+        const edited=raw!==originalRaw;
+        let d=recordedNow,custom=false;
+        // Kayıtlı tarih ekranda görünse de, kullanıcı o alanı DEĞİŞTİRMEDİYSE yeni adet
+        // girişinin zamanı eski tarihten kopyalanmaz; varsayılan olarak kayıt anı kullanılır.
+        if(edited&&raw){
           const parsed=localDateTimeInputToDate(raw);
           if(!parsed){ showToast(`${stage} için proses tarihi/saatini okuyamadım. Tarihi tekrar seçin.`); return; }
           if(parsed.getTime()>Date.now()+60000){ showToast(`${stage} için proses gerçekleşme zamanı gelecekte olamaz.`); return; }
-          d=parsed; custom=true;
+          d=parsed;custom=true;
         }
-        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:formatDateTimeTR(d),custom};
+        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:formatDateTimeTR(d),custom,edited,raw,originalRaw};
       }
-      const timingFor=stage=>stageTiming[stage]||{eventDateObj:recordedNow,eventTs:recordedTs,eventDate:recordedAt,custom:false};
-      let changed = false;
-      const previousCurrentIdx=getCurrentStageIndex(part, company.stages);
-      const previousCurrentStage=previousCurrentIdx>=0?company.stages[previousCurrentIdx]:null;
-      const previousCurrentEntry=previousCurrentStage?getStageLastEntry(part,previousCurrentStage):null;
-      const previousCurrentEventTs=previousCurrentEntry?historyEntryTime(previousCurrentEntry):0;
+      const timingFor=stage=>stageTiming[stage]||{eventDateObj:recordedNow,eventTs:recordedTs,eventDate:recordedAt,custom:false,edited:false,raw:'',originalRaw:''};
+      let changed=false;
       const stageChanges=[];
       inputs.forEach(inp=>{
         const stage=inp.getAttribute('data-stage-input');
@@ -5931,10 +5955,48 @@ async function handleAction(action, el){
         const newVal=Math.max(0,Number(inp.value)||0);
         if(!part.qtys) part.qtys={};
         const oldVal=Number(part.qtys[stage]||0);
-        if(newVal!==oldVal){ part.qtys[stage]=newVal; stageChanges.push({stage,newVal,oldVal}); changed=true; }
+        if(newVal!==oldVal){ part.qtys[stage]=newVal;stageChanges.push({stage,newVal,oldVal});changed=true; }
       });
+      part.history=part.history||[];
+      const changedStageSet=new Set(stageChanges.map(x=>x.stage));
+      const dateCorrections=[];
+
+      // ADET AYNI KALSA BİLE tarih/saat alanı gerçekten değiştirildiyse mevcut proses
+      // olayının tarihini düzelt. Yeni bir proses hareketi üretmez ve geri dönüş sayılmaz.
+      for(const dtInp of dateInputs){
+        const stage=dtInp.getAttribute('data-stage-datetime');
+        if(!canEditStage(stage)||changedStageSet.has(stage)) continue;
+        const t=timingFor(stage);
+        if(!t.edited) continue;
+        const currentQty=Number((part.qtys||{})[stage]||0);
+        const entry=getStageLastEntry(part,stage);
+        if(entry){
+          const oldTs=historyEntryTime(entry);
+          if(oldTs!==t.eventTs || String(entry.date||'')!==t.eventDate){
+            const oldDate=entry.date||'';
+            entry.date=t.eventDate;
+            entry.eventTs=t.eventTs;
+            entry.dateCorrectedAt=recordedAt;
+            entry.dateCorrectedTs=recordedTs;
+            entry.dateCorrectedBy=state.currentUser;
+            dateCorrections.push({stage,oldDate,newDate:t.eventDate});
+            changed=true;
+          }
+        }else if(currentQty>0){
+          // Çok eski kayıtlarda miktar var ama history yoksa tarih düzeltmesi aynı zamanda
+          // eksik proses olayını oluşturur; bu da geri dönüş değildir.
+          part.history.push({date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,stage,qty:currentQty,reject:false,user:state.currentUser,dateBackfilled:true});
+          dateCorrections.push({stage,oldDate:'',newDate:t.eventDate});
+          changed=true;
+        }
+      }
+
+      // Geri dönüş hesabında, yeni miktar değişikliklerinden ÖNCE var olan proseslerin
+      // düzeltilmiş gerçek tarihlerini baz al. Böylece tarih düzeltmek asla geri dönüş üretmez.
+      const baselineStageEntries=company.stages.map((stage,idx)=>({stage,idx,entry:getStageLastEntry(part,stage)}))
+        .filter(x=>x.entry&&Number(x.entry.qty)>0);
+
       if(stageChanges.length){
-        part.history=part.history||[];
         const preferred=state.lastEditedStageByPart[part.id]||null;
         stageChanges.sort((a,b)=>{
           if(a.stage===preferred && b.stage!==preferred) return 1;
@@ -5945,15 +6007,25 @@ async function handleAction(action, el){
         stageChanges.forEach(ch=>{
           const t=timingFor(ch.stage);
           part.history.push({date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,stage:ch.stage,qty:ch.newVal,reject:false,user:state.currentUser});
-          if(t.eventTs>=lastChangeTs){ lastChange=ch; lastChangeTs=t.eventTs; }
+          if(t.eventTs>lastChangeTs || (t.eventTs===lastChangeTs && ch.stage===preferred)){
+            lastChange=ch;lastChangeTs=t.eventTs;
+          }
         });
-        if(lastChange){
+        if(lastChange&&lastChange.newVal>0){
           const t=timingFor(lastChange.stage);
           const targetIdx=company.stages.indexOf(lastChange.stage);
-          const isHistoricalBackfill=t.custom && previousCurrentEventTs>0 && t.eventTs<previousCurrentEventTs;
-          if(!isHistoricalBackfill && previousCurrentStage && targetIdx>=0 && targetIdx<previousCurrentIdx && lastChange.newVal>0){
+          let later=null,laterTs=-Infinity;
+          baselineStageEntries.forEach(x=>{
+            if(x.idx<=targetIdx) return;
+            const ts=historyEntryTime(x.entry);
+            if(ts>laterTs){ later=x;laterTs=ts; }
+          });
+          // Daha ileri bir proses gerçekten daha önce gerçekleşmişse ve yeni eski-proses
+          // hareketi onun SONRASINA tarihlenmişse bu gerçek geri dönüştür. Yeni kayıt onun
+          // öncesine tarihlenmişse sadece geçmiş kayıt/backfill sayılır.
+          if(later && t.eventTs>=laterTs){
             part.returnEvents=part.returnEvents||[];
-            part.returnEvents.push({id:uid('ret'),date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,fromStage:previousCurrentStage,toStage:lastChange.stage,qty:lastChange.newVal,user:state.currentUser,note:'İleri bir prosesten önceki prosese geri dönüş'});
+            part.returnEvents.push({id:uid('ret'),date:t.eventDate,eventTs:t.eventTs,recordedAt,recordedTs,fromStage:later.stage,toStage:lastChange.stage,qty:lastChange.newVal,user:state.currentUser,note:'Gerçek proses tarihine göre ileri bir prosesten önceki prosese geri dönüş'});
           }
         }
       }
@@ -6008,7 +6080,10 @@ async function handleAction(action, el){
       }
       const changedStageNames=[...new Set([...stageChanges.map(x=>x.stage), ...rejectChanges.map(x=>x.stage)])];
       const customStages=changedStageNames.filter(stage=>timingFor(stage).custom);
-      const timeNote=customStages.length?` · Özel proses zamanı: ${customStages.join(', ')}`:'';
+      const notes=[];
+      if(customStages.length) notes.push(`özel proses zamanı: ${customStages.join(', ')}`);
+      if(dateCorrections.length) notes.push(`tarihi düzeltildi: ${dateCorrections.map(x=>x.stage).join(', ')}`);
+      const timeNote=notes.length?` · ${notes.join(' · ')}`:'';
       showToast(autoNcrCount>0 ? `${autoNcrCount} tolerans dışı ölçüm için NCR otomatik açıldı.${timeNote}` : (changed ? `Üretim verileri güncellendi.${timeNote}` : 'Değişiklik yok.'));
       render();
       break;
