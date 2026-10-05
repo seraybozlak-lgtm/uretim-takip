@@ -1366,12 +1366,12 @@ function mergeLegacyPartRecord(oldPart,newPart){
   Object.keys(oldPart||{}).forEach(k=>{
     if(legacyValueMissing(newPart[k]) && !legacyValueMissing(oldPart[k])) merged[k]=oldPart[k];
   });
-  ['qtys','rejects','processProfile'].forEach(k=>{
+  ['qtys','rejects','processProfile','analysisAutoLearning'].forEach(k=>{
     if(oldPart && oldPart[k] && typeof oldPart[k]==='object' && !Array.isArray(oldPart[k])){
       merged[k]={...(oldPart[k]||{}),...((newPart&&newPart[k])||{})};
     }
   });
-  ['drawings','measurements','history','ncrs','returnEvents','qualityEvents','productionIssues','dismissedNcrSuggestions'].forEach(k=>{
+  ['drawings','measurements','history','ncrs','returnEvents','qualityEvents','productionIssues','dismissedNcrSuggestions','analysisFeedback'].forEach(k=>{
     const a=Array.isArray(oldPart&&oldPart[k])?oldPart[k]:[];
     const b=Array.isArray(newPart&&newPart[k])?newPart[k]:[];
     if(a.length && !b.length) merged[k]=a;
@@ -2289,7 +2289,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.02.9</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.05.11</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2945,6 +2945,231 @@ function addTechnicalCandidate(store,field,value,confidence,source,raw){
   confidence=Math.max(0,Math.min(100,Number(confidence)||0));
   store[field].push({value,confidence,source:source||'',raw:raw||''});
 }
+
+const ANALYSIS_LEARNING_FIELDS=['material','thickness','size','holeCount','bendCount','weldLengthMm','toleranceClass'];
+function analysisProfileValue(profile,field){
+  if(field==='size') return {width:Number(profile?.width)||0,length:Number(profile?.length)||0};
+  return profile?.[field];
+}
+function analysisValueEqual(field,a,b){
+  if(field==='size') return Math.abs((Number(a?.width)||0)-(Number(b?.width)||0))<0.001 && Math.abs((Number(a?.length)||0)-(Number(b?.length)||0))<0.001;
+  if(typeof a==='number'||typeof b==='number') return Math.abs((Number(a)||0)-(Number(b)||0))<0.001;
+  return String(a??'').trim().toUpperCase()===String(b??'').trim().toUpperCase();
+}
+function normalizeAnalysisEvidenceText(v){
+  return String(v||'').toUpperCase().replace(/[^A-Z0-9ÇĞİÖŞÜ.]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function analysisEvidenceSimilarity(a,b){
+  a=normalizeAnalysisEvidenceText(a); b=normalizeAnalysisEvidenceText(b);
+  if(!a||!b) return 0;
+  if(a===b) return 1;
+  if(a.length>=7&&b.includes(a)) return .95;
+  if(b.length>=7&&a.includes(b)) return .95;
+  const A=new Set(a.split(' ').filter(x=>x.length>=2)), B=new Set(b.split(' ').filter(x=>x.length>=2));
+  if(!A.size||!B.size) return 0;
+  let hit=0; A.forEach(x=>{if(B.has(x))hit++;});
+  return hit/Math.max(A.size,B.size);
+}
+function analysisDrawingNames(part){ return (part?.drawings||[]).map(d=>String(d?.name||'').trim().toLowerCase()).filter(Boolean).sort(); }
+function sameAnalysisDrawingSet(a,b){
+  a=(a||[]).map(x=>String(x||'').toLowerCase()).sort(); b=(b||[]).map(x=>String(x||'').toLowerCase()).sort();
+  return a.length===b.length&&a.every((x,i)=>x===b[i]);
+}
+function companyAnalysisFeedback(companyId){
+  const out=[]; (getParts(companyId)||[]).forEach(p=>(p.analysisFeedback||[]).forEach(f=>{if(f&&f.field)out.push({...f,partId:p.id});}));
+  return out;
+}
+function applyAnalysisLearningToStore(store,part){
+  const companyId=state.selectedCompanyId; if(!companyId) return 0;
+  const feedback=companyAnalysisFeedback(companyId); if(!feedback.length) return 0;
+  const currentDrawings=analysisDrawingNames(part); let applied=0;
+  for(const f of feedback){
+    if(!ANALYSIS_LEARNING_FIELDS.includes(f.field)||f.confirmedValue===undefined) continue;
+    let confidence=0, matchedRaw='';
+    if(f.partId===part.id && sameAnalysisDrawingSet(f.drawingNames,currentDrawings)) confidence=99;
+    if(!confidence){
+      const raws=Array.isArray(f.evidenceRaw)?f.evidenceRaw:[];
+      const candidates=Array.isArray(store[f.field])?store[f.field]:[];
+      outer: for(const c of candidates){
+        for(const raw of raws){
+          const sim=analysisEvidenceSimilarity(c.raw,raw);
+          if(sim>=.72){ confidence=Math.max(confidence,Math.round(82+sim*16)); matchedRaw=c.raw||raw; if(sim>=.94) break outer; }
+        }
+      }
+    }
+    if(confidence){ addTechnicalCandidate(store,f.field,f.confirmedValue,confidence,'DOĞRULANMIŞ ÖĞRENME',matchedRaw||((f.evidenceRaw||[])[0]||'')); applied++; }
+  }
+  return applied;
+}
+function analysisFeedbackCount(companyId){ return companyAnalysisFeedback(companyId).length; }
+function analysisEditableSnapshot(profile){
+  return {material:profile?.material||'',thickness:profile?.thickness===''?'':Number(profile?.thickness)||0,width:Number(profile?.width)||0,length:Number(profile?.length)||0,holeCount:Number(profile?.holeCount)||0,bendCount:Number(profile?.bendCount)||0,weldLengthMm:Number(profile?.weldLengthMm)||0,complexity:profile?.complexity||'normal',toleranceClass:profile?.toleranceClass||'normal'};
+}
+function recordAnalysisFeedback(part,previousProfile,edited){
+  if(!previousProfile?.autoAnalyzedAt) return 0;
+  part.analysisFeedback=Array.isArray(part.analysisFeedback)?part.analysisFeedback:[];
+  const baseline=previousProfile.autoAnalysisOriginalProfile||analysisEditableSnapshot(previousProfile);
+  const scanId=previousProfile.autoAnalysisRunId||String(previousProfile.autoAnalyzedAt);
+  const evidence=previousProfile.autoAnalysisEvidence||{};
+  const drawings=(previousProfile.autoAnalysisPrimaryDrawings||[]).map(x=>x?.name).filter(Boolean);
+  let changed=0;
+  for(const field of ANALYSIS_LEARNING_FIELDS){
+    const predicted=field==='size'?{width:Number(baseline.width)||0,length:Number(baseline.length)||0}:baseline[field];
+    const confirmed=field==='size'?{width:Number(edited.width)||0,length:Number(edited.length)||0}:edited[field];
+    const evRows=Array.isArray(evidence[field])?evidence[field]:[];
+    reinforceAutoPatternsFromFeedback(part,field,predicted,confirmed,evRows);
+    if(analysisValueEqual(field,predicted,confirmed)) continue;
+    const item={id:uid('learn'),scanId,field,predictedValue:predicted,confirmedValue:confirmed,evidenceRaw:evRows.map(x=>x?.raw||'').filter(Boolean).slice(0,6),drawingNames:drawings.length?drawings:analysisDrawingNames(part),drawingType:previousProfile.autoAnalysisDrawingType||'',createdAt:todayStr(),createdBy:state.currentUser};
+    const idx=part.analysisFeedback.findIndex(x=>x&&x.scanId===scanId&&x.field===field);
+    if(idx>=0) part.analysisFeedback[idx]={...part.analysisFeedback[idx],...item,id:part.analysisFeedback[idx].id||item.id}; else part.analysisFeedback.push(item);
+    changed++;
+  }
+  if(part.analysisFeedback.length>120) part.analysisFeedback=part.analysisFeedback.slice(-120);
+  return changed;
+}
+function analysisSourceFamily(source){
+  const s=String(source||'').toUpperCase();
+  if(/DOĞRULANMIŞ ÖĞRENME|SÜREKLİ ÖĞRENME/.test(s)) return 'LEARNED';
+  if(/ESAS ANTET|TITLE|ANTET/.test(s)) return 'TITLE_BLOCK';
+  if(/PDF ANTET\/TEXT|METIN|METİN/.test(s)) return 'PDF_TEXT';
+  if(/PDF.*YATAY|PDF.*DIKEY|PDF.*DİKEY/.test(s)) return 'PDF_SPATIAL';
+  if(/DIM|EDGE|KENAR|YATAY|DIKEY|DİKEY/.test(s)) return 'DIMENSION_REGION';
+  if(/GENEL SAYISAL|NUMERIC|SAYISAL/.test(s)) return 'NUMERIC_OCR';
+  if(/GENEL|HIRES TEXT/.test(s)) return 'GENERAL_OCR';
+  return 'OTHER';
+}
+function analysisPatternSignature(raw){
+  let s=normalizeAnalysisEvidenceText(raw);
+  if(!s) return '';
+  // Layout/label pattern should generalize across drawings; exact numbers are replaced.
+  s=s.replace(/\b\d+(?:[.,]\d+)?\b/g,'#').replace(/#+/g,'#');
+  return s.slice(0,180);
+}
+function ensureAutonomousAnalysisMemory(part){
+  if(!part.analysisAutoLearning || typeof part.analysisAutoLearning!=='object'){
+    part.analysisAutoLearning={scanCount:0,patterns:[],lastUpdated:''};
+  }
+  if(!Array.isArray(part.analysisAutoLearning.patterns)) part.analysisAutoLearning.patterns=[];
+  part.analysisAutoLearning.scanCount=Number(part.analysisAutoLearning.scanCount)||0;
+  return part.analysisAutoLearning;
+}
+function companyAutonomousPatterns(companyId){
+  const out=[];
+  (getParts(companyId)||[]).forEach(p=>{
+    const mem=p&&p.analysisAutoLearning;
+    (mem&&Array.isArray(mem.patterns)?mem.patterns:[]).forEach(x=>{if(x&&x.field)out.push({...x,partId:p.id});});
+  });
+  return out;
+}
+function autonomousLearningStats(companyId){
+  let scans=0,patterns=0,confirmed=0,rejected=0;
+  (getParts(companyId)||[]).forEach(p=>{
+    const m=p&&p.analysisAutoLearning;
+    if(!m) return;
+    scans+=Number(m.scanCount)||0;
+    const ps=Array.isArray(m.patterns)?m.patterns:[]; patterns+=ps.length;
+    ps.forEach(x=>{confirmed+=Number(x.confirmed)||0;rejected+=Number(x.rejected)||0;});
+  });
+  return {scans,patterns,confirmed,rejected};
+}
+function analysisProfileFieldPresent(profile,field){
+  const v=analysisProfileValue(profile,field);
+  if(field==='size') return Number(v?.width)>0&&Number(v?.length)>0;
+  if(field==='material') return !!String(v||'').trim();
+  if(field==='toleranceClass') return !!String(v||'').trim();
+  return Number(v)>0;
+}
+function findOrCreateAutoPattern(part,field,source,raw){
+  const mem=ensureAutonomousAnalysisMemory(part);
+  const sourceFamily=analysisSourceFamily(source), signature=analysisPatternSignature(raw);
+  if(!signature) return null;
+  let row=mem.patterns.find(x=>x&&x.field===field&&x.sourceFamily===sourceFamily&&x.signature===signature);
+  if(!row){
+    row={id:uid('apat'),field,sourceFamily,signature,seen:0,stable:0,unstable:0,confirmed:0,rejected:0,lastValue:null,lastSeen:''};
+    mem.patterns.push(row);
+  }
+  return row;
+}
+function reinforceAutoPatternsFromFeedback(part,field,predicted,confirmed,evidenceRows){
+  const same=analysisValueEqual(field,predicted,confirmed);
+  for(const e of (evidenceRows||[]).slice(0,6)){
+    const row=findOrCreateAutoPattern(part,field,e?.source||'',e?.raw||'');
+    if(!row) continue;
+    if(same){ row.confirmed=(Number(row.confirmed)||0)+1; }
+    else{
+      row.rejected=(Number(row.rejected)||0)+1;
+      row.correctedValue=confirmed;
+      row.correctedCount=(Number(row.correctedCount)||0)+1;
+    }
+    row.lastSeen=todayStr();
+  }
+}
+function updateAutonomousLearningFromScan(part,prof,previousProfile){
+  const mem=ensureAutonomousAnalysisMemory(part);
+  mem.scanCount++;
+  mem.lastUpdated=todayStr();
+  const sameDrawingSet=previousProfile?.autoAnalyzedAt && sameAnalysisDrawingSet(
+    (previousProfile.autoAnalysisPrimaryDrawings||[]).map(x=>x?.name).filter(Boolean),
+    (prof.autoAnalysisPrimaryDrawings||[]).map(x=>x?.name).filter(Boolean)
+  );
+  for(const field of ANALYSIS_LEARNING_FIELDS){
+    if(!analysisProfileFieldPresent(prof,field)) continue;
+    const current=analysisProfileValue(prof,field);
+    const prior=analysisProfileValue(previousProfile||{},field);
+    const stable=sameDrawingSet && analysisProfileFieldPresent(previousProfile||{},field) && analysisValueEqual(field,current,prior);
+    const rows=Array.isArray(prof.autoAnalysisEvidence?.[field])?prof.autoAnalysisEvidence[field]:[];
+    for(const e of rows.slice(0,6)){
+      const row=findOrCreateAutoPattern(part,field,e?.source||'',e?.raw||'');
+      if(!row) continue;
+      const prevSeen=Number(row.seen)||0, evConf=Math.max(0,Math.min(100,Number(e?.confidence)||0));
+      row.seen=prevSeen+1;
+      row.avgConfidence=prevSeen?(((Number(row.avgConfidence)||0)*prevSeen+evConf)/(prevSeen+1)):evConf;
+      if(stable) row.stable=(Number(row.stable)||0)+1;
+      else if(sameDrawingSet && analysisProfileFieldPresent(previousProfile||{},field)) row.unstable=(Number(row.unstable)||0)+1;
+      row.lastValue=current; row.lastSeen=todayStr();
+    }
+  }
+  // Keep RTDB small and bounded.
+  if(mem.patterns.length>80){
+    mem.patterns.sort((a,b)=>{
+      const sa=(Number(a.confirmed)||0)*8+(Number(a.stable)||0)*2+(Number(a.seen)||0)-(Number(a.rejected)||0)*6;
+      const sb=(Number(b.confirmed)||0)*8+(Number(b.stable)||0)*2+(Number(b.seen)||0)-(Number(b.rejected)||0)*6;
+      return sb-sa;
+    });
+    mem.patterns=mem.patterns.slice(0,80);
+  }
+  return mem;
+}
+function applyAutonomousLearningToStore(store,part){
+  const companyId=state.selectedCompanyId; if(!companyId) return 0;
+  const patterns=companyAutonomousPatterns(companyId); if(!patterns.length) return 0;
+  let applied=0;
+  for(const field of ANALYSIS_LEARNING_FIELDS){
+    const candidates=Array.isArray(store[field])?[...store[field]]:[];
+    for(const c of candidates){
+      const fam=analysisSourceFamily(c.source), sig=analysisPatternSignature(c.raw);
+      if(!sig) continue;
+      let boost=0;
+      for(const p of patterns){
+        if(p.field!==field||p.sourceFamily!==fam) continue;
+        const sim=analysisEvidenceSimilarity(sig,p.signature||'');
+        if(sim<.72) continue;
+        const confirmed=Number(p.confirmed)||0,rejected=Number(p.rejected)||0,stable=Number(p.stable)||0,seen=Number(p.seen)||0;
+        const q=Math.max(0,Math.min(1,((Number(p.avgConfidence)||55)-55)/35));
+        const reliability=(confirmed*3+stable*.55*q+Math.min(6,seen*.15*q))-(rejected*4+Number(p.unstable||0)*.6);
+        boost=Math.max(boost,Math.min(14,Math.max(-12,reliability))*sim);
+        // Human-corrected mapping is stronger than autonomous self-agreement.
+        if(p.correctedValue!==undefined && p.correctedValue!==null && confirmed+Number(p.correctedCount||0)>=1 && rejected>=1){
+          addTechnicalCandidate(store,field,p.correctedValue,Math.min(98,90+Math.min(8,rejected*2))*sim,'SÜREKLİ ÖĞRENME · DÜZELTİLMİŞ DESEN',c.raw||p.signature);
+          applied++;
+        }
+      }
+      if(boost){ c.confidence=Math.max(0,Math.min(100,Number(c.confidence||0)+boost)); applied++; }
+    }
+  }
+  return applied;
+}
+
 function technicalToNum(v){
   const s=String(v??'')
     .replace(/[Oo](?=\d)/g,'0')
@@ -3821,9 +4046,14 @@ async function deepAnalyzeTechnicalDrawings(part){
       }
     }
     const classification=technicalDrawingClassification(primary,part);
+    const learnedHints=applyAnalysisLearningToStore(store,part);
+    const autonomousHints=applyAutonomousLearningToStore(store,part);
     let prof=chooseTechnicalAnalysis(store);
     prof=applyReliableTechnicalPolicy(prof,classification);
+    prof.autoAnalysisLearnedHints=learnedHints;
+    prof.autoAnalysisAutonomousHints=autonomousHints;
     prof.autoAnalyzedAt=todayStr();
+    prof.autoAnalysisRunId=uid('scan');
     prof.autoAnalysisSource=selected.map(x=>(x.drawing||x).name||'teknik resim').join(', ');
     prof.autoAnalysisScannedVisuals=scannedVisuals;
     prof.autoAnalysisTextLayers=textLayers;
@@ -3836,6 +4066,7 @@ async function deepAnalyzeTechnicalDrawings(part){
       matchReason:x.matchReason||'tek-resim-fallback'
     }));
     prof.autoAnalysisDetectedDrawingNumbers=identityDetails.map(x=>({name:x.drawing?.name||'',drawingNo:x.detectedDrawingNo||'',matched:!!x.matched}));
+    prof.autoAnalysisOriginalProfile=analysisEditableSnapshot(prof);
     return prof;
   }finally{
     try{await worker.terminate();}catch(_e){}
@@ -3892,7 +4123,7 @@ function renderProductionEstimateSection(part,company){
   return `
     <div class="section-title">Tahmini Proses Süreleri</div>
     <div class="card" style="padding:16px;margin-bottom:14px;">
-      <div class="analytics-note" style="margin-bottom:12px;">Analiz önce doğru esas resmi ve çizim tipini belirler. Montaj resminde alt parça ölçülerini üretim ölçüsü diye yazmaz; tek-parça resminde yalnızca açık etiket/ölçü kanıtı bulunan alanları doldurur. Böylece az veri bulsa bile yanlış veri üretmek yerine güvenilir kalır.</div>
+      ${(()=>{const ls=autonomousLearningStats(company.id);return `<div class="analytics-note" style="margin-bottom:12px;"><b>Sürekli öğrenme açık:</b> Sistem yalnızca manuel düzeltmelerden değil, <b>her teknik resim taramasından</b> da desen, OCR kaynağı ve sonuç kararlılığı öğrenir; güvenilir kaynakların ağırlığını zamanla artırır, kararsız/yanlış çıkan desenlerin ağırlığını düşürür. Manuel düzeltme en güçlü sinyaldir. Şirket hafızası: <b>${ls.scans}</b> tarama · <b>${ls.patterns}</b> öğrenilmiş desen · <b>${analysisFeedbackCount(company.id)}</b> manuel düzeltme.</div>`;})()}
       ${isAdmin()?`<div class="profile-grid">
         <div class="field"><label>Malzeme</label><input id="ppMaterial" type="text" value="${escapeHtml(profile.material||'')}" placeholder="Bulunamadı"/></div>
         <div class="field"><label>Kalınlık (mm)</label><input id="ppThickness" type="text" inputmode="decimal" value="${escapeHtml(decimalDisplay(profile.thickness))}" placeholder="Bulunamadı"/></div>
@@ -3904,7 +4135,7 @@ function renderProductionEstimateSection(part,company){
         <div class="field"><label>Karmaşıklık</label><select id="ppComplexity"><option value="low" ${profile.complexity==='low'?'selected':''}>Basit</option><option value="normal" ${profile.complexity==='normal'?'selected':''}>Normal</option><option value="high" ${profile.complexity==='high'?'selected':''}>Karmaşık</option></select></div>
         <div class="field"><label>Tolerans Seviyesi</label><select id="ppTolerance"><option value="rough" ${profile.toleranceClass==='rough'?'selected':''}>Geniş</option><option value="normal" ${profile.toleranceClass==='normal'?'selected':''}>Normal</option><option value="precision" ${profile.toleranceClass==='precision'?'selected':''}>Hassas</option></select></div>
       </div>
-      ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:10px;">Son teknik resim taraması: <b>${escapeHtml(profile.autoAnalyzedAt)}</b> · Yöntem: ${escapeHtml(profile.autoAnalysisMethod||'teknik resim taraması')} · Güven: <b>%${Number(profile.autoAnalysisConfidence)||0}</b> · Bulunan alan: <b>${Number(profile.autoAnalysisFoundCount)||0}</b>${profile.autoAnalysisSizeDerived?' · En/Boy dış ölçü adaylarından çıkarıldı':''}${Array.isArray(profile.autoAnalysisMissing)&&profile.autoAnalysisMissing.length?` · Bulunamayan: ${escapeHtml(profile.autoAnalysisMissing.join(', '))}`:''}</div>`:''}
+      ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:10px;">Son teknik resim taraması: <b>${escapeHtml(profile.autoAnalyzedAt)}</b> · Yöntem: ${escapeHtml(profile.autoAnalysisMethod||'teknik resim taraması')} · Güven: <b>%${Number(profile.autoAnalysisConfidence)||0}</b> · Bulunan alan: <b>${Number(profile.autoAnalysisFoundCount)||0}</b>${Number(profile.autoAnalysisLearnedHints)>0?` · Manuel öğrenme ipucu: <b>${Number(profile.autoAnalysisLearnedHints)}</b>`:''}${Number(profile.autoAnalysisAutonomousHints)>0?` · Sürekli öğrenme etkisi: <b>${Number(profile.autoAnalysisAutonomousHints)}</b>`:''}${profile.autoAnalysisSizeDerived?' · En/Boy dış ölçü adaylarından çıkarıldı':''}${Array.isArray(profile.autoAnalysisMissing)&&profile.autoAnalysisMissing.length?` · Bulunamayan: ${escapeHtml(profile.autoAnalysisMissing.join(', '))}`:''}</div>`:''}
       ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:8px;border-left:3px solid ${profile.autoAnalysisDrawingType==='single_part'?'var(--green-signal)':profile.autoAnalysisDrawingType==='assembly'?'var(--brass)':'var(--gray-500)'};"><b>Çizim tipi:</b> ${profile.autoAnalysisDrawingType==='single_part'?'Tek parça':profile.autoAnalysisDrawingType==='assembly'?'Montaj':'Belirsiz'} ${profile.autoAnalysisDrawingTypeConfidence===100?' · manuel tip':' · sınıflandırma güveni %'+(Number(profile.autoAnalysisDrawingTypeConfidence)||0)}${profile.autoAnalysisAssemblyLikely?` · BOM/alt parça: ${Number((profile.autoAnalysisAssemblyPartNumbers||[]).length)}`:''}</div>`:''}
       ${profile.autoAnalysisPolicyNote?`<div class="analytics-note" style="margin-top:8px;">${escapeHtml(profile.autoAnalysisPolicyNote)}</div>`:''}
       ${profile.autoAnalysisAssemblyLikely&&Array.isArray(profile.autoAnalysisReferenceDimensions)&&profile.autoAnalysisReferenceDimensions.length?`<div class="helper-text" style="margin-top:6px;">Montajdaki referans ölçü adayları (En/Boy alanına yazılmaz): ${profile.autoAnalysisReferenceDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
@@ -3912,7 +4143,7 @@ function renderProductionEstimateSection(part,company){
       ${profile.autoAnalyzedAt&&profile.autoAnalysisTopDimensionText?`<div class="analytics-note" style="margin-top:8px;">OCR ölçü adayları: <b>${escapeHtml(profile.autoAnalysisTopDimensionText)}</b></div>`:''}
       ${!profile.autoAnalysisAssemblyLikely&&Array.isArray(profile.autoAnalysisDetectedDimensions)&&profile.autoAnalysisDetectedDimensions.length?`<div class="helper-text" style="margin-top:6px;">OCR ölçü adayları: ${profile.autoAnalysisDetectedDimensions.slice(0,8).map(x=>`${escapeHtml(decimalDisplay(x.value))} mm (%${Number(x.confidence)||0}${x.horizontal?' H':''}${x.vertical?' V':''})`).join(' · ')}</div>`:''}
       <div id="drawingAnalysisStatus" class="helper-text" style="margin-top:8px;min-height:18px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analizi Kaydet</button>${(part.drawings||[]).some(d=>d && drawingHasPayload(d) && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="saveProcessProfile" data-part="${part.id}">Analiz Verilerini Düzenle / Kaydet</button>${(part.drawings||[]).some(d=>d && drawingHasPayload(d) && (((d.type||'').startsWith('image/'))||d.type==='application/pdf'||/\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')))?`<button class="btn btn-ghost btn-sm" data-action="analyzeDrawingPdf" data-part="${part.id}">Teknik Resmi Derin Tara</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-action="clearProcessProfile" data-part="${part.id}">Analiz Verilerini Temizle</button></div>`:''}
       <div class="process-estimate-grid">
         ${relevant.map(stage=>{
           const d=estimateStageDays(part,stage);
@@ -6095,7 +6326,8 @@ async function handleAction(action, el){
       const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part'));
       if(!part) return;
       ensurePartQualityData(part);
-      part.processProfile={
+      const previousProfile={...(part.processProfile||{})};
+      const edited={
         material:(document.getElementById('ppMaterial')?.value||'').trim(),
         thickness:document.getElementById('ppThickness')?.value===''?'':parseDecimal(document.getElementById('ppThickness')?.value),
         width:Number(document.getElementById('ppWidth')?.value)||0,
@@ -6104,10 +6336,11 @@ async function handleAction(action, el){
         bendCount:Number(document.getElementById('ppBends')?.value)||0,
         weldLengthMm:Number(document.getElementById('ppWeld')?.value)||0,
         complexity:document.getElementById('ppComplexity')?.value||'normal',
-        toleranceClass:document.getElementById('ppTolerance')?.value||'normal',
-        confirmed:true, updatedAt:todayStr(), updatedBy:state.currentUser
+        toleranceClass:document.getElementById('ppTolerance')?.value||'normal'
       };
-      await persistParts(company.id); showToast('Proses tahmin bilgileri kaydedildi.'); render(); break;
+      const learned=recordAnalysisFeedback(part,previousProfile,edited);
+      part.processProfile={...previousProfile,...edited,confirmed:true,updatedAt:todayStr(),updatedBy:state.currentUser,manualConfirmedAt:todayStr(),manualCorrectionCount:(Number(previousProfile.manualCorrectionCount)||0)+learned};
+      await persistParts(company.id); showToast(learned?`${learned} düzeltme kaydedildi; teknik resim analizine öğretildi.`:'Analiz verileri doğrulandı ve kaydedildi.'); render(); break;
     }
     case 'analyzeDrawingPdf': {
       const company=getCompany(state.selectedCompanyId);
@@ -6119,7 +6352,11 @@ async function handleAction(action, el){
       setDrawingAnalysisStatus('Teknik resimler yüksek çözünürlükte hazırlanıyor…');
       try{
         ensurePartQualityData(part);
+        const previousProfile={...(part.processProfile||{})};
         const prof=await deepAnalyzeTechnicalDrawings(part);
+        const autoMem=updateAutonomousLearningFromScan(part,prof,previousProfile);
+        prof.autoAnalysisContinuousScanCount=Number(autoMem.scanCount)||0;
+        prof.autoAnalysisContinuousPatternCount=Array.isArray(autoMem.patterns)?autoMem.patterns.length:0;
         part.processProfile=prof;
         await persistParts(company.id);
         const missing=Array.isArray(prof.autoAnalysisMissing)?prof.autoAnalysisMissing:[];
