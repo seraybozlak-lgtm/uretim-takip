@@ -2039,6 +2039,7 @@ async function loadAll(){
       const normalizedStages=ensureRequiredStages(c.stages);
       if(JSON.stringify(normalizedStages)!==JSON.stringify(c.stages||[])){ c.stages=normalizedStages; companiesMigrated=true; }
       if(!Array.isArray(c.months)){ c.months=[]; companiesMigrated=true; }
+      if(!Array.isArray(c.processOperators)){ c.processOperators=[]; companiesMigrated=true; }
     });
 
     const partsMap={};
@@ -2061,6 +2062,9 @@ async function loadAll(){
       });
       const beforeMonths=JSON.stringify(c.months||[]); ensureCompanyMonths(c,parts);
       if(JSON.stringify(c.months||[])!==beforeMonths) companiesMigrated=true;
+      const beforeOperators=JSON.stringify(c.processOperators||[]);
+      parts.forEach(p=>Object.values(p.processMeta||{}).forEach(m=>{const n=String(m?.operator||'').trim();if(n)addProcessOperatorToCompany(c,n);}));
+      if(JSON.stringify(c.processOperators||[])!==beforeOperators) companiesMigrated=true;
       partsMap[c.id]=parts;
     }
     state.partsByCompany=partsMap;
@@ -2505,7 +2509,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.07.13</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.07.14</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2743,15 +2747,13 @@ function renderTrackingView(){
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" data-stage-datetime-original="${escapeHtml(savedStageDateValue)}" value="${escapeHtml(stageDateValue||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-end-datetime="${escapeHtml(s)}" value="${escapeHtml(meta.endAt||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
-              ${operatorStage?`<div style="display:grid;grid-template-columns:${s==='Kaynak'?'minmax(0,1.15fr) minmax(0,.85fr)':'1fr'};gap:6px;"><div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Operatör / Çalışan</label><input type="text" list="processOperatorList" data-stage-operator="${escapeHtml(s)}" value="${escapeHtml(meta.operator||'')}" placeholder="İsim seç / yaz" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>${s==='Kaynak'?`<div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
+              ${operatorStage?`<div style="display:grid;grid-template-columns:${s==='Kaynak'?'minmax(0,1.15fr) minmax(0,.85fr)':'1fr'};gap:6px;"><div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Operatör / Çalışan</label>${(()=>{const names=processOperatorNames(company.id);const current=String(meta.operator||'').trim();const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<select data-stage-operator="${escapeHtml(s)}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<div style="display:flex;gap:5px;margin-top:5px;"><input type="text" data-new-process-operator="${escapeHtml(s)}" placeholder="Yeni isim ekle" style="min-width:0;flex:1;font-size:10.5px;padding:6px 7px;"/><button type="button" class="btn btn-ghost btn-sm" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" style="padding:5px 8px;min-height:30px;white-space:nowrap;">+ İsim Ekle</button></div>`:''}`;})()}</div>${s==='Kaynak'?`<div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
             <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${meta.operator?`<br/>${escapeHtml(meta.operator)}`:''}</div>
           </div>`;
         }).join('')}
       </div>
-      ${(()=>{const names=processOperatorNames(company.id);return names.length?`<datalist id="processOperatorList">${names.map(n=>`<option value="${escapeHtml(n)}"></option>`).join('')}</datalist>`:'';})()}
-
       <div class="field" style="margin-top:18px;"><label>Not</label><textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea></div>
       <div class="helper-text" style="margin-top:10px;max-width:980px;">Her proseste <b>giriş ve bitiş</b> zamanı ayrı tutulur. Bitiş girildiğinde sonraki prosese geçene kadar geçen bekleme süresi eski prosese yazılmaz. Cumartesi ve Pazar varsayılan olarak çalışma gününden sayılmaz; yalnızca ilgili proses kartında işaretlerseniz hesaba katılır. Giriş/bitiş tarihini sonradan düzeltmek proses geri dönüşü oluşturmaz.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
@@ -2972,8 +2974,21 @@ function getCurrentStageIndex(part, stages){
 }
 function processOperatorNames(companyId){
   const set=new Set();
+  const company=getCompany(companyId);
+  (Array.isArray(company?.processOperators)?company.processOperators:[]).forEach(name=>{name=String(name||'').trim();if(name)set.add(name);});
+  // Eski kayıtlardaki isimleri de kaybetme; kayıtlı çalışan listesine otomatik dahil et.
   (getParts(companyId)||[]).forEach(p=>Object.values(p.processMeta||{}).forEach(m=>{if(m&&String(m.operator||'').trim())set.add(String(m.operator).trim());}));
   return [...set].sort((a,b)=>a.localeCompare(b,'tr'));
+}
+function addProcessOperatorToCompany(company,name){
+  if(!company) return false;
+  name=String(name||'').trim().replace(/\s+/g,' ');
+  if(!name) return false;
+  company.processOperators=Array.isArray(company.processOperators)?company.processOperators:[];
+  const exists=company.processOperators.some(x=>String(x||'').trim().toLocaleLowerCase('tr-TR')===name.toLocaleLowerCase('tr-TR'));
+  if(!exists) company.processOperators.push(name);
+  company.processOperators=company.processOperators.map(x=>String(x||'').trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'tr'));
+  return !exists;
 }
 /* ============================= TERMİN TARİHİ ============================= */
 const STUCK_DAYS_THRESHOLD = 3; // bu süreden fazla aynı aşamada kalan parça "takıldı" sayılır
@@ -5108,7 +5123,26 @@ function collectOperatorPerformance(companyId,monthKey){
       if(rej>0||ncr>0||issues>0) r.errorParts++;
     });
   });
-  return [...map.values()].map(r=>({...r,qtyPerDay:r.workDays>0?r.qty/r.workDays:0})).sort((a,b)=>b.qtyPerDay-a.qtyPerDay||b.qty-a.qty);
+  return [...map.values()].map(r=>({
+    ...r,
+    qtyPerDay:r.workDays>0?r.qty/r.workDays:0,
+    rejectRate:r.qty>0?r.rejects/r.qty*100:0,
+    errorPartRate:r.parts>0?r.errorParts/r.parts*100:0
+  })).sort((a,b)=>b.qtyPerDay-a.qtyPerDay||b.qty-a.qty);
+}
+function operatorPerformanceChartData(rows,metric){
+  return (rows||[]).map(r=>({stage:`${r.stage} · ${r.operator}`,value:Number(r[metric])||0}));
+}
+function renderOperatorBarChartSVG(data,suffix){
+  if(!data.length) return '<div class="helper-text">Veri yok.</div>';
+  const W=620,barH=25,gap=9,padL=165,padR=72;
+  const H=data.length*(barH+gap)+gap;
+  const max=Math.max(1,...data.map(d=>Number(d.value)||0));
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">${data.map((d,i)=>{
+    const y=gap+i*(barH+gap),v=Number(d.value)||0,w=(v/max)*(W-padL-padR);
+    const shown=v.toLocaleString('tr-TR',{maximumFractionDigits:1});
+    return `<text x="${padL-9}" y="${y+barH*.65}" font-size="10.5" fill="var(--gray-700)" text-anchor="end" font-weight="700">${escapeHtml(d.stage)}</text><rect x="${padL}" y="${y}" width="${Math.max(v>0?2:0,w)}" height="${barH}" rx="5" fill="var(--signal)"/><text x="${padL+Math.max(v>0?2:0,w)+8}" y="${y+barH*.65}" font-size="10.5" fill="var(--gray-500)" font-weight="800">${shown}${escapeHtml(suffix||'')}</text>`;
+  }).join('')}</svg>`;
 }
 
 function companyMonthSeries(companyId){
@@ -5196,9 +5230,9 @@ function renderDashboardView(){
     ${companies.length?`<div class="month-bar"><span class="month-label">Şirket</span><select class="month-select" id="dashboardCompanySelect">${companies.map(c=>`<option value="${c.id}" ${c.id===state.dashboardCompanyId?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}</select><span class="month-label">İncelenen Ay</span><select class="month-select" id="dashboardCompanyMonthSelect">${companyMonths.slice().reverse().map(m=>`<option value="${m}" ${m===companyDashMonth?'selected':''}>${escapeHtml(monthLabel(m))}</option>`).join('')}</select><span class="helper-text" style="margin:0;">Bu bölüm yalnızca seçilen şirketin kendi aylarını karşılaştırır; üstteki şirketler arası kıyas ayından bağımsızdır.</span></div>${selectedDashCompany?renderCompanyMonthlyInsights(selectedDashCompany,companyDashMonth):''}
       ${monthSeries.length?`<div class="chart-grid" style="margin-top:16px;"><div class="card chart-card"><div class="chart-card-title">Aylık Sipariş Trendi · ${escapeHtml(selectedDashCompany.name)}</div>${renderBarChartSVG(monthSeries.map(x=>({stage:monthShortLabel(x.month),value:x.ordered})))}</div><div class="card chart-card"><div class="chart-card-title">Aylık Ret Trendi · ${escapeHtml(selectedDashCompany.name)}</div>${renderBarChartSVG(monthSeries.filter(x=>x.rejected>0).map(x=>({stage:monthShortLabel(x.month),value:x.rejected})))}</div></div>`:''}`:`<div class="empty-state"><p>Şirket verisi yok.</p></div>`}
 
-    <div class="section-title">Kaynak / Büküm / Taşlama · Operatör Performansı</div>
-    <div class="analytics-note" style="margin-bottom:12px;">Seçilen şirket ve ay için yalnızca proses kartında isim atanmış Kaynak, Büküm ve Taşlama kayıtları gösterilir. Süre hesabında prosesin giriş-bitiş tarihleri ve o proses için seçilen Cumartesi/Pazar kuralları kullanılır; aradaki bekleme günleri prosese yazılmaz.</div>
-    ${operatorPerformance.length?`<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Proses</th><th>Operatör</th><th>Parça Kaydı</th><th>Tamamlanan</th><th>İşlenen Adet</th><th>Toplam Çalışma Günü</th><th>Adet / Gün</th><th>Ret</th><th>Hatalı Parça</th><th>NCR</th><th>Problem</th></tr></thead><tbody>${operatorPerformance.map(r=>`<tr><td style="font-weight:800;">${escapeHtml(r.stage)}</td><td style="font-weight:800;color:var(--navy-900);">${escapeHtml(r.operator)}</td><td class="mono">${fmtNum(r.parts)}</td><td class="mono">${fmtNum(r.completed)}</td><td class="mono">${fmtNum(r.qty)}</td><td class="mono">${r.workDays.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono" style="font-weight:800;">${r.qtyPerDay.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono" style="color:${r.rejects>0?'var(--red-500)':'var(--gray-500)'};">${fmtNum(r.rejects)}</td><td class="mono">${fmtNum(r.errorParts)}</td><td class="mono">${fmtNum(r.ncrs)}</td><td class="mono">${fmtNum(r.issues)}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-state" style="padding:24px;"><p>Bu ay Kaynak/Büküm/Taşlama için operatör adı atanmış kayıt yok.</p></div>`}
+    <div class="section-title">Kaynak / Büküm / Taşlama · Performans Değerlendirmesi</div>
+    <div class="analytics-note" style="margin-bottom:12px;">Seçilen şirket ve ay için proses kartında isim atanmış çalışanlar değerlendirilir. Grafikler öznel bir puan üretmez; doğrudan <b>adet / gerçek çalışma günü</b>, <b>ret oranı</b> ve hatalı parça kayıtlarını gösterir. Böylece aynı proseste çalışan kişiler objektif üretim ve kalite verileriyle kıyaslanabilir. Bekleme günleri proses süresine yazılmaz.</div>
+    ${operatorPerformance.length?`${['Kaynak','Büküm','Taşlama'].map(stage=>{const rows=operatorPerformance.filter(r=>r.stage===stage);if(!rows.length)return '';return `<div class="section-title" style="font-size:15px;margin-top:16px;">${escapeHtml(stage)} · Çalışan Kıyası</div><div class="chart-grid" style="margin-bottom:14px;"><div class="card chart-card"><div class="chart-card-title">Üretkenlik · Adet / Çalışma Günü</div>${renderOperatorBarChartSVG(rows.map(r=>({stage:r.operator,value:r.qtyPerDay})),'')}</div><div class="card chart-card"><div class="chart-card-title">Kalite · Hatalı Parça Oranı (düşük daha iyi)</div>${renderOperatorBarChartSVG(rows.map(r=>({stage:r.operator,value:r.errorPartRate})),'%')}</div></div>`;}).join('')}<div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Proses</th><th>Operatör</th><th>Parça Kaydı</th><th>Tamamlanan</th><th>İşlenen Adet</th><th>Toplam Çalışma Günü</th><th>Adet / Gün</th><th>Ret</th><th>Ret Oranı</th><th>Hatalı Parça</th><th>Hatalı Parça Oranı</th><th>NCR</th><th>Problem</th></tr></thead><tbody>${operatorPerformance.map(r=>`<tr><td style="font-weight:800;">${escapeHtml(r.stage)}</td><td style="font-weight:800;color:var(--navy-900);">${escapeHtml(r.operator)}</td><td class="mono">${fmtNum(r.parts)}</td><td class="mono">${fmtNum(r.completed)}</td><td class="mono">${fmtNum(r.qty)}</td><td class="mono">${r.workDays.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono" style="font-weight:800;">${r.qtyPerDay.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono" style="color:${r.rejects>0?'var(--red-500)':'var(--gray-500)'};">${fmtNum(r.rejects)}</td><td class="mono">%${r.rejectRate.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono">${fmtNum(r.errorParts)}</td><td class="mono">%${r.errorPartRate.toLocaleString('tr-TR',{maximumFractionDigits:1})}</td><td class="mono">${fmtNum(r.ncrs)}</td><td class="mono">${fmtNum(r.issues)}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-state" style="padding:24px;"><p>Bu ay Kaynak/Büküm/Taşlama için çalışan atanmış kayıt yok.</p></div>`}
 
     <div class="section-title">Proses Süre Analizi · ${escapeHtml(monthLabel(dashMonth))}</div>
     <div class="month-bar"><span class="month-label">Operasyon Analiz Ayı</span><select class="month-select" id="dashboardMonthSelect">${knownMonths.slice().reverse().map(m=>`<option value="${m}" ${m===dashMonth?'selected':''}>${escapeHtml(monthLabel(m))}</option>`).join('')}</select><span class="helper-text" style="margin:0;">Bu ay seçimi yalnızca proses süreleri ve proses geri dönüşleri analizini değiştirir.</span></div>
@@ -6410,7 +6444,7 @@ async function handleAction(action, el){
     case 'saveAddCompany': {
       const name = document.getElementById('companyNameInput').value.trim();
       if(!name){ showToast('Şirket adı boş olamaz.'); return; }
-      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice(), months:[currentMonthKey()]};
+      const newCo = {id: uid('co'), name, createdAt: new Date().toLocaleDateString('tr-TR'), stages: DEFAULT_STAGES.slice(), months:[currentMonthKey()], processOperators:[]};
       const newCode = genClientCode();
       state.companyAccessCodes[newCo.id]=newCode;
       state.companies.push(newCo);
@@ -6588,6 +6622,24 @@ async function handleAction(action, el){
       state.modal = null;
       await persistParts(company.id);
       showToast(`İçe aktarıldı: ${added} yeni, ${updated} güncellendi.`);
+      render();
+      break;
+    }
+
+    case 'addProcessOperator': {
+      const company=getCompany(state.selectedCompanyId);
+      const stage=el.getAttribute('data-stage')||'';
+      const partId=el.getAttribute('data-part')||'';
+      if(!company||!isAdmin()){showToast('Yeni çalışan ismini yalnızca yönetici ekleyebilir.');return;}
+      const input=[...document.querySelectorAll('[data-new-process-operator]')].find(x=>x.getAttribute('data-new-process-operator')===stage);
+      const name=(input?.value||'').trim().replace(/\s+/g,' ');
+      if(!name){showToast('Eklenecek ismi yazın.');return;}
+      const added=addProcessOperatorToCompany(company,name);
+      const part=getParts(company.id).find(p=>p.id===partId);
+      if(part&&canEditStage(stage)) stageProcessMeta(part,stage,true).operator=name;
+      const results=await Promise.all([persistCompanies(),part?persistParts(company.id):Promise.resolve(true)]);
+      if(results.some(x=>x===false)){showToast('İsim kaydedilemedi.');return;}
+      showToast(added?`${name} çalışan listesine eklendi ve seçildi.`:`${name} zaten kayıtlıydı; bu proses için seçildi.`);
       render();
       break;
     }
