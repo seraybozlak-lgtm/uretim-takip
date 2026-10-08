@@ -1374,7 +1374,10 @@
   .stage-qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:6px;}
   .stage-qty-box{min-width:0;}
   .stage-qty-box>label{display:block;margin:0 0 5px;font-size:9.5px;font-weight:800;letter-spacing:.28px;color:var(--gray-500);text-transform:uppercase;}
-  .stage-target-qty{width:100%;min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface-3);color:var(--text-2);font-family:var(--font-mono);font-size:14px;font-weight:800;box-sizing:border-box;}
+  .stage-target-qty{width:100%;min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface-3);color:var(--text-2);font-family:var(--font-mono);font-size:14px;font-weight:800;box-sizing:border-box;text-align:center;}
+  .stage-target-input{padding:6px 7px;outline:none;}
+  .stage-target-input:focus{border-color:var(--signal)!important;box-shadow:0 0 0 2px rgba(217,130,156,.12);}
+  .stage-target-input:disabled{cursor:not-allowed;opacity:.72;}
   .stage-qty-box.actual .stage-input{min-height:34px;padding:6px 7px;}
   body[data-theme="day"] .stage-target-qty{background:#FBE8EE;color:#684253;border-color:#E7C8D3;}
   @media (max-width:820px){.stage-qty-grid{grid-template-columns:1fr 1fr;gap:6px}.stage-qty-box>label{font-size:9px}.stage-target-qty,.stage-qty-box.actual .stage-input{min-height:38px}}
@@ -1905,6 +1908,7 @@ let state = {
   stageDrafts: {},
   rejectDrafts: {},
   newProcessOperatorDrafts: {}, // partId|stage -> henüz kaydedilmemiş yeni çalışan adı
+  requestedQtyDraftByPart: {}, // partId -> proses kartlarından düzenlenen istenen adet
   stageEventDateDraftsByPart: {}, // partId -> { stageName: YYYY-MM-DDTHH:mm } (proses bazlı gerçek zaman)
   errorTracking: { ppmMonthly:{}, ppmTarget:3000, ncrRejectThresholdPct:3, deptMonthly:{}, disHatalar:[], icHatalar:[] },
   errorTrackingTab: 'ppm', // ppm | dept | dis | ic
@@ -2615,7 +2619,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.20</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.21</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2850,7 +2854,7 @@ function renderTrackingView(){
             <div class="stage-qty-grid">
               <div class="stage-qty-box target">
                 <label>İstenen Adet</label>
-                <div class="stage-target-qty">${fmtNum(part.orderedQty||0)}</div>
+                <input class="stage-target-qty stage-target-input" type="number" min="0" data-requested-qty data-requested-qty-part="${escapeHtml(part.id)}" value="${Math.max(0,Number(Object.prototype.hasOwnProperty.call(state.requestedQtyDraftByPart||{},part.id)?state.requestedQtyDraftByPart[part.id]:part.orderedQty)||0)}" ${!isAdmin()?'disabled title="İstenen adedi yalnızca yönetici değiştirebilir"':''}/>
               </div>
               <div class="stage-qty-box actual">
                 <label>Çıkan Adet</label>
@@ -6322,6 +6326,19 @@ function attachHandlers(){
     });
   }
 
+  app.querySelectorAll('[data-requested-qty]').forEach(inp=>{
+    const syncRequestedQty=()=>{
+      const pid=inp.getAttribute('data-requested-qty-part')||state.selectedPartId||'';
+      const value=Math.max(0,Number(inp.value)||0);
+      state.requestedQtyDraftByPart=state.requestedQtyDraftByPart||{};
+      state.requestedQtyDraftByPart[pid]=value;
+      app.querySelectorAll(`[data-requested-qty][data-requested-qty-part="${pid}"]`).forEach(other=>{ if(other!==inp) other.value=String(value); });
+    };
+    inp.addEventListener('input',syncRequestedQty);
+    inp.addEventListener('change',syncRequestedQty);
+    inp.addEventListener('click',e=>e.stopPropagation());
+  });
+
   app.querySelectorAll('[data-stage-input]').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const pid=state.selectedPartId, stage=inp.getAttribute('data-stage-input');
@@ -6898,6 +6915,13 @@ async function handleAction(action, el){
       const partId = el.getAttribute('data-part');
       const part = getParts(company.id).find(p=>p.id===partId);
       if(!part) break;
+      state.requestedQtyDraftByPart=state.requestedQtyDraftByPart||{};
+      const requestedQtyInputs=Array.from(document.querySelectorAll(`[data-requested-qty][data-requested-qty-part="${partId}"]`));
+      const requestedQtyRaw=requestedQtyInputs.find(x=>!x.disabled)?.value;
+      const requestedQtyDraft=Object.prototype.hasOwnProperty.call(state.requestedQtyDraftByPart,partId)?state.requestedQtyDraftByPart[partId]:undefined;
+      const previousRequestedQty=Number(part.orderedQty||0);
+      const requestedQtyValue=Math.max(0,Number(requestedQtyRaw!==undefined?requestedQtyRaw:requestedQtyDraft!==undefined?requestedQtyDraft:part.orderedQty)||0);
+      const requestedQtyChanged=isAdmin()&&requestedQtyValue!==previousRequestedQty;
       const inputs = Array.from(document.querySelectorAll('[data-stage-input]'));
       const rejectInputs = Array.from(document.querySelectorAll('[data-reject-input]'));
       const dateInputs = Array.from(document.querySelectorAll('[data-stage-datetime]'));
@@ -6907,6 +6931,10 @@ async function handleAction(action, el){
       part.history=part.history||[];
       part.returnEvents=part.returnEvents||[];
       let changed=false;
+      if(requestedQtyChanged){
+        part.orderedQty=requestedQtyValue;
+        changed=true;
+      }
       const stageTiming={};
 
       // Önce giriş alanlarını oku. Kayıtlı tarih görünse bile alan değişmediyse yeni adet kaydı "şimdi" olur.
@@ -7011,8 +7039,8 @@ async function handleAction(action, el){
       }
       const autoNcrCount=ensureAutomaticMeasurementNcrs(part); if(autoNcrCount>0) changed=true;
       if(changed){part.lastUpdate=recordedAt;part.updatedBy=state.currentUser;}
-      const saved=await persistParts(company.id); if(saved!==false) delete (state.stageEventDateDraftsByPart||{})[part.id];
-      const notes=[]; if(dateCorrections.length)notes.push(`giriş tarihi düzeltildi: ${dateCorrections.join(', ')}`); if(stageChanges.length)notes.push(`proses adedi: ${stageChanges.map(x=>x.stage).join(', ')}`);
+      const saved=await persistParts(company.id); if(saved!==false){ delete (state.stageEventDateDraftsByPart||{})[part.id]; delete (state.requestedQtyDraftByPart||{})[part.id]; }
+      const notes=[]; if(requestedQtyChanged)notes.push(`istenen adet: ${fmtNum(previousRequestedQty)} → ${fmtNum(requestedQtyValue)}`); if(dateCorrections.length)notes.push(`giriş tarihi düzeltildi: ${dateCorrections.join(', ')}`); if(stageChanges.length)notes.push(`çıkan adet: ${stageChanges.map(x=>x.stage).join(', ')}`);
       showToast(autoNcrCount>0?`${autoNcrCount} tolerans dışı ölçüm için NCR otomatik açıldı.${notes.length?' · '+notes.join(' · '):''}`:(changed?`Üretim verileri güncellendi.${notes.length?' · '+notes.join(' · '):''}`:'Değişiklik yok.'));
       render();
       break;
