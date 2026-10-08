@@ -1298,6 +1298,56 @@
   body[data-theme="day"] .process-calc-row{background:#FFF8FA;border-color:#EDD7DF;}
   body[data-theme="day"] .process-item-title{color:#553346;}
 
+
+  /* ============================= PROSES KARTLARI / OPERATÖR DÜZENİ ============================= */
+  .pipeline{
+    display:grid!important;
+    grid-template-columns:repeat(4,minmax(230px,1fr));
+    gap:12px!important;
+    overflow:visible!important;
+    align-items:stretch;
+    padding:4px 0 12px;
+  }
+  .pipeline-stage,.pipeline-stage:first-child,.pipeline-stage:last-child{
+    min-width:0!important;
+    width:auto!important;
+    padding:15px 14px 13px!important;
+    overflow:visible!important;
+  }
+  .pipeline-stage .stage-name{font-size:10.5px!important;white-space:normal!important;min-height:18px;}
+  .pipeline-stage input[type="datetime-local"]{min-width:0;width:100%;}
+  .operator-panel{display:grid;gap:9px;margin-top:2px;padding-top:9px;border-top:1px solid var(--line-soft);}
+  .operator-label{display:block;font-size:10.5px;font-weight:800;color:var(--gray-500);margin:0 0 5px;letter-spacing:.1px;}
+  .operator-select-row{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:6px;align-items:stretch;}
+  .operator-select-row select,.operator-weld-box select{width:100%;min-width:0;font-size:11.5px;padding:8px 9px;border-radius:8px;}
+  .operator-delete-btn{width:34px;min-width:34px;border:1px solid rgba(255,56,84,.24);border-radius:8px;background:rgba(255,56,84,.06);color:#FF7184;font-weight:900;cursor:pointer;}
+  .operator-delete-btn:hover{background:rgba(255,56,84,.14);border-color:rgba(255,56,84,.38);}
+  .operator-add-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;}
+  .operator-new-input{
+    width:100%!important;min-width:0!important;min-height:34px!important;padding:8px 9px!important;
+    font-size:11.5px!important;font-weight:700!important;border-radius:8px!important;
+    background:#091321!important;color:#F4F7FB!important;border:1px solid #30435F!important;
+    caret-color:#FF7184!important;
+  }
+  .operator-new-input::placeholder{color:#71819A!important;font-weight:600!important;}
+  .operator-new-input:focus{outline:none!important;border-color:rgba(255,56,84,.62)!important;box-shadow:0 0 0 3px rgba(255,56,84,.10)!important;}
+  .operator-add-btn{min-height:34px!important;padding:6px 10px!important;white-space:nowrap;font-size:10.5px!important;}
+  .operator-weld-box{padding-top:2px;}
+  body[data-theme="day"] .operator-panel{border-top-color:#EFD5DE;}
+  body[data-theme="day"] .operator-new-input{
+    background:#FFFFFF!important;color:#4A3040!important;border-color:#E2BDC9!important;caret-color:#C7657D!important;
+  }
+  body[data-theme="day"] .operator-new-input::placeholder{color:#B08D9B!important;}
+  body[data-theme="day"] .operator-delete-btn{background:#FFF3F6;color:#C55D74;border-color:#EAB8C5;}
+  body[data-theme="day"] .operator-delete-btn:hover{background:#FFE8EE;}
+  @media (max-width:1500px){.pipeline{grid-template-columns:repeat(3,minmax(220px,1fr));}}
+  @media (max-width:1100px){.pipeline{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media (max-width:620px){
+    .pipeline{grid-template-columns:1fr!important;}
+    .operator-add-box{grid-template-columns:1fr;}
+    .operator-add-btn{width:100%;}
+  }
+
 </style>
 </head>
 <body>
@@ -2534,7 +2584,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.16</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.17</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2772,7 +2822,7 @@ function renderTrackingView(){
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" data-stage-datetime-original="${escapeHtml(savedStageDateValue)}" value="${escapeHtml(stageDateValue||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-end-datetime="${escapeHtml(s)}" value="${escapeHtml(meta.endAt||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
-              ${operatorStage?`<div style="display:grid;grid-template-columns:${s==='Kaynak'?'minmax(0,1.15fr) minmax(0,.85fr)':'1fr'};gap:6px;"><div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Operatör / Çalışan</label>${(()=>{const names=processOperatorNames(company.id);const current=String(meta.operator||'').trim();const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<select data-stage-operator="${escapeHtml(s)}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<div style="display:flex;gap:5px;margin-top:5px;"><input type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim ekle" autocomplete="off" style="min-width:0;flex:1;font-size:10.5px;padding:6px 7px;background:var(--panel-2);color:var(--navy-900);border:1px solid var(--gray-300);border-radius:7px;"/><button type="button" class="btn btn-ghost btn-sm" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" style="padding:5px 8px;min-height:30px;white-space:nowrap;">+ İsim Ekle</button></div>`:''}`;})()}</div>${s==='Kaynak'?`<div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
+              ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${(()=>{const names=processOperatorNames(company.id);const current=String(meta.operator||'').trim();const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<div class="operator-select-row"><select data-stage-operator="${escapeHtml(s)}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" title="Seçili ismi sil">✕</button>`:''}</div>${isAdmin()&&editable?`<div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim yaz..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}">+ İsmi Kaydet</button></div>`:''}`;})()}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
             <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${meta.operator?`<br/>${escapeHtml(meta.operator)}`:''}</div>
@@ -6773,6 +6823,32 @@ async function handleAction(action, el){
       if(results.some(x=>x===false)){showToast('İsim kaydedilemedi.');return;}
       delete state.newProcessOperatorDrafts[draftKey];
       showToast(added?`${name} çalışan listesine eklendi ve seçildi.`:`${name} zaten kayıtlıydı; bu proses için seçildi.`);
+      render();
+      break;
+    }
+
+    case 'deleteProcessOperator': {
+      const company=getCompany(state.selectedCompanyId);
+      const stage=el.getAttribute('data-stage')||'';
+      const partId=el.getAttribute('data-part')||'';
+      if(!company||!isAdmin()){showToast('Çalışan ismini yalnızca yönetici silebilir.');return;}
+      const select=[...document.querySelectorAll('[data-stage-operator]')].find(x=>x.getAttribute('data-stage-operator')===stage);
+      const name=String(select?.value||'').trim();
+      if(!name){showToast('Önce silmek istediğiniz ismi listeden seçin.');return;}
+      if(!window.confirm(`“${name}” isim kaydını silmek istiyor musunuz? Bu isim şirket içindeki proses atamalarından da kaldırılacak.`)) return;
+      const key=name.toLocaleLowerCase('tr-TR');
+      company.processOperators=(Array.isArray(company.processOperators)?company.processOperators:[]).filter(x=>String(x||'').trim().toLocaleLowerCase('tr-TR')!==key);
+      let cleared=0;
+      (getParts(company.id)||[]).forEach(p=>{
+        Object.values(p.processMeta||{}).forEach(m=>{
+          if(m&&String(m.operator||'').trim().toLocaleLowerCase('tr-TR')===key){m.operator='';cleared++;}
+        });
+      });
+      state.newProcessOperatorDrafts=state.newProcessOperatorDrafts||{};
+      delete state.newProcessOperatorDrafts[partId+'|'+stage];
+      const results=await Promise.all([persistCompanies(),persistParts(company.id)]);
+      if(results.some(x=>x===false)){showToast('İsim silinemedi.');return;}
+      showToast(`${name} silindi${cleared?` · ${cleared} proses ataması temizlendi`:''}.`);
       render();
       break;
     }
