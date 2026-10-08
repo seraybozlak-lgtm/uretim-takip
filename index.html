@@ -2646,7 +2646,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.25</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.26</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -6531,11 +6531,19 @@ function attachHandlers(){
   });
   app.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
     const sync=()=>{
-      const day=box.querySelector('[data-stage-date-day]')?.value||'';
-      const time=box.querySelector('[data-stage-date-time]')?.value||'';
+      const dayInput=box.querySelector('[data-stage-date-day]');
+      const timeSelect=box.querySelector('[data-stage-date-time]');
+      const day=dayInput?.value||'';
+      let time=timeSelect?.value||'';
       const hidden=box.querySelector('input[type="hidden"]');
       if(!hidden) return;
-      hidden.value=(day&&time)?`${day}T${time}`:'';
+      // Sadece tarih seçilmişse kaydı kaybetme: varsayılan başlangıç saati 08:00 olur.
+      // Kullanıcı isterse hemen yanındaki saat listesinden 09:00–18:00 arasında değiştirebilir.
+      if(day&&!time){
+        time=STAGE_CLOCK_OPTIONS[0]||'08:00';
+        if(timeSelect) timeSelect.value=time;
+      }
+      hidden.value=day?`${day}T${time}`:'';
       hidden.dispatchEvent(new Event('input',{bubbles:false}));
       hidden.dispatchEvent(new Event('change',{bubbles:false}));
     };
@@ -7189,6 +7197,26 @@ async function handleAction(action, el){
       const requestedQtyInputs=Array.from(document.querySelectorAll(`[data-requested-qty][data-requested-qty-part="${partId}"]`));
       const inputs = Array.from(document.querySelectorAll('[data-stage-input]'));
       const rejectInputs = Array.from(document.querySelectorAll('[data-reject-input]'));
+      // Kaydet'e basıldığı anda görünür tarih/saat kontrollerini hidden alanlara bir kez daha aktar.
+      // Böylece kullanıcı yalnız tarih seçip doğrudan Kaydet'e bassa bile giriş tarihi kaybolmaz.
+      document.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
+        const day=box.querySelector('[data-stage-date-day]')?.value||'';
+        const timeSelect=box.querySelector('[data-stage-date-time]');
+        let time=timeSelect?.value||'';
+        const hidden=box.querySelector('input[type="hidden"]');
+        if(!hidden) return;
+        if(day&&!time){time=STAGE_CLOCK_OPTIONS[0]||'08:00';if(timeSelect)timeSelect.value=time;}
+        hidden.value=day?`${day}T${time}`:'';
+        if(hidden.hasAttribute('data-stage-datetime')){
+          state.stageEventDateDraftsByPart=state.stageEventDateDraftsByPart||{};
+          state.stageEventDateDraftsByPart[partId]=state.stageEventDateDraftsByPart[partId]||{};
+          state.stageEventDateDraftsByPart[partId][hidden.getAttribute('data-stage-datetime')]=hidden.value||'';
+        }else if(hidden.hasAttribute('data-stage-end-datetime')){
+          state.stageEndDateDraftsByPart=state.stageEndDateDraftsByPart||{};
+          state.stageEndDateDraftsByPart[partId]=state.stageEndDateDraftsByPart[partId]||{};
+          state.stageEndDateDraftsByPart[partId][hidden.getAttribute('data-stage-end-datetime')]=hidden.value||'';
+        }
+      });
       const dateInputs = Array.from(document.querySelectorAll('[data-stage-datetime]'));
       const endInputs = Array.from(document.querySelectorAll('[data-stage-end-datetime]'));
       const recordedNow=new Date(), recordedAt=formatDateTimeTR(recordedNow), recordedTs=recordedNow.getTime();
