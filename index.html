@@ -1382,6 +1382,32 @@
   body[data-theme="day"] .stage-target-qty{background:#FBE8EE;color:#684253;border-color:#E7C8D3;}
   @media (max-width:820px){.stage-qty-grid{grid-template-columns:1fr 1fr;gap:6px}.stage-qty-box>label{font-size:9px}.stage-target-qty,.stage-qty-box.actual .stage-input{min-height:38px}}
 
+
+  /* Teknik resim -> proses eşleme */
+  .drawing-process-map{flex:1 1 100%;border-top:1px solid var(--line);padding-top:9px;margin-top:2px;}
+  .drawing-process-map-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:7px;}
+  .drawing-process-map-title{font-size:10.5px;font-weight:800;color:var(--text-2);letter-spacing:.2px;}
+  .drawing-process-mode{font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:999px;background:var(--surface-3);border:1px solid var(--line);color:var(--muted);}
+  .drawing-process-mode.manual{color:var(--signal);border-color:var(--signal);}
+  .drawing-process-chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .drawing-process-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);font-size:10px;font-weight:700;color:var(--text-2);cursor:pointer;user-select:none;}
+  .drawing-process-chip input{margin:0;accent-color:var(--signal);}
+  .drawing-process-auto-note{font-size:9.5px;color:var(--muted);margin-top:6px;}
+  body[data-theme="day"] .drawing-process-chip{background:#FFF7FA;border-color:#E8CCD6;}
+  body[data-theme="day"] .drawing-process-mode{background:#FBE8EE;border-color:#E8CCD6;color:#765364;}
+
+  /* Proses tarihleri: yalnızca dört vardiya saati */
+  .stage-datetime-combo{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:6px;}
+  .stage-datetime-combo input[type="date"],.stage-datetime-combo select{width:100%;font-size:11px;padding:7px 8px;min-width:0;}
+  .stage-datetime-combo input[type="hidden"]{display:none!important;}
+  .stage-datetime-legacy{grid-column:1/-1;font-size:9px;color:var(--muted);margin-top:-2px;}
+  @media (max-width:620px){.stage-datetime-combo{grid-template-columns:1fr 88px;}}
+
+  /* Manuel "şu an burada" */
+  .manual-current-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:7px;}
+  .manual-current-btn{font-size:9.5px!important;padding:5px 7px!important;}
+  .current-badge.manual{background:var(--signal)!important;color:#fff!important;}
+
 </style>
 </head>
 <body>
@@ -2620,7 +2646,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.23</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.24</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2793,7 +2819,7 @@ function renderTrackingView(){
       </div>
       <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         ${isShippedFully ? `<span class="status-badge shipped"><span class="status-dot"></span>Sevk Edildi</span>`
-          : currentStageName ? `<span class="status-badge progress"><span class="status-dot"></span>Şu an: ${escapeHtml(currentStageName)}${daysInStage!=null ? ` · ${daysInStage} çalışma günü` : ''}</span>`
+          : currentStageName ? `<span class="status-badge progress"><span class="status-dot"></span>Şu an: ${escapeHtml(currentStageName)}${part.manualCurrentStage===currentStageName?' · MANUEL':''}${daysInStage!=null ? ` · ${daysInStage} çalışma günü` : ''}</span>`
           : lastCompletedStage ? `<span class="status-badge notstarted"><span class="status-dot"></span>Beklemede · ${escapeHtml(lastCompletedStage.stage)} bitti${waitingDays!=null?` · ${waitingDays} çalışma günü bekleme`:''}</span>`
           : `<span class="status-badge notstarted"><span class="status-dot"></span>Henüz üretime başlanmadı</span>`}
         ${part.dueDate ? `<span class="status-badge ${dueDateStatus(part.dueDate)==='overdue'?'progress':dueDateStatus(part.dueDate)==='soon'?'progress':'notstarted'}"><span class="status-dot"></span>Termin: ${fmtDueDate(part.dueDate)}</span>` : ''}
@@ -2811,6 +2837,7 @@ function renderTrackingView(){
                   `<div class="drawing-file-icon" data-view-drawing="${part.id}" data-drawing-idx="${i}">&#128196;</div>`}
                 <div class="drawing-info"><div class="fname">${escapeHtml(d.name)}</div><div class="helper-text" style="margin:2px 0 0 0;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?'<span style="color:var(--green-signal);font-weight:800;">MANUEL ESAS RESİM</span> · ':''}${d.manualDrawingType?`<span style="font-weight:800;">${d.manualDrawingType==='assembly'?'MONTAJ RESMİ':'TEK PARÇA RESMİ'}</span> · `:''}${d.detectedDrawingNo?`Antet resim no: <b>${escapeHtml(d.detectedDrawingNo)}</b>${normalizeTechnicalPartNo(d.detectedDrawingNo)===normalizeTechnicalPartNo(part.partNo)?' · <span style="color:var(--green-signal);font-weight:700;">PARÇA NO EŞLEŞTİ</span>':''}`:'Antet henüz taranmadı'}</div></div>
                 ${isAdmin() ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${normalizeTechnicalPartNo(d.manualPrimaryPartNo)===normalizeTechnicalPartNo(part.partNo)?`<button class="btn btn-ghost btn-sm" data-clear-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Seçimi Kaldır</button>`:`<button class="btn btn-ghost btn-sm" data-set-primary-drawing="${part.id}" data-drawing-idx="${i}">Esas Resim Yap</button>`}<button class="btn btn-ghost btn-sm" data-set-drawing-type="assembly" data-part="${part.id}" data-drawing-idx="${i}">Montaj</button><button class="btn btn-ghost btn-sm" data-set-drawing-type="single_part" data-part="${part.id}" data-drawing-idx="${i}">Tek Parça</button>${d.manualDrawingType?`<button class="btn btn-ghost btn-sm" data-set-drawing-type="auto" data-part="${part.id}" data-drawing-idx="${i}">Tipi Otomatikleştir</button>`:''}<button class="btn btn-danger-ghost btn-sm" data-remove-drawing="${part.id}" data-drawing-idx="${i}">Kaldır</button></div>` : ''}
+                ${drawingProcessMapHtml(d,i,part,company)}
               </div>`).join('')}
           </div>
         ` : (!isAdmin() ? `<div class="helper-text" style="margin:0 0 8px 0;">Henüz teknik resim eklenmedi.</div>` : '')}
@@ -2853,7 +2880,7 @@ function renderTrackingView(){
           const operatorStage=true;
           return `
           <div class="pipeline-stage ${isFinal?'final':''} ${!editable?'locked':''} ${isCurrent?'current':''}">
-            ${isCurrent ? `<div class="current-badge">ŞU AN BURADA</div>` : ''}
+            ${isCurrent ? `<div class="current-badge ${part.manualCurrentStage===s?'manual':''}">ŞU AN BURADA${part.manualCurrentStage===s?' · MANUEL':''}</div>` : ''}
             <div class="stage-name">${escapeHtml(s)}${!editable?' 🔒':''}</div>
             <div class="stage-qty-grid">
               <div class="stage-qty-box target">
@@ -2867,18 +2894,19 @@ function renderTrackingView(){
             </div>
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
             <div style="margin-top:9px;display:grid;gap:7px;">
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" data-stage-datetime-original="${escapeHtml(savedStageDateValue)}" value="${escapeHtml(stageDateValue||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-end-datetime="${escapeHtml(s)}" data-stage-end-datetime-part="${escapeHtml(part.id)}" value="${escapeHtml(Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''))}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00 · 12:00 · 15:00 · 18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00 · 12:00 · 15:00 · 18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
               ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${(()=>{const names=processOperatorNames(company.id);const current=String(meta.operator||'').trim();const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<div class="operator-select-row"><select data-stage-operator="${escapeHtml(s)}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" title="Seçili ismi sil">✕</button>`:''}</div>${isAdmin()&&editable?`<div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim yaz..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}">+ İsmi Kaydet</button></div>`:''}`;})()}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
             <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${meta.operator?`<br/>${escapeHtml(meta.operator)}`:''}</div>
+            ${isAdmin()?`<div class="manual-current-row">${part.manualCurrentStage===s?`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="clearManualCurrentStage" data-part="${part.id}">↺ Otomatik Konuma Dön</button>`:`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="setManualCurrentStage" data-part="${part.id}" data-stage="${escapeHtml(s)}">📍 Şu An Burada</button>`}</div>`:''}
           </div>`;
         }).join('')}
       </div>
       <div class="field" style="margin-top:18px;"><label>Not</label><textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea></div>
-      <div class="helper-text" style="margin-top:10px;max-width:980px;">Her proses kartındaki <b>İstenen Adet</b> o prosese özeldir; örneğin bir ürün için CNC’de 2 parça, Torna’da 3 parça gerekiyorsa hedefleri birbirinden bağımsız girebilirsiniz. Parçanın ana sipariş adedi ayrı kalır. <b>Çıkan Adet</b> üretimde gerçekten çıkan adettir ve daha önce girdiğiniz tüm proses adetleri aynen korunur. Her proseste <b>giriş ve bitiş</b> zamanı ayrı tutulur. Bitiş girildiğinde sonraki prosese geçene kadar geçen bekleme süresi eski prosese yazılmaz. Cumartesi ve Pazar varsayılan olarak çalışma gününden sayılmaz; yalnızca ilgili proses kartında işaretlerseniz hesaba katılır. Giriş/bitiş tarihini sonradan düzeltmek proses geri dönüşü oluşturmaz.</div>
+      <div class="helper-text" style="margin-top:10px;max-width:980px;">Her proses kartındaki <b>İstenen Adet</b> o prosese özeldir; örneğin bir ürün için CNC’de 2 parça, Torna’da 3 parça gerekiyorsa hedefleri birbirinden bağımsız girebilirsiniz. <b>Çıkan Adet</b> gerçek üretim adedidir. Giriş/bitiş saati yalnızca <b>08:00, 12:00, 15:00 veya 18:00</b> seçilebilir. “ŞU AN BURADA” normalde en güncel açık giriş tarihinden otomatik bulunur; yönetici isterse proses kartındaki <b>📍 Şu An Burada</b> düğmesiyle manuel olarak sabitleyebilir ve sonra otomatiğe dönebilir. Cumartesi/Pazar yalnız ilgili proses kartında işaretlenirse çalışma gününe katılır.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
         <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
         <div style="display:flex;gap:8px;">${isAdmin()?`<button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>`:''}<button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button></div>
@@ -3001,6 +3029,30 @@ function stageRequestedQty(part,stage){
   if(meta && Object.prototype.hasOwnProperty.call(meta,'requestedQty')) return Math.max(0,Number(meta.requestedQty)||0);
   return Math.max(0,Number(part&&part.orderedQty)||0);
 }
+
+const STAGE_CLOCK_OPTIONS=['08:00','12:00','15:00','18:00'];
+function splitStageDateTimeValue(value){
+  const m=String(value||'').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  return m?{date:m[1],time:m[2]}:{date:'',time:''};
+}
+function stageClockOptionsHtml(selected){
+  const current=String(selected||'');
+  const selectedAllowed=STAGE_CLOCK_OPTIONS.includes(current)?current:'';
+  return `<option value="" ${!selectedAllowed?'selected':''}>Saat seç</option>${STAGE_CLOCK_OPTIONS.map(t=>`<option value="${t}" ${t===selectedAllowed?'selected':''}>${t}</option>`).join('')}`;
+}
+function renderStageDateTimeControl(part,stage,kind,value,originalValue,editable){
+  const v=splitStageDateTimeValue(value);
+  const hiddenAttrs=kind==='start'
+    ? `data-stage-datetime="${escapeHtml(stage)}" data-stage-datetime-original="${escapeHtml(originalValue||'')}"`
+    : `data-stage-end-datetime="${escapeHtml(stage)}" data-stage-end-datetime-part="${escapeHtml(part.id)}"`;
+  const legacyTime=v.time&&!STAGE_CLOCK_OPTIONS.includes(v.time)?v.time:'';
+  return `<div class="stage-datetime-combo" data-stage-datetime-combo="${escapeHtml(kind)}" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">
+    <input type="date" data-stage-date-day value="${escapeHtml(v.date)}" ${!editable?'disabled':''}/>
+    <select data-stage-date-time ${!editable?'disabled':''}>${stageClockOptionsHtml(v.time)}</select>
+    <input type="hidden" ${hiddenAttrs} value="${escapeHtml(value||'')}"/>
+    ${legacyTime?`<div class="stage-datetime-legacy">Eski kayıt saati ${escapeHtml(legacyTime)} · değiştirilene kadar korunur.</div>`:''}
+  </div>`;
+}
 function localInputFromTs(ts){
   const d=new Date(Number(ts));
   if(isNaN(d.getTime())) return '';
@@ -3081,6 +3133,8 @@ function getLastCompletedStage(part,stages){
   return best;
 }
 function getCurrentStageIndex(part, stages){
+  const manualStage=String(part?.manualCurrentStage||'').trim();
+  if(manualStage && Array.isArray(stages) && stages.includes(manualStage)) return stages.indexOf(manualStage);
   // “ŞU AN BURADA” proses sırasına göre değil, gerçek tarihe göre belirlenir.
   // Bitişi girilmiş proses artık aktif değildir. Açık prosesler içinde GİRİŞ tarihi en geç olan kazanır.
   // Tarihi özellikle temizlenmiş/bilinmeyen bir proses, tahmin edilip “şu an burada” yapılmaz.
@@ -3333,6 +3387,89 @@ function processProfile(part){
 }
 
 const PROCESS_CALC_STAGES=['Kesim','CNC','Torna','Büküm','Kaynak','Montaj','Taşlama','Boya','Kaplama','Paketleme','Sevkiyat'];
+
+function normalizeDrawingProcessStages(rows,allowed){
+  const allow=new Set((allowed&&allowed.length?allowed:PROCESS_CALC_STAGES).map(String));
+  return [...new Set((Array.isArray(rows)?rows:[]).map(x=>String(x||'').trim()).filter(x=>allow.has(x)))];
+}
+function inferDrawingProcessStages(drawing,identityText='',profile=null){
+  const text=[drawing?.name,drawing?.relativePath,identityText,profile?.autoAnalysisPolicyNote,JSON.stringify(profile?.autoAnalysisEvidence||{})].join(' ').toUpperCase();
+  const out=[];
+  const add=s=>{if(PROCESS_CALC_STAGES.includes(s)&&!out.includes(s))out.push(s);};
+  if(drawing?.manualDrawingType==='assembly'||/\bASSEMBLY\b|MONTAJ|WELDMENT|KAYNAKLI\s*MONTAJ/.test(text)) add('Montaj');
+  if(/LASER|LAZER|KES[Iİ]M|CUTTING|PLASMA/.test(text)) add('Kesim');
+  if(/\bCNC\b|MILL(?:ING)?|FREZE|MACHIN(?:E|ING)|BORING|RAYBA|REAM/.test(text)) add('CNC');
+  if(/LATHE|TORNA|TURNING/.test(text)) add('Torna');
+  if(/BEND|B[ÜU]K[ÜU]M|PRESS\s*BRAKE|ABKANT/.test(text)) add('Büküm');
+  if(/WELD|KAYNAK|MIG|MAG|TIG|ARGON/.test(text)) add('Kaynak');
+  if(/GRIND|TA[SŞ]LAMA|TAŞLAMA/.test(text)) add('Taşlama');
+  if(/PAINT|BOYA|POWDER\s*COAT/.test(text)) add('Boya');
+  if(/PLAT(?:E|ING)|COATING|KAPLAMA|NICKEL|N[Iİ]KEL|ZINC|GALVAN/.test(text)) add('Kaplama');
+  if(/PACK|PAKET/.test(text)) add('Paketleme');
+  if(/SHIP|SEVK/.test(text)) add('Sevkiyat');
+  if(profile){
+    if(Number(profile.bendCount)>0)add('Büküm');
+    if(Number(profile.weldLengthMm)>0)add('Kaynak');
+    if(Number(profile.holeCount)>0 && !out.includes('CNC'))add('CNC');
+    if(Number(profile.width)>0&&Number(profile.length)>0&&Number(profile.thickness)>0&&!out.some(s=>['Kesim','CNC','Torna','Büküm'].includes(s))) add('Kesim');
+  }
+  return out;
+}
+function effectiveDrawingProcessStages(drawing,companyStages){
+  const allowed=(companyStages&&companyStages.length?companyStages:PROCESS_CALC_STAGES);
+  if(drawing?.processStageMode==='manual') return normalizeDrawingProcessStages(drawing.processStages,allowed);
+  return normalizeDrawingProcessStages(drawing?.autoProcessStages,allowed);
+}
+function mappedDrawingsForStage(part,stage,company){
+  const allowed=company?.stages||PROCESS_CALC_STAGES;
+  return (part?.drawings||[]).filter(d=>effectiveDrawingProcessStages(d,allowed).includes(stage));
+}
+function drawingProcessMapHtml(drawing,index,part,company){
+  const stages=(company?.stages||PROCESS_CALC_STAGES);
+  const effective=effectiveDrawingProcessStages(drawing,stages);
+  const manual=drawing?.processStageMode==='manual';
+  const auto=normalizeDrawingProcessStages(drawing?.autoProcessStages,stages);
+  return `<div class="drawing-process-map">
+    <div class="drawing-process-map-head">
+      <div class="drawing-process-map-title">Bu teknik resmin kullanılacağı prosesler</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span class="drawing-process-mode ${manual?'manual':''}">${manual?'MANUEL':'OTOMATİK'}</span>
+        ${manual&&isAdmin()?`<button type="button" class="btn btn-ghost btn-sm" data-action="resetDrawingProcessAuto" data-part="${escapeHtml(part.id)}" data-drawing-idx="${index}">Otomatiğe Dön</button>`:''}
+      </div>
+    </div>
+    <div class="drawing-process-chips">
+      ${stages.map(stage=>`<label class="drawing-process-chip"><input type="checkbox" data-drawing-process-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}" data-drawing-idx="${index}" ${effective.includes(stage)?'checked':''} ${!isAdmin()?'disabled':''}/> ${escapeHtml(stage)}</label>`).join('')}
+    </div>
+    <div class="drawing-process-auto-note">${manual?'Bu seçim sizin manuel eşlemenizdir.':'Tarayıcının otomatik önerisi'}${auto.length?` · Öneri: ${escapeHtml(auto.join(', '))}`:' · Henüz güvenilir otomatik proses önerisi yok.'} Bir resim birden fazla prosese bağlanabilir.</div>
+  </div>`;
+}
+function stageDrawingAnalysisProfile(part,stage){
+  return part?.processProfile?.stageDrawingProfiles?.[stage]||null;
+}
+function autoProcessItemsForStage(profile,stage){
+  const rows=profile?.autoProcessItemsByStage?.[stage];
+  return Array.isArray(rows)&&rows.length?rows:null;
+}
+function processItemFromDrawingProfile(stage,drawing,prof,part,qtyOverride=null){
+  const qty=Math.max(1,Number(qtyOverride)||stageRequestedQty(part,stage)||Number(part?.orderedQty)||1);
+  const label=String(drawing?.detectedDrawingNo||drawing?.name||'Teknik resim').replace(/\.[^.]+$/,'');
+  const common={id:uid('pci'),label,qty,autoSourceDrawingId:drawing?.id||'',autoSourceDrawingName:drawing?.name||''};
+  const w=Number(prof?.width)||0,l=Number(prof?.length)||0,t=Number(prof?.thickness)||0,holes=Number(prof?.holeCount)||0,bends=Number(prof?.bendCount)||0,weld=Number(prof?.weldLengthMm)||0;
+  if(stage==='Kesim') return {...common,width:w,length:l,thickness:t,holeCount:holes,laserCutLengthMm:0,laserFeedMmMin:0};
+  if(stage==='CNC') return {...common,width:w,length:l,thickness:t,holeCount:holes,cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1};
+  if(stage==='Torna'){
+    const dims=[w,l].filter(x=>x>0).sort((a,b)=>a-b);
+    return {...common,turnDiameterMm:dims[0]||0,turnLengthMm:dims[1]||0,turnPasses:2};
+  }
+  if(stage==='Büküm') return {...common,width:w,thickness:t,bendCount:bends};
+  if(stage==='Kaynak') return {...common,thickness:t,weldLengthMm:weld,weldType:''};
+  if(stage==='Taşlama') return {...common,grindLengthMm:weld};
+  if(stage==='Montaj') return {...common,assemblySubparts:Number((prof?.autoAnalysisAssemblyPartNumbers||[]).length)||0,assemblyFasteners:0,assemblyAlignments:0,assemblyHeightMm:l||w||0,assemblyWeightKg:0,assemblyClass:'normal'};
+  if(stage==='Boya') return {...common,width:w,length:l,thickness:t,paintBatchQty:20,paintCureMinutes:25};
+  if(stage==='Kaplama') return {...common,width:w,length:l,thickness:t,coatingBatchMinutes:0};
+  if(stage==='Paketleme') return {...common,width:w,length:l,thickness:t,assemblyWeightKg:0};
+  return common;
+}
 function processItemNumber(v,fallback=0){ const n=Number(v); return Number.isFinite(n)&&n>0?n:(Number(fallback)||0); }
 function legacyProcessItem(profile,stage,part){
   const qty=Math.max(1,Number(part?.orderedQty)||1),p=profile||{};
@@ -3352,6 +3489,8 @@ function legacyProcessItem(profile,stage,part){
 function processItemsForStage(profile,stage,part){
   const rows=profile?.processItems?.[stage];
   if(Array.isArray(rows)&&rows.length) return rows.map((r,i)=>({...r,id:r?.id||uid('pci')}));
+  const autoRows=autoProcessItemsForStage(profile,stage);
+  if(autoRows) return autoRows.map(r=>({...r,id:r?.id||uid('pci')}));
   return [legacyProcessItem(profile,stage,part)];
 }
 function blankProcessItem(stage,part){
@@ -3397,7 +3536,8 @@ function renderProcessItemsEditor(profile,part,company){
   const stages=(company?.stages||PROCESS_CALC_STAGES).filter(s=>PROCESS_CALC_STAGES.includes(s));
   return `<div class="process-item-editor">${stages.map(stage=>{
     const rows=processItemsForStage(profile,stage,part);
-    return `<div class="process-item-group"><div class="process-item-head"><div><div class="process-item-title">${escapeHtml(stage)}</div><div class="process-item-sub">${escapeHtml(processStageHint(stage))}</div></div><button type="button" class="btn btn-ghost btn-sm" data-action="addProcessCalcItem" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">+ İş Kalemi Ekle</button></div><div class="process-item-list" data-process-items-stage="${escapeHtml(stage)}">${rows.map((r,i)=>renderProcessItemRow(stage,r,i,part)).join('')}</div></div>`;
+    const linked=mappedDrawingsForStage(part,stage,company);
+    return `<div class="process-item-group"><div class="process-item-head"><div><div class="process-item-title">${escapeHtml(stage)}</div><div class="process-item-sub">${escapeHtml(processStageHint(stage))}${linked.length?` · ${linked.length} teknik resim bağlı`:''}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${isAdmin()&&linked.length?`<button type="button" class="btn btn-ghost btn-sm" data-action="analyzeStageDrawings" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">🔎 Bağlı Resimleri Tara</button>`:''}<button type="button" class="btn btn-ghost btn-sm" data-action="addProcessCalcItem" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">+ İş Kalemi Ekle</button></div></div><div class="process-item-list" data-process-items-stage="${escapeHtml(stage)}">${rows.map((r,i)=>renderProcessItemRow(stage,r,i,part)).join('')}</div></div>`;
   }).join('')}</div>`;
 }
 function collectProcessItemsFromForm(){
@@ -3443,11 +3583,14 @@ function flatSurfaceAreaM2(profile){
   return (2*w*l + 2*t*(w+l))/1e6;
 }
 function estimateStageMinutesInfo(part,stage){
-  const p=processProfile(part), defaultQty=Math.max(1,Number(part.orderedQty)||1),mat=materialFamily(p);
+  const baseProfile=processProfile(part), stageAuto=stageDrawingAnalysisProfile(part,stage);
+  const p=stageAuto?Object.assign({},baseProfile,stageAuto,{processItems:baseProfile.processItems,autoProcessItemsByStage:baseProfile.autoProcessItemsByStage}):baseProfile;
+  const defaultQty=Math.max(1,stageRequestedQty(part,stage)||Number(part.orderedQty)||1),mat=materialFamily(p);
   const cf=p.complexity==='high'?1.35:p.complexity==='low'?.88:1, tf=p.toleranceClass==='precision'?1.28:p.toleranceClass==='rough'?.92:1;
   const meta=stageProcessMeta(part,stage,false);
-  const savedRows=Array.isArray(p.processItems?.[stage])&&p.processItems[stage].length?p.processItems[stage]:null;
-  const rows=savedRows||[legacyProcessItem(p,stage,part)];
+  const savedRows=Array.isArray(baseProfile.processItems?.[stage])&&baseProfile.processItems[stage].length?baseProfile.processItems[stage]:null;
+  const autoRows=autoProcessItemsForStage(baseProfile,stage);
+  const rows=savedRows||autoRows||[legacyProcessItem(p,stage,part)];
   let total=0,valid=0; const bases=[];
   for(let ri=0;ri<rows.length;ri++){
     const item=rows[ri]||{},qty=processItemNumber(item.qty,defaultQty);
@@ -4549,6 +4692,8 @@ async function inspectTechnicalDrawingIdentity(worker,drawing,partNo,progressBas
   drawing.detectedDrawingNo=result.detectedDrawingNo||drawing.detectedDrawingNo||'';
   drawing.identityScannedAt=todayStr();
   drawing.primaryForPart=!!result.matched;
+  const autoStages=inferDrawingProcessStages(drawing,result.identityText);
+  if(autoStages.length) drawing.autoProcessStages=autoStages;
   return result;
 }
 async function choosePrimaryTechnicalDrawings(worker,drawings,part){
@@ -4558,8 +4703,9 @@ async function choosePrimaryTechnicalDrawings(worker,drawings,part){
   const manual=drawings.filter(d=>normalizeTechnicalPartNo(d?.manualPrimaryPartNo)===target);
   if(manual.length){
     const infos=[];
-    for(let i=0;i<manual.length;i++) infos.push(await inspectTechnicalDrawingIdentity(worker,manual[i],part.partNo,i/Math.max(1,manual.length)*.08,.08/Math.max(1,manual.length)));
-    return {selected:infos,verified:true,detected:infos,manual:true};
+    for(let i=0;i<drawings.length;i++) infos.push(await inspectTechnicalDrawingIdentity(worker,drawings[i],part.partNo,i/Math.max(1,drawings.length)*.08,.08/Math.max(1,drawings.length)));
+    const selected=infos.filter(x=>manual.includes(x.drawing));
+    return {selected,verified:true,detected:infos,manual:true};
   }
   const infos=[];
   for(let i=0;i<drawings.length;i++){
@@ -4629,8 +4775,9 @@ async function scanImageUltraDimensions(worker,drawing,label,baseFrac,span,store
     k++;
   }
 }
-async function deepAnalyzeTechnicalDrawings(part){
-  const drawings=(part.drawings||[]).filter(d=>d && drawingHasPayload(d) && ((d.type||'').startsWith('image/') || d.type==='application/pdf' || /\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')));
+async function deepAnalyzeTechnicalDrawings(part,opts={}){
+  const drawingSource=Array.isArray(opts.drawingsOverride)?opts.drawingsOverride:(part.drawings||[]);
+  const drawings=drawingSource.filter(d=>d && drawingHasPayload(d) && ((d.type||'').startsWith('image/') || d.type==='application/pdf' || /\.(pdf|png|jpe?g|webp)$/i.test(d.name||'')));
   if(!drawings.length) throw new Error('Analiz edilecek PDF/JPG/PNG teknik resim yok.');
   if(!window.Tesseract) throw new Error('Görsel OCR kütüphanesi yüklenemedi. İnternet bağlantısını kontrol edin.');
   const store=createTechnicalCandidateStore();
@@ -4640,7 +4787,9 @@ async function deepAnalyzeTechnicalDrawings(part){
   const worker=await createTechnicalOcrWorker();
   if(!worker) throw new Error('OCR motoru başlatılamadı.');
   try{
-    const primary=await choosePrimaryTechnicalDrawings(worker,drawings,part);
+    const primary=opts.skipPrimaryMatch
+      ? {selected:drawings.map(d=>({drawing:d,verified:false,matchReason:'proses-eşleme'})),verified:false,detected:[]}
+      : await choosePrimaryTechnicalDrawings(worker,drawings,part);
     const selected=primary.selected;
     const totalSources=Math.max(1,selected.length);
     const identityDetails=primary.detected||[];
@@ -4714,6 +4863,7 @@ async function deepAnalyzeTechnicalDrawings(part){
     }));
     prof.autoAnalysisDetectedDrawingNumbers=identityDetails.map(x=>({name:x.drawing?.name||'',drawingNo:x.detectedDrawingNo||'',matched:!!x.matched}));
     prof.autoAnalysisOriginalProfile=analysisEditableSnapshot(prof);
+    if(opts.stage) prof.autoAnalysisStage=opts.stage;
     return prof;
   }finally{
     try{await worker.terminate();}catch(_e){}
@@ -4785,7 +4935,7 @@ function renderProductionEstimateSection(part,company){
         <div class="field"><label>Tolerans Seviyesi</label><select id="ppTolerance"><option value="rough" ${profile.toleranceClass==='rough'?'selected':''}>Geniş</option><option value="normal" ${profile.toleranceClass==='normal'?'selected':''}>Normal</option><option value="precision" ${profile.toleranceClass==='precision'?'selected':''}>Hassas</option></select></div>
       </div>
       <div class="section-title" style="font-size:13px;margin:17px 0 10px;">Proses Bazlı İş Kalemleri</div>
-      <div class="analytics-note" style="margin-bottom:10px;">Aynı proseste birden fazla farklı alt parça varsa her biri için <b>+ İş Kalemi Ekle</b> kullanın. Örneğin iki farklı torna parçasına ayrı çap/boy, iki farklı CNC parçasına ayrı ebat/takım yolu girebilirsiniz. Tahmini süre o proses içindeki tüm iş kalemlerinin toplamından hesaplanır.</div>
+      <div class="analytics-note" style="margin-bottom:10px;"><b>Montaj/alt parça mantığı:</b> Yukarıdaki her teknik resmi bir veya birden fazla prosese eşleyebilirsiniz. Örneğin sadece küçük bir alt parça CNC ise o resmi yalnızca <b>CNC</b>'ye bağlayın; <b>Bağlı Resimleri Tara</b> o proses için sadece seçili resimleri okur. Tarama yanlışsa aşağıdaki iş kalemlerini elle düzeltebilirsiniz. Aynı proseste birden fazla farklı alt parça varsa her biri ayrı iş kalemi olarak hesaplanır.</div>
       ${renderProcessItemsEditor(profile,part,company)}
       ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:10px;">Son teknik resim taraması: <b>${escapeHtml(profile.autoAnalyzedAt)}</b> · Güven: <b>%${Number(profile.autoAnalysisConfidence)||0}</b> · Bulunan alan: <b>${Number(profile.autoAnalysisFoundCount)||0}</b>${Number(profile.autoAnalysisLearnedHints)>0?` · Manuel öğrenme: <b>${Number(profile.autoAnalysisLearnedHints)}</b>`:''}${Number(profile.autoAnalysisAutonomousHints)>0?` · Sürekli öğrenme etkisi: <b>${Number(profile.autoAnalysisAutonomousHints)}</b>`:''}</div>`:''}
       ${profile.autoAnalyzedAt?`<div class="analytics-note" style="margin-top:8px;border-left:3px solid ${profile.autoAnalysisDrawingType==='single_part'?'var(--green-signal)':profile.autoAnalysisDrawingType==='assembly'?'var(--brass)':'var(--gray-500)'};"><b>Çizim tipi:</b> ${profile.autoAnalysisDrawingType==='single_part'?'Tek parça':profile.autoAnalysisDrawingType==='assembly'?'Montaj':'Belirsiz'}${profile.autoAnalysisAssemblyLikely?` · BOM/alt parça adayı: ${Number((profile.autoAnalysisAssemblyPartNumbers||[]).length)}`:''}</div>`:''}
@@ -6223,6 +6373,21 @@ function attachHandlers(){
       }
     });
   });
+  app.querySelectorAll('[data-drawing-process-stage]').forEach(inp=>{
+    inp.addEventListener('change',async ()=>{
+      if(!isAdmin()) return;
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===inp.getAttribute('data-part')); if(!part) return;
+      const idx=Number(inp.getAttribute('data-drawing-idx')), d=(part.drawings||[])[idx]; if(!d) return;
+      const all=[...app.querySelectorAll(`[data-drawing-process-stage][data-part="${part.id}"][data-drawing-idx="${idx}"]`)];
+      d.processStageMode='manual';
+      d.processStages=normalizeDrawingProcessStages(all.filter(x=>x.checked).map(x=>x.getAttribute('data-drawing-process-stage')),company.stages);
+      await persistParts(company.id);
+      showToast(`${d.name||'Teknik resim'} · proses eşlemesi kaydedildi: ${d.processStages.length?d.processStages.join(', '):'hiçbiri'}.`);
+      render();
+    });
+  });
+
   app.querySelectorAll('[data-set-drawing-type]').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const company=getCompany(state.selectedCompanyId); if(!company) return;
@@ -6365,6 +6530,21 @@ function attachHandlers(){
       state.rejectDrafts[pid][stage]=Math.max(0,Number(inp.value)||0);
     });
   });
+  app.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
+    const sync=()=>{
+      const day=box.querySelector('[data-stage-date-day]')?.value||'';
+      const time=box.querySelector('[data-stage-date-time]')?.value||'';
+      const hidden=box.querySelector('input[type="hidden"]');
+      if(!hidden) return;
+      hidden.value=(day&&time)?`${day}T${time}`:'';
+      hidden.dispatchEvent(new Event('input',{bubbles:false}));
+      hidden.dispatchEvent(new Event('change',{bubbles:false}));
+    };
+    box.querySelector('[data-stage-date-day]')?.addEventListener('input',sync);
+    box.querySelector('[data-stage-date-day]')?.addEventListener('change',sync);
+    box.querySelector('[data-stage-date-time]')?.addEventListener('change',sync);
+  });
+
   app.querySelectorAll('[data-stage-datetime]').forEach(inp=>{
     inp.addEventListener('input', ()=>{
       const pid=state.selectedPartId, stage=inp.getAttribute('data-stage-datetime');
@@ -6615,6 +6795,73 @@ function attachHandlers(){
 async function handleAction(action, el){
   switch(action){
     case 'setThemeMode': { setThemeMode(el.getAttribute('data-theme-mode')||'auto'); render(); break; }
+
+    case 'setManualCurrentStage': {
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part')); if(!part) return;
+      const stage=el.getAttribute('data-stage')||'';
+      if(!company.stages.includes(stage)) return;
+      part.manualCurrentStage=stage;
+      part.lastUpdate=formatDateTimeTR(new Date()); part.updatedBy=state.currentUser;
+      await persistParts(company.id);
+      showToast(`${stage} manuel olarak “ŞU AN BURADA” işaretlendi.`);
+      render(); break;
+    }
+    case 'clearManualCurrentStage': {
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part')); if(!part) return;
+      delete part.manualCurrentStage;
+      await persistParts(company.id);
+      showToast('Manuel konum kaldırıldı; en güncel giriş tarihine göre otomatik konuma dönüldü.');
+      render(); break;
+    }
+    case 'resetDrawingProcessAuto': {
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part')); if(!part) return;
+      const idx=Number(el.getAttribute('data-drawing-idx')),d=(part.drawings||[])[idx]; if(!d) return;
+      delete d.processStageMode; delete d.processStages;
+      await persistParts(company.id);
+      showToast('Teknik resim proses eşlemesi tekrar otomatik moda alındı.');
+      render(); break;
+    }
+    case 'analyzeStageDrawings': {
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part')); if(!part) return;
+      const stage=el.getAttribute('data-stage')||'';
+      const drawings=mappedDrawingsForStage(part,stage,company);
+      if(!drawings.length){showToast(`${stage} için bağlı teknik resim yok.`);return;}
+      const oldLabel=el.textContent; el.disabled=true; el.textContent='Taranıyor…';
+      try{
+        const baseProfile=processProfile(part);
+        const generated=[],profiles=[];
+        for(let i=0;i<drawings.length;i++){
+          setDrawingAnalysisStatus(`${stage} · ${drawings[i].name||'teknik resim'} taranıyor (${i+1}/${drawings.length})…`);
+          const prof=await deepAnalyzeTechnicalDrawings(part,{drawingsOverride:[drawings[i]],skipPrimaryMatch:true,stage});
+          drawings[i].processAnalysisByStage=drawings[i].processAnalysisByStage||{};
+          drawings[i].processAnalysisByStage[stage]={...prof,sourceDrawingId:drawings[i].id||'',sourceDrawingName:drawings[i].name||''};
+          const inferred=inferDrawingProcessStages(drawings[i],'',prof);
+          if(drawings[i].processStageMode!=='manual'&&inferred.length) drawings[i].autoProcessStages=normalizeDrawingProcessStages([...(drawings[i].autoProcessStages||[]),...inferred],company.stages);
+          const targetQty=Math.max(1,stageRequestedQty(part,stage)||Number(part.orderedQty)||1);
+          const baseQty=Math.floor(targetQty/drawings.length),extra=targetQty%drawings.length;
+          const rowQty=Math.max(1,baseQty+(i<extra?1:0));
+          generated.push(processItemFromDrawingProfile(stage,drawings[i],prof,part,rowQty));
+          profiles.push(prof);
+        }
+        part.processProfile=part.processProfile||{};
+        part.processProfile.autoProcessItemsByStage=part.processProfile.autoProcessItemsByStage||{};
+        part.processProfile.autoProcessItemsByStage[stage]=generated;
+        part.processProfile.stageDrawingProfiles=part.processProfile.stageDrawingProfiles||{};
+        part.processProfile.stageDrawingProfiles[stage]=profiles.length===1?profiles[0]:{autoAnalyzedAt:todayStr(),autoAnalysisStage:stage,autoAnalysisSource:drawings.map(d=>d.name||'teknik resim').join(', '),autoAnalysisFoundCount:profiles.reduce((a,x)=>a+(Number(x.autoAnalysisFoundCount)||0),0),autoAnalysisConfidence:profiles.length?Math.round(profiles.reduce((a,x)=>a+(Number(x.autoAnalysisConfidence)||0),0)/profiles.length):0};
+        await persistParts(company.id);
+        showToast(`${stage}: ${drawings.length} bağlı teknik resim ayrı ayrı tarandı; ${generated.length} otomatik iş kalemi hazırlandı. İsterseniz elle düzeltip kaydedebilirsiniz.`);
+        render();
+      }catch(err){
+        console.error('stage drawing analysis',err);
+        showToast(err&&err.message?err.message:`${stage} teknik resimleri taranamadı.`);
+        el.disabled=false; el.textContent=oldLabel;
+      }
+      break;
+    }
     case 'cycleThemeMode': { const cur=getThemeMode(); setThemeMode(cur==='auto'?'day':cur==='day'?'night':'auto'); render(); break; }
     case 'switchUser': {
       fbAuth.signOut().catch(()=>{});
@@ -7635,6 +7882,7 @@ async function handleDrawingUpload(fileList){
       const dataUrl = await readFileAsDataURL(file);
       if(isDuplicateDrawing(part.drawings,file,dataUrl)){ duplicate++; continue; }
       const d={ id:uid('drw'), name:file.name, type:file.type, size:Number(file.size)||0, relativePath:file.webkitRelativePath||file.name, contentFingerprint:drawingDataFingerprint(dataUrl) };
+      d.autoProcessStages=inferDrawingProcessStages(d,'');
       const fileOk=await putDrawingData(company.id,d,dataUrl,{partId:part.id,partNo:part.partNo,partName:part.partName});
       if(!fileOk){ failed++; continue; }
       part.drawings.push(d); uploaded.push(d); added++;
@@ -7753,6 +8001,7 @@ async function confirmBulkDrawings(){
         if(!Array.isArray(livePart.drawings)) livePart.drawings = [];
         if(isDuplicateDrawing(livePart.drawings,m.file,dataUrl)){ duplicate++; continue; }
         const d={ id:uid('drw'), name:m.file.name, type:m.file.type, size:Number(m.file.size)||0, relativePath:m.file.webkitRelativePath||m.file.name, contentFingerprint:drawingDataFingerprint(dataUrl) };
+        d.autoProcessStages=inferDrawingProcessStages(d,'');
         const fileOk=await putDrawingData(company.id,d,dataUrl,{partId:livePart.id,partNo:livePart.partNo,partName:livePart.partName});
         if(!fileOk){ fail++; continue; }
         livePart.drawings.push(d); uploaded.push(d); ok++;
