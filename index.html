@@ -1369,6 +1369,16 @@
     color:#fff!important;
     border:1px solid rgba(126,67,92,.10)!important;
   }
+
+  /* Proses adet ayrımı: sipariş hedefi ile gerçek çıkan adet birbirine karışmasın */
+  .stage-qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:6px;}
+  .stage-qty-box{min-width:0;}
+  .stage-qty-box>label{display:block;margin:0 0 5px;font-size:9.5px;font-weight:800;letter-spacing:.28px;color:var(--gray-500);text-transform:uppercase;}
+  .stage-target-qty{width:100%;min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface-3);color:var(--text-2);font-family:var(--font-mono);font-size:14px;font-weight:800;box-sizing:border-box;}
+  .stage-qty-box.actual .stage-input{min-height:34px;padding:6px 7px;}
+  body[data-theme="day"] .stage-target-qty{background:#FBE8EE;color:#684253;border-color:#E7C8D3;}
+  @media (max-width:820px){.stage-qty-grid{grid-template-columns:1fr 1fr;gap:6px}.stage-qty-box>label{font-size:9px}.stage-target-qty,.stage-qty-box.actual .stage-input{min-height:38px}}
+
 </style>
 </head>
 <body>
@@ -2605,7 +2615,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.18</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.19</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2837,7 +2847,16 @@ function renderTrackingView(){
           <div class="pipeline-stage ${isFinal?'final':''} ${!editable?'locked':''} ${isCurrent?'current':''}">
             ${isCurrent ? `<div class="current-badge">ŞU AN BURADA</div>` : ''}
             <div class="stage-name">${escapeHtml(s)}${!editable?' 🔒':''}</div>
-            <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}" ${!editable?'disabled title="Bu aşamayı sadece ilgili istasyon veya yönetici güncelleyebilir"':''}/>
+            <div class="stage-qty-grid">
+              <div class="stage-qty-box target">
+                <label>İstenen Adet</label>
+                <div class="stage-target-qty">${fmtNum(part.orderedQty||0)}</div>
+              </div>
+              <div class="stage-qty-box actual">
+                <label>Çıkan Adet</label>
+                <input class="stage-input" type="number" min="0" data-stage-input="${escapeHtml(s)}" value="${val}" ${!editable?'disabled title="Bu aşamayı sadece ilgili istasyon veya yönetici güncelleyebilir"':''}/>
+              </div>
+            </div>
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
             <div style="margin-top:9px;display:grid;gap:7px;">
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(opsiyonel)</span></label><input type="datetime-local" data-stage-datetime="${escapeHtml(s)}" data-stage-datetime-original="${escapeHtml(savedStageDateValue)}" value="${escapeHtml(stageDateValue||'')}" ${!editable?'disabled':''} style="width:100%;font-size:11px;padding:7px 8px;"/></div>
@@ -2851,7 +2870,7 @@ function renderTrackingView(){
         }).join('')}
       </div>
       <div class="field" style="margin-top:18px;"><label>Not</label><textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea></div>
-      <div class="helper-text" style="margin-top:10px;max-width:980px;">Her proseste <b>giriş ve bitiş</b> zamanı ayrı tutulur. Bitiş girildiğinde sonraki prosese geçene kadar geçen bekleme süresi eski prosese yazılmaz. Cumartesi ve Pazar varsayılan olarak çalışma gününden sayılmaz; yalnızca ilgili proses kartında işaretlerseniz hesaba katılır. Giriş/bitiş tarihini sonradan düzeltmek proses geri dönüşü oluşturmaz.</div>
+      <div class="helper-text" style="margin-top:10px;max-width:980px;">Her proses kartında <b>İstenen Adet</b> sipariş hedefidir; <b>Çıkan Adet</b> ise üretimde gerçekten çıkan adettir. Daha önce girdiğiniz tüm proses adetleri aynen <b>Çıkan Adet</b> olarak korunur. Her proseste <b>giriş ve bitiş</b> zamanı ayrı tutulur. Bitiş girildiğinde sonraki prosese geçene kadar geçen bekleme süresi eski prosese yazılmaz. Cumartesi ve Pazar varsayılan olarak çalışma gününden sayılmaz; yalnızca ilgili proses kartında işaretlerseniz hesaba katılır. Giriş/bitiş tarihini sonradan düzeltmek proses geri dönüşü oluşturmaz.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
         <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
         <div style="display:flex;gap:8px;">${isAdmin()?`<button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>`:''}<button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button></div>
