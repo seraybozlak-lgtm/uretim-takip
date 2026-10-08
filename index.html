@@ -1348,6 +1348,27 @@
     .operator-add-btn{width:100%;}
   }
 
+
+  /* ŞU AN BURADA rozetini kartın içinde, her temada görünür tut */
+  .pipeline-stage.current .stage-name{padding-right:82px;}
+  .current-badge{
+    top:9px!important;
+    right:9px!important;
+    left:auto!important;
+    transform:none!important;
+    z-index:6!important;
+    padding:3px 7px!important;
+    border-radius:999px!important;
+    line-height:1.15!important;
+    font-size:8px!important;
+    white-space:nowrap!important;
+    box-shadow:0 4px 12px rgba(255,56,84,.22)!important;
+  }
+  body[data-theme="day"] .current-badge{
+    background:#D9829C!important;
+    color:#fff!important;
+    border:1px solid rgba(126,67,92,.10)!important;
+  }
 </style>
 </head>
 <body>
@@ -2584,7 +2605,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.17</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.18</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
