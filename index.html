@@ -2620,7 +2620,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.22</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.23</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2843,7 +2843,7 @@ function renderTrackingView(){
           const isFinal = i === stages.length-1;
           const editable = canEditStage(s);
           const lastEntry = getStageLastEntry(part, s);
-          const savedStageDateValue=meta.startAt||historyEntryToLocalInputValue(getStageFirstPositiveEntry(part,s)||lastEntry);
+          const savedStageDateValue=meta.startDateCleared===true?'':(meta.startAt||historyEntryToLocalInputValue(getStageFirstPositiveEntry(part,s)||lastEntry));
           const hasStageDateDraft=Object.prototype.hasOwnProperty.call(stageDateDraft,s);
           const stageDateValue=hasStageDateDraft ? stageDateDraft[s] : savedStageDateValue;
           const duration=stageProcessDurationDays(part,s,new Date());
@@ -3027,6 +3027,8 @@ function getStageFirstPositiveEntry(part,stage){
 }
 function stageStartDate(part,stage){
   const meta=stageProcessMeta(part,stage,false);
+  // Kullanıcı tarihi bilmediği için özellikle temizlediyse geçmiş adet kaydından tekrar tarih üretme.
+  if(meta.startDateCleared===true) return null;
   if(meta.startAt){ const d=localDateTimeInputToDate(meta.startAt); if(d) return d; }
   const first=getStageFirstPositiveEntry(part,stage);
   if(first){ const ts=historyEntryTime(first); if(ts) return new Date(ts); }
@@ -3079,8 +3081,9 @@ function getLastCompletedStage(part,stages){
   return best;
 }
 function getCurrentStageIndex(part, stages){
-  // Bitiş tarihi girilmiş proses aktif sayılmaz. Böylece iki proses arasındaki bekleme
-  // süresi eski prosesin içine yazılmaz. Aktif prosesler arasında en yeni giriş tarihi kazanır.
+  // “ŞU AN BURADA” proses sırasına göre değil, gerçek tarihe göre belirlenir.
+  // Bitişi girilmiş proses artık aktif değildir. Açık prosesler içinde GİRİŞ tarihi en geç olan kazanır.
+  // Tarihi özellikle temizlenmiş/bilinmeyen bir proses, tahmin edilip “şu an burada” yapılmaz.
   let bestStageIdx=-1,bestTs=-Infinity,bestRecordIdx=-1;
   const hist=part.history||[];
   stages.forEach((stage,stageIdx)=>{
@@ -3092,17 +3095,11 @@ function getCurrentStageIndex(part, stages){
     let recordIdx=-1;
     for(let i=hist.length-1;i>=0;i--){const h=hist[i];if(h&&h.stage===stage&&!h.reject){recordIdx=i;break;}}
     const ts=start.getTime();
-    if(ts>bestTs || (ts===bestTs && recordIdx>bestRecordIdx)){bestStageIdx=stageIdx;bestTs=ts;bestRecordIdx=recordIdx;}
+    if(ts>bestTs || (ts===bestTs && recordIdx>bestRecordIdx)){
+      bestStageIdx=stageIdx;bestTs=ts;bestRecordIdx=recordIdx;
+    }
   });
-  if(bestStageIdx>=0) return bestStageIdx;
-  // Eski kayıtlarda hiç bitiş bilgisi yoksa önceki davranışa geri düş.
-  const hasAnyEnd=stages.some(stage=>!!stageEndDate(part,stage));
-  if(!hasAnyEnd){
-    let idx=-1,ts=-Infinity;
-    stages.forEach((stage,i)=>{if(Number((part.qtys||{})[stage]||0)>0){const d=stageStartDate(part,stage);const t=d?d.getTime():i;if(t>=ts){idx=i;ts=t;}}});
-    return idx;
-  }
-  return -1;
+  return bestStageIdx;
 }
 function processOperatorNames(companyId){
   const set=new Set();
@@ -7000,15 +6997,24 @@ async function handleAction(action, el){
       document.querySelectorAll('[data-stage-weldtype]').forEach(inp=>{const stage=inp.getAttribute('data-stage-weldtype');if(canEditStage(stage))stageProcessMeta(part,stage,true).weldType=inp.value||'gasalti';});
 
       // Tarih düzeltmeleri: adet değişmese bile proses GİRİŞ tarihi güncellenir. Bu işlem geri dönüş değildir.
+      // Alan CLEAR edilirse tarih gerçekten silinir; eski adet geçmişinden tekrar üretilmez.
       const dateCorrections=[];
+      const dateClears=[];
       for(const dtInp of dateInputs){
         const stage=dtInp.getAttribute('data-stage-datetime'); if(!canEditStage(stage)) continue;
         const t=timingFor(stage), meta=stageProcessMeta(part,stage,true);
-        if(t.edited&&t.raw){
-          if(meta.startAt!==t.raw){meta.startAt=t.raw;changed=true;dateCorrections.push(stage);}
-          const first=getStageFirstPositiveEntry(part,stage)||getStageLastEntry(part,stage);
-          if(first){first.date=t.eventDate;first.eventTs=t.eventTs;first.dateCorrectedAt=recordedAt;first.dateCorrectedTs=recordedTs;first.dateCorrectedBy=state.currentUser;}
+        if(!t.edited) continue;
+        if(!t.raw){
+          const hadDate=!!meta.startAt || stageStartDate(part,stage)!=null;
+          meta.startAt='';
+          meta.startDateCleared=true;
+          if(hadDate){changed=true;dateClears.push(stage);}
+          continue;
         }
+        delete meta.startDateCleared;
+        if(meta.startAt!==t.raw){meta.startAt=t.raw;changed=true;dateCorrections.push(stage);}
+        const first=getStageFirstPositiveEntry(part,stage)||getStageLastEntry(part,stage);
+        if(first){first.date=t.eventDate;first.eventTs=t.eventTs;first.dateCorrectedAt=recordedAt;first.dateCorrectedTs=recordedTs;first.dateCorrectedBy=state.currentUser;}
       }
 
       // Bitiş doğrulaması ve değişiklik tespiti.
@@ -7036,7 +7042,7 @@ async function handleAction(action, el){
           const t=timingFor(ch.stage), meta=stageProcessMeta(part,ch.stage,true);
           // Proses ilk kez başlıyorsa giriş tarihini otomatik kaydet. Eski kayıtta zaten
           // bir ilk giriş varsa sırf adet güncellendi diye o tarihi bugüne çekme.
-          if(ch.newVal>0&&!meta.startAt){
+          if(ch.newVal>0&&!meta.startAt&&meta.startDateCleared!==true){
             const existingFirst=getStageFirstPositiveEntry(part,ch.stage);
             meta.startAt=t.custom?t.raw:(existingFirst?historyEntryToLocalInputValue(existingFirst):localInputFromTs(recordedTs));
           }
@@ -7079,7 +7085,7 @@ async function handleAction(action, el){
       const autoNcrCount=ensureAutomaticMeasurementNcrs(part); if(autoNcrCount>0) changed=true;
       if(changed){part.lastUpdate=recordedAt;part.updatedBy=state.currentUser;}
       const saved=await persistParts(company.id); if(saved!==false){ delete (state.stageEventDateDraftsByPart||{})[part.id]; delete (state.stageEndDateDraftsByPart||{})[part.id]; delete (state.requestedQtyDraftsByPart||{})[part.id]; }
-      const notes=[]; if(requestedQtyChanges.length)notes.push(`istenen adet: ${requestedQtyChanges.map(x=>`${x.stage} ${fmtNum(x.oldVal)}→${fmtNum(x.newVal)}`).join(', ')}`); if(dateCorrections.length)notes.push(`giriş tarihi düzeltildi: ${dateCorrections.join(', ')}`); if(stageChanges.length)notes.push(`çıkan adet: ${stageChanges.map(x=>x.stage).join(', ')}`);
+      const notes=[]; if(requestedQtyChanges.length)notes.push(`istenen adet: ${requestedQtyChanges.map(x=>`${x.stage} ${fmtNum(x.oldVal)}→${fmtNum(x.newVal)}`).join(', ')}`); if(dateCorrections.length)notes.push(`giriş tarihi düzeltildi: ${dateCorrections.join(', ')}`); if(dateClears.length)notes.push(`giriş tarihi temizlendi: ${dateClears.join(', ')}`); if(stageChanges.length)notes.push(`çıkan adet: ${stageChanges.map(x=>x.stage).join(', ')}`);
       showToast(autoNcrCount>0?`${autoNcrCount} tolerans dışı ölçüm için NCR otomatik açıldı.${notes.length?' · '+notes.join(' · '):''}`:(changed?`Üretim verileri güncellendi.${notes.length?' · '+notes.join(' · '):''}`:'Değişiklik yok.'));
       render();
       break;
