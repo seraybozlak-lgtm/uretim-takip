@@ -2646,7 +2646,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.24</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.25</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2894,8 +2894,8 @@ function renderTrackingView(){
             </div>
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
             <div style="margin-top:9px;display:grid;gap:7px;">
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00 · 12:00 · 15:00 · 18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00 · 12:00 · 15:00 · 18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
               ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${(()=>{const names=processOperatorNames(company.id);const current=String(meta.operator||'').trim();const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<div class="operator-select-row"><select data-stage-operator="${escapeHtml(s)}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" title="Seçili ismi sil">✕</button>`:''}</div>${isAdmin()&&editable?`<div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim yaz..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}">+ İsmi Kaydet</button></div>`:''}`;})()}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
             </div>
@@ -2906,7 +2906,6 @@ function renderTrackingView(){
         }).join('')}
       </div>
       <div class="field" style="margin-top:18px;"><label>Not</label><textarea id="partNoteInput" placeholder="Bu parça ile ilgili not…" ${!isAdmin()?'disabled':''}>${escapeHtml(part.note||'')}</textarea></div>
-      <div class="helper-text" style="margin-top:10px;max-width:980px;">Her proses kartındaki <b>İstenen Adet</b> o prosese özeldir; örneğin bir ürün için CNC’de 2 parça, Torna’da 3 parça gerekiyorsa hedefleri birbirinden bağımsız girebilirsiniz. <b>Çıkan Adet</b> gerçek üretim adedidir. Giriş/bitiş saati yalnızca <b>08:00, 12:00, 15:00 veya 18:00</b> seçilebilir. “ŞU AN BURADA” normalde en güncel açık giriş tarihinden otomatik bulunur; yönetici isterse proses kartındaki <b>📍 Şu An Burada</b> düğmesiyle manuel olarak sabitleyebilir ve sonra otomatiğe dönebilir. Cumartesi/Pazar yalnız ilgili proses kartında işaretlenirse çalışma gününe katılır.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;flex-wrap:wrap;gap:10px;">
         <div class="helper-text">Son güncelleme: ${part.lastUpdate || 'Henüz güncellenmedi'}${part.updatedBy ? ' · '+escapeHtml(part.updatedBy) : ''}</div>
         <div style="display:flex;gap:8px;">${isAdmin()?`<button class="btn btn-ghost" data-action="openNcr" data-part="${part.id}">&#9878; Uygunsuzluk Kaydı Aç</button>`:''}<button class="btn btn-primary" data-action="saveTracking" data-part="${part.id}">Değişiklikleri Kaydet</button></div>
@@ -3030,7 +3029,7 @@ function stageRequestedQty(part,stage){
   return Math.max(0,Number(part&&part.orderedQty)||0);
 }
 
-const STAGE_CLOCK_OPTIONS=['08:00','12:00','15:00','18:00'];
+const STAGE_CLOCK_OPTIONS=['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
 function splitStageDateTimeValue(value){
   const m=String(value||'').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
   return m?{date:m[1],time:m[2]}:{date:'',time:''};
