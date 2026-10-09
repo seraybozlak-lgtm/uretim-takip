@@ -1319,6 +1319,7 @@
   .operator-panel{display:grid;gap:9px;margin-top:2px;padding-top:9px;border-top:1px solid var(--line-soft);}
   .operator-label{display:block;font-size:10.5px;font-weight:800;color:var(--gray-500);margin:0 0 5px;letter-spacing:.1px;}
   .operator-select-row{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:6px;align-items:stretch;}
+  .operator-slot-label{font-size:9.5px;font-weight:800;color:var(--muted);margin:0 0 4px 1px;}
   .operator-select-row select,.operator-weld-box select{width:100%;min-width:0;font-size:11.5px;padding:8px 9px;border-radius:8px;}
   .operator-delete-btn{width:34px;min-width:34px;border:1px solid rgba(255,56,84,.24);border-radius:8px;background:rgba(255,56,84,.06);color:#FF7184;font-weight:900;cursor:pointer;}
   .operator-delete-btn:hover{background:rgba(255,56,84,.14);border-color:rgba(255,56,84,.38);}
@@ -2200,7 +2201,7 @@ async function loadAll(){
       const beforeMonths=JSON.stringify(c.months||[]); ensureCompanyMonths(c,parts);
       if(JSON.stringify(c.months||[])!==beforeMonths) companiesMigrated=true;
       const beforeOperators=JSON.stringify(c.processOperators||[]);
-      parts.forEach(p=>Object.values(p.processMeta||{}).forEach(m=>{const n=String(m?.operator||'').trim();if(n)addProcessOperatorToCompany(c,n);}));
+      parts.forEach(p=>Object.values(p.processMeta||{}).forEach(m=>{stageOperatorList(m).forEach(n=>addProcessOperatorToCompany(c,n));}));
       if(JSON.stringify(c.processOperators||[])!==beforeOperators) companiesMigrated=true;
       partsMap[c.id]=parts;
     }
@@ -2646,7 +2647,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.26</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.27</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2897,10 +2898,10 @@ function renderTrackingView(){
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
-              ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${(()=>{const names=processOperatorNames(company.id);const current=String(meta.operator||'').trim();const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<div class="operator-select-row"><select data-stage-operator="${escapeHtml(s)}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" title="Seçili ismi sil">✕</button>`:''}</div>${isAdmin()&&editable?`<div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim yaz..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}">+ İsmi Kaydet</button></div>`:''}`;})()}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
+              ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan <span style="font-weight:500;color:var(--muted);">(en fazla 2 kişi)</span></label>${(()=>{const names=processOperatorNames(company.id);const currents=stageOperatorList(meta);const renderSlot=(slot,current)=>{const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<div><div class="operator-slot-label">Çalışan ${slot}</div><div class="operator-select-row"><select data-stage-operator="${escapeHtml(s)}" data-operator-slot="${slot}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===String(current||'').toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" data-operator-slot="${slot}" title="Seçili ismi şirket listesinden sil">✕</button>`:''}</div></div>`;};return `${renderSlot(1,currents[0]||'')}${renderSlot(2,currents[1]||'')}${isAdmin()&&editable?`<div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim yaz..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}">+ İsmi Kaydet</button></div>`:''}`;})()}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
-            <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${meta.operator?`<br/>${escapeHtml(meta.operator)}`:''}</div>
+            <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${stageOperatorList(meta).length?`<br/>${escapeHtml(stageOperatorList(meta).join(' + '))}`:''}</div>
             ${isAdmin()?`<div class="manual-current-row">${part.manualCurrentStage===s?`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="clearManualCurrentStage" data-part="${part.id}">↺ Otomatik Konuma Dön</button>`:`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="setManualCurrentStage" data-part="${part.id}" data-stage="${escapeHtml(s)}">📍 Şu An Burada</button>`}</div>`:''}
           </div>`;
         }).join('')}
@@ -2977,7 +2978,7 @@ function syncTrackingFormToState(){
   });
   document.querySelectorAll('[data-stage-sat]').forEach(inp=>{ if(!inp.disabled) stageProcessMeta(part,inp.getAttribute('data-stage-sat'),true).includeSaturday=!!inp.checked; });
   document.querySelectorAll('[data-stage-sun]').forEach(inp=>{ if(!inp.disabled) stageProcessMeta(part,inp.getAttribute('data-stage-sun'),true).includeSunday=!!inp.checked; });
-  document.querySelectorAll('[data-stage-operator]').forEach(inp=>{ if(!inp.disabled) stageProcessMeta(part,inp.getAttribute('data-stage-operator'),true).operator=(inp.value||'').trim(); });
+  syncStageOperatorInputs(part);
   document.querySelectorAll('[data-stage-weldtype]').forEach(inp=>{ if(!inp.disabled) stageProcessMeta(part,inp.getAttribute('data-stage-weldtype'),true).weldType=inp.value||'gasalti'; });
   part.measurements = part.measurements || [];
   document.querySelectorAll('[data-meas-value]').forEach(inp=>{
@@ -3154,12 +3155,38 @@ function getCurrentStageIndex(part, stages){
   });
   return bestStageIdx;
 }
+function stageOperatorList(meta){
+  if(!meta||typeof meta!=='object') return [];
+  const raw=Array.isArray(meta.operators)?meta.operators:[meta.operator,meta.operator2];
+  const seen=new Set(),out=[];
+  raw.forEach(v=>{const n=String(v||'').trim().replace(/\s+/g,' '),k=n.toLocaleLowerCase('tr-TR');if(n&&!seen.has(k)){seen.add(k);out.push(n);}});
+  return out.slice(0,2);
+}
+function setStageOperators(meta,names){
+  if(!meta||typeof meta!=='object') return;
+  const clean=[];const seen=new Set();
+  (Array.isArray(names)?names:[]).forEach(v=>{const n=String(v||'').trim().replace(/\s+/g,' '),k=n.toLocaleLowerCase('tr-TR');if(n&&!seen.has(k)&&clean.length<2){seen.add(k);clean.push(n);}});
+  meta.operators=clean;
+  meta.operator=clean[0]||'';
+  meta.operator2=clean[1]||'';
+}
+function syncStageOperatorInputs(part){
+  const grouped={};
+  document.querySelectorAll('[data-stage-operator]').forEach(inp=>{
+    if(inp.disabled) return;
+    const stage=inp.getAttribute('data-stage-operator')||'';
+    const slot=Math.max(1,Math.min(2,Number(inp.getAttribute('data-operator-slot'))||1));
+    grouped[stage]=grouped[stage]||['',''];
+    grouped[stage][slot-1]=(inp.value||'').trim();
+  });
+  Object.entries(grouped).forEach(([stage,names])=>setStageOperators(stageProcessMeta(part,stage,true),names));
+}
 function processOperatorNames(companyId){
   const set=new Set();
   const company=getCompany(companyId);
   (Array.isArray(company?.processOperators)?company.processOperators:[]).forEach(name=>{name=String(name||'').trim();if(name)set.add(name);});
-  // Eski kayıtlardaki isimleri de kaybetme; kayıtlı çalışan listesine otomatik dahil et.
-  (getParts(companyId)||[]).forEach(p=>Object.values(p.processMeta||{}).forEach(m=>{if(m&&String(m.operator||'').trim())set.add(String(m.operator).trim());}));
+  // Eski ve yeni kayıtlardaki iki çalışanı da kaybetme; kayıtlı çalışan listesine otomatik dahil et.
+  (getParts(companyId)||[]).forEach(p=>Object.values(p.processMeta||{}).forEach(m=>stageOperatorList(m).forEach(name=>set.add(name))));
   return [...set].sort((a,b)=>a.localeCompare(b,'tr'));
 }
 function addProcessOperatorToCompany(company,name){
@@ -5473,15 +5500,19 @@ function collectOperatorPerformance(companyId,monthKey){
   const map=new Map();
   getMonthParts(c.id,monthKey).forEach(p=>{
     targets.forEach(stage=>{
-      const meta=stageProcessMeta(p,stage,false),operator=String(meta.operator||'').trim(); if(!operator) return;
-      const key=stage+'|'+operator;
-      if(!map.has(key)) map.set(key,{stage,operator,parts:0,completed:0,qty:0,workDays:0,rejects:0,ncrs:0,issues:0,errorParts:0});
-      const r=map.get(key),qty=Math.max(0,Number((p.qtys||{})[stage]||0)),rej=Math.max(0,Number((p.rejects||{})[stage]||0));
+      const meta=stageProcessMeta(p,stage,false),operators=stageOperatorList(meta); if(!operators.length) return;
+      const qty=Math.max(0,Number((p.qtys||{})[stage]||0)),rej=Math.max(0,Number((p.rejects||{})[stage]||0));
       const end=stageEndDate(p,stage),dur=stageProcessDurationDays(p,stage,end||new Date());
       const ncr=(p.ncrs||[]).filter(n=>String(n.stage||'')===stage).length;
       const issues=(p.productionIssues||[]).filter(i=>String(i.stage||'')===stage).length;
-      r.parts++; if(end)r.completed++; r.qty+=qty; r.rejects+=rej; r.ncrs+=ncr; r.issues+=issues; if(dur!=null)r.workDays+=dur;
-      if(rej>0||ncr>0||issues>0) r.errorParts++;
+      const share=Math.max(1,operators.length);
+      operators.forEach(operator=>{
+        const key=stage+'|'+operator;
+        if(!map.has(key)) map.set(key,{stage,operator,parts:0,completed:0,qty:0,workDays:0,rejects:0,ncrs:0,issues:0,errorParts:0});
+        const r=map.get(key);
+        r.parts++; if(end)r.completed++; r.qty+=qty/share; r.rejects+=rej/share; r.ncrs+=ncr; r.issues+=issues; if(dur!=null)r.workDays+=dur;
+        if(rej>0||ncr>0||issues>0) r.errorParts++;
+      });
     });
   });
   return [...map.values()].map(r=>({
@@ -7152,11 +7183,20 @@ async function handleAction(action, el){
       if(!name){showToast('Eklenecek ismi yazın.');if(input) input.focus();return;}
       const added=addProcessOperatorToCompany(company,name);
       const part=getParts(company.id).find(p=>p.id===partId);
-      if(part&&canEditStage(stage)) stageProcessMeta(part,stage,true).operator=name;
+      let assigned=false,full=false;
+      if(part&&canEditStage(stage)){
+        // Önce ekranda seçilmiş ama henüz ana Kaydet'e basılmamış çalışanları koru.
+        syncStageOperatorInputs(part);
+        const meta=stageProcessMeta(part,stage,true),ops=stageOperatorList(meta);
+        const exists=ops.some(x=>x.toLocaleLowerCase('tr-TR')===name.toLocaleLowerCase('tr-TR'));
+        if(exists){assigned=true;}
+        else if(ops.length<2){ops.push(name);setStageOperators(meta,ops);assigned=true;}
+        else full=true;
+      }
       const results=await Promise.all([persistCompanies(),part?persistParts(company.id):Promise.resolve(true)]);
       if(results.some(x=>x===false)){showToast('İsim kaydedilemedi.');return;}
       delete state.newProcessOperatorDrafts[draftKey];
-      showToast(added?`${name} çalışan listesine eklendi ve seçildi.`:`${name} zaten kayıtlıydı; bu proses için seçildi.`);
+      showToast(full?`${name} çalışan listesine ${added?'eklendi':'zaten kayıtlıydı'}; bu proseste iki çalışan dolu olduğu için otomatik atanmadı.`:(assigned?`${name} ${added?'çalışan listesine eklendi ve':'zaten kayıtlıydı;'} bu prosese atandı.`:`${name} ${added?'çalışan listesine eklendi.':'zaten kayıtlı.'}`));
       render();
       break;
     }
@@ -7166,7 +7206,8 @@ async function handleAction(action, el){
       const stage=el.getAttribute('data-stage')||'';
       const partId=el.getAttribute('data-part')||'';
       if(!company||!isAdmin()){showToast('Çalışan ismini yalnızca yönetici silebilir.');return;}
-      const select=[...document.querySelectorAll('[data-stage-operator]')].find(x=>x.getAttribute('data-stage-operator')===stage);
+      const slot=String(el.getAttribute('data-operator-slot')||'1');
+      const select=[...document.querySelectorAll('[data-stage-operator]')].find(x=>x.getAttribute('data-stage-operator')===stage&&String(x.getAttribute('data-operator-slot')||'1')===slot);
       const name=String(select?.value||'').trim();
       if(!name){showToast('Önce silmek istediğiniz ismi listeden seçin.');return;}
       if(!window.confirm(`“${name}” isim kaydını silmek istiyor musunuz? Bu isim şirket içindeki proses atamalarından da kaldırılacak.`)) return;
@@ -7175,7 +7216,8 @@ async function handleAction(action, el){
       let cleared=0;
       (getParts(company.id)||[]).forEach(p=>{
         Object.values(p.processMeta||{}).forEach(m=>{
-          if(m&&String(m.operator||'').trim().toLocaleLowerCase('tr-TR')===key){m.operator='';cleared++;}
+          const before=stageOperatorList(m),after=before.filter(x=>x.toLocaleLowerCase('tr-TR')!==key);
+          if(after.length!==before.length){setStageOperators(m,after);cleared++;}
         });
       });
       state.newProcessOperatorDrafts=state.newProcessOperatorDrafts||{};
@@ -7267,7 +7309,7 @@ async function handleAction(action, el){
       });
       document.querySelectorAll('[data-stage-sat]').forEach(inp=>{const stage=inp.getAttribute('data-stage-sat');if(canEditStage(stage))stageProcessMeta(part,stage,true).includeSaturday=!!inp.checked;});
       document.querySelectorAll('[data-stage-sun]').forEach(inp=>{const stage=inp.getAttribute('data-stage-sun');if(canEditStage(stage))stageProcessMeta(part,stage,true).includeSunday=!!inp.checked;});
-      document.querySelectorAll('[data-stage-operator]').forEach(inp=>{const stage=inp.getAttribute('data-stage-operator');if(canEditStage(stage))stageProcessMeta(part,stage,true).operator=(inp.value||'').trim();});
+      syncStageOperatorInputs(part);
       document.querySelectorAll('[data-stage-weldtype]').forEach(inp=>{const stage=inp.getAttribute('data-stage-weldtype');if(canEditStage(stage))stageProcessMeta(part,stage,true).weldType=inp.value||'gasalti';});
 
       // Tarih düzeltmeleri: adet değişmese bile proses GİRİŞ tarihi güncellenir. Bu işlem geri dönüş değildir.
@@ -8167,7 +8209,7 @@ function processEstimateSheetData(companyId){
       const prof=processProfile(p);
       c.stages.filter(s=>s!=='Sevkiyat').forEach(stage=>{
         const est=estimateStageDays(p,stage),info=estimateStageMinutesInfo(p,stage),meta=stageProcessMeta(p,stage,false);
-        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Proses İstenen Adet':stageRequestedQty(p,stage),'Tahmini Vardiya':est==null?'':Number(est.toFixed(2)),'Tahmini Saat':info.minutes==null?'':Number((info.minutes/60).toFixed(2)),'Hesap Dayanağı':info.basis||'','Gerçek Giriş':stageStartDate(p,stage)?formatDateTimeTR(stageStartDate(p,stage)):'','Gerçek Bitiş':stageEndDate(p,stage)?formatDateTimeTR(stageEndDate(p,stage)):'','Gerçek Çalışma Günü':stageProcessDurationDays(p,stage,stageEndDate(p,stage)||new Date())??'','Operatör':meta.operator||'','Kaynak Yöntemi':stage==='Kaynak'?(meta.weldType==='argon'?'Argon TIG':'Gazaltı MIG/MAG'):'','Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
+        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Proses İstenen Adet':stageRequestedQty(p,stage),'Tahmini Vardiya':est==null?'':Number(est.toFixed(2)),'Tahmini Saat':info.minutes==null?'':Number((info.minutes/60).toFixed(2)),'Hesap Dayanağı':info.basis||'','Gerçek Giriş':stageStartDate(p,stage)?formatDateTimeTR(stageStartDate(p,stage)):'','Gerçek Bitiş':stageEndDate(p,stage)?formatDateTimeTR(stageEndDate(p,stage)):'','Gerçek Çalışma Günü':stageProcessDurationDays(p,stage,stageEndDate(p,stage)||new Date())??'','Operatör':stageOperatorList(meta).join(' + '),'Kaynak Yöntemi':stage==='Kaynak'?(meta.weldType==='argon'?'Argon TIG':'Gazaltı MIG/MAG'):'','Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
       });
     });
   });
