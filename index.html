@@ -1283,6 +1283,11 @@
   .process-item-sub{font-size:10.5px;color:var(--muted);margin-top:2px;}
   .process-item-list{display:grid;gap:9px;padding:10px;}
   .process-calc-row{position:relative;border:1px solid var(--line-soft);border-radius:11px;background:var(--surface-0);padding:11px 11px 8px;}
+  .process-calc-row.process-item-new{animation:processItemFlash .7s ease-out;}
+  @keyframes processItemFlash{
+    0%{box-shadow:0 0 0 3px rgba(255,56,84,.28);transform:translateY(-2px);}
+    100%{box-shadow:none;transform:translateY(0);}
+  }
   .process-calc-row-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
   .process-calc-row-no{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.45px;}
   .process-item-fields{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:9px 10px;}
@@ -2649,7 +2654,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.29</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.30</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -7477,12 +7482,17 @@ async function handleAction(action, el){
       if(!group) return;
       const idx=group.querySelectorAll('[data-process-item-row]').length;
       group.insertAdjacentHTML('beforeend',renderProcessItemRow(stage,blankProcessItem(stage,part),idx,part));
-      showToast(`${stage} için yeni iş kalemi eklendi. Kaydetmeyi unutmayın.`);
+      const addedRow=group.querySelectorAll('[data-process-item-row]')[idx];
+      if(addedRow){
+        addedRow.classList.add('process-item-new');
+        addedRow.scrollIntoView({behavior:'smooth',block:'nearest'});
+        setTimeout(()=>addedRow.querySelector('[data-pi-field="label"]')?.focus(),80);
+      }
       break;
     }
     case 'removeProcessCalcItem': {
       const row=el.closest('[data-process-item-row]');
-      if(row){row.remove();showToast('İş kalemi kaldırıldı. Değişikliği kalıcı yapmak için kaydedin.');}
+      if(row) row.remove();
       break;
     }
 
