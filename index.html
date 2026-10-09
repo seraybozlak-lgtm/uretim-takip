@@ -1319,6 +1319,8 @@
   .operator-panel{display:grid;gap:9px;margin-top:2px;padding-top:9px;border-top:1px solid var(--line-soft);}
   .operator-label{display:block;font-size:10.5px;font-weight:800;color:var(--gray-500);margin:0 0 5px;letter-spacing:.1px;}
   .operator-select-row{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:6px;align-items:stretch;}
+  .operator-assignment-list{display:grid;gap:6px;}
+  .operator-add-slot-btn{justify-self:start;min-height:31px!important;padding:5px 9px!important;font-size:10px!important;}
   .operator-slot-label{font-size:9.5px;font-weight:800;color:var(--muted);margin:0 0 4px 1px;}
   .operator-select-row select,.operator-weld-box select{width:100%;min-width:0;font-size:11.5px;padding:8px 9px;border-radius:8px;}
   .operator-delete-btn{width:34px;min-width:34px;border:1px solid rgba(255,56,84,.24);border-radius:8px;background:rgba(255,56,84,.06);color:#FF7184;font-weight:900;cursor:pointer;}
@@ -2647,7 +2649,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.08.27</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.28</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2898,7 +2900,7 @@ function renderTrackingView(){
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
-              ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan <span style="font-weight:500;color:var(--muted);">(en fazla 2 kişi)</span></label>${(()=>{const names=processOperatorNames(company.id);const currents=stageOperatorList(meta);const renderSlot=(slot,current)=>{const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;return `<div><div class="operator-slot-label">Çalışan ${slot}</div><div class="operator-select-row"><select data-stage-operator="${escapeHtml(s)}" data-operator-slot="${slot}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===String(current||'').toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}" data-operator-slot="${slot}" title="Seçili ismi şirket listesinden sil">✕</button>`:''}</div></div>`;};return `${renderSlot(1,currents[0]||'')}${renderSlot(2,currents[1]||'')}${isAdmin()&&editable?`<div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(s)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+s]||''))}" placeholder="Yeni isim yaz..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${part.id}" data-stage="${escapeHtml(s)}">+ İsmi Kaydet</button></div>`:''}`;})()}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
+              ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${renderStageOperatorAssignmentHtml(part,s,meta,company,editable)}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`:''}</div>`:''}
             </div>
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
             <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${stageOperatorList(meta).length?`<br/>${escapeHtml(stageOperatorList(meta).join(' + '))}`:''}</div>
@@ -3160,24 +3162,34 @@ function stageOperatorList(meta){
   const raw=Array.isArray(meta.operators)?meta.operators:[meta.operator,meta.operator2];
   const seen=new Set(),out=[];
   raw.forEach(v=>{const n=String(v||'').trim().replace(/\s+/g,' '),k=n.toLocaleLowerCase('tr-TR');if(n&&!seen.has(k)){seen.add(k);out.push(n);}});
-  return out.slice(0,2);
+  return out;
 }
 function setStageOperators(meta,names){
   if(!meta||typeof meta!=='object') return;
   const clean=[];const seen=new Set();
-  (Array.isArray(names)?names:[]).forEach(v=>{const n=String(v||'').trim().replace(/\s+/g,' '),k=n.toLocaleLowerCase('tr-TR');if(n&&!seen.has(k)&&clean.length<2){seen.add(k);clean.push(n);}});
+  (Array.isArray(names)?names:[]).forEach(v=>{const n=String(v||'').trim().replace(/\s+/g,' '),k=n.toLocaleLowerCase('tr-TR');if(n&&!seen.has(k)){seen.add(k);clean.push(n);}});
   meta.operators=clean;
+  // Eski kayıt/rapor kodlarıyla geriye uyumluluk için ilk iki kişiyi ayrıca tutuyoruz.
   meta.operator=clean[0]||'';
   meta.operator2=clean[1]||'';
+}
+function stageOperatorSelectRowHtml(companyId,partId,stage,current,editable,slot){
+  const names=processOperatorNames(companyId);
+  current=String(current||'').trim();
+  const options=current&&!names.some(n=>n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR'))?[current,...names]:names;
+  return `<div class="operator-select-row" data-operator-assignment-row><select data-stage-operator="${escapeHtml(stage)}" data-operator-slot="${slot}" ${!editable?'disabled':''}><option value="">İsim seç</option>${options.map(n=>`<option value="${escapeHtml(n)}" ${n.toLocaleLowerCase('tr-TR')===current.toLocaleLowerCase('tr-TR')?'selected':''}>${escapeHtml(n)}</option>`).join('')}</select>${isAdmin()&&editable?`<button type="button" class="operator-delete-btn" data-action="deleteProcessOperator" data-part="${escapeHtml(partId)}" data-stage="${escapeHtml(stage)}" data-operator-slot="${slot}" title="Seçili ismi şirket listesinden sil">✕</button>`:''}</div>`;
+}
+function renderStageOperatorAssignmentHtml(part,stage,meta,company,editable){
+  const currents=stageOperatorList(meta), rows=currents.length?currents:[''];
+  return `<div class="operator-assignment-list" data-operator-assignment-list="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">${rows.map((current,i)=>stageOperatorSelectRowHtml(company.id,part.id,stage,current,editable,i+1)).join('')}</div>${isAdmin()&&editable?`<button type="button" class="btn btn-ghost btn-sm operator-add-slot-btn" data-action="addStageOperatorSlot" data-part="${escapeHtml(part.id)}" data-stage="${escapeHtml(stage)}">+ Çalışan Ekle</button><div class="operator-add-box"><input class="operator-new-input" type="text" data-new-process-operator="${escapeHtml(stage)}" data-new-process-operator-part="${escapeHtml(part.id)}" value="${escapeHtml(String((state.newProcessOperatorDrafts||{})[part.id+'|'+stage]||''))}" placeholder="Listede olmayan yeni isim..." autocomplete="off"/><button type="button" class="btn btn-ghost btn-sm operator-add-btn" data-action="addProcessOperator" data-part="${escapeHtml(part.id)}" data-stage="${escapeHtml(stage)}">+ İsmi Listeye Ekle</button></div>`:''}`;
 }
 function syncStageOperatorInputs(part){
   const grouped={};
   document.querySelectorAll('[data-stage-operator]').forEach(inp=>{
     if(inp.disabled) return;
     const stage=inp.getAttribute('data-stage-operator')||'';
-    const slot=Math.max(1,Math.min(2,Number(inp.getAttribute('data-operator-slot'))||1));
-    grouped[stage]=grouped[stage]||['',''];
-    grouped[stage][slot-1]=(inp.value||'').trim();
+    grouped[stage]=grouped[stage]||[];
+    grouped[stage].push((inp.value||'').trim());
   });
   Object.entries(grouped).forEach(([stage,names])=>setStageOperators(stageProcessMeta(part,stage,true),names));
 }
@@ -3185,7 +3197,7 @@ function processOperatorNames(companyId){
   const set=new Set();
   const company=getCompany(companyId);
   (Array.isArray(company?.processOperators)?company.processOperators:[]).forEach(name=>{name=String(name||'').trim();if(name)set.add(name);});
-  // Eski ve yeni kayıtlardaki iki çalışanı da kaybetme; kayıtlı çalışan listesine otomatik dahil et.
+  // Eski ve yeni kayıtlardaki tüm çalışanları kaybetme; kayıtlı çalışan listesine otomatik dahil et.
   (getParts(companyId)||[]).forEach(p=>Object.values(p.processMeta||{}).forEach(m=>stageOperatorList(m).forEach(name=>set.add(name))));
   return [...set].sort((a,b)=>a.localeCompare(b,'tr'));
 }
@@ -7171,6 +7183,22 @@ async function handleAction(action, el){
       break;
     }
 
+    case 'addStageOperatorSlot': {
+      const company=getCompany(state.selectedCompanyId);
+      const stage=el.getAttribute('data-stage')||'';
+      const partId=el.getAttribute('data-part')||'';
+      const part=getParts(company?.id).find(p=>p.id===partId);
+      if(!company||!part||!canEditStage(stage)) return;
+      const list=[...document.querySelectorAll('[data-operator-assignment-list]')].find(x=>x.getAttribute('data-operator-assignment-list')===stage&&x.getAttribute('data-part')===partId);
+      if(!list) return;
+      const slot=list.querySelectorAll('[data-operator-assignment-row]').length+1;
+      list.insertAdjacentHTML('beforeend',stageOperatorSelectRowHtml(company.id,partId,stage,'',true,slot));
+      const row=list.lastElementChild;
+      row?.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',()=>handleAction(btn.getAttribute('data-action'),btn)));
+      row?.querySelector('select')?.focus();
+      break;
+    }
+
     case 'addProcessOperator': {
       const company=getCompany(state.selectedCompanyId);
       const stage=el.getAttribute('data-stage')||'';
@@ -7183,20 +7211,19 @@ async function handleAction(action, el){
       if(!name){showToast('Eklenecek ismi yazın.');if(input) input.focus();return;}
       const added=addProcessOperatorToCompany(company,name);
       const part=getParts(company.id).find(p=>p.id===partId);
-      let assigned=false,full=false;
+      let assigned=false;
       if(part&&canEditStage(stage)){
         // Önce ekranda seçilmiş ama henüz ana Kaydet'e basılmamış çalışanları koru.
         syncStageOperatorInputs(part);
         const meta=stageProcessMeta(part,stage,true),ops=stageOperatorList(meta);
         const exists=ops.some(x=>x.toLocaleLowerCase('tr-TR')===name.toLocaleLowerCase('tr-TR'));
         if(exists){assigned=true;}
-        else if(ops.length<2){ops.push(name);setStageOperators(meta,ops);assigned=true;}
-        else full=true;
+        else {ops.push(name);setStageOperators(meta,ops);assigned=true;}
       }
       const results=await Promise.all([persistCompanies(),part?persistParts(company.id):Promise.resolve(true)]);
       if(results.some(x=>x===false)){showToast('İsim kaydedilemedi.');return;}
       delete state.newProcessOperatorDrafts[draftKey];
-      showToast(full?`${name} çalışan listesine ${added?'eklendi':'zaten kayıtlıydı'}; bu proseste iki çalışan dolu olduğu için otomatik atanmadı.`:(assigned?`${name} ${added?'çalışan listesine eklendi ve':'zaten kayıtlıydı;'} bu prosese atandı.`:`${name} ${added?'çalışan listesine eklendi.':'zaten kayıtlı.'}`));
+      showToast(assigned?`${name} ${added?'çalışan listesine eklendi ve':'zaten kayıtlıydı;'} bu prosese atandı.`:`${name} ${added?'çalışan listesine eklendi.':'zaten kayıtlı.'}`);
       render();
       break;
     }
