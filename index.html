@@ -2681,7 +2681,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.37</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.38</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -6526,11 +6526,12 @@ function modalWrap(inner, size){
 
 /* ============================= EVENT HANDLERS ============================= */
 function attachHandlers(){
+  const app = document.getElementById('app');
+  if(!app) return;
   app.querySelectorAll('[data-cnc-hole-count]').forEach(inp=>{
     inp.addEventListener('input',()=>refreshCncHoleSpecs(inp.closest('[data-process-item-row]')));
     inp.addEventListener('change',()=>refreshCncHoleSpecs(inp.closest('[data-process-item-row]')));
   });
-  const app = document.getElementById('app');
 
   app.querySelectorAll('[data-nav]').forEach(el=>{
     el.addEventListener('click', ()=>{ state.view = el.getAttribute('data-nav'); render(); });
