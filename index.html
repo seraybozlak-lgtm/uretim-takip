@@ -1292,6 +1292,20 @@
   .process-calc-row-no{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.45px;}
   .process-item-fields{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:9px 10px;}
   .process-item-fields .field{margin:0;}
+  .stage-work-summary{width:100%;margin-top:9px;padding:9px 10px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface-1);color:var(--text);cursor:pointer;text-align:left;display:grid;gap:3px;transition:border-color .15s,background .15s,transform .15s;}
+  .stage-work-summary:hover{border-color:var(--navy-600);background:var(--surface-2);transform:translateY(-1px);}
+  .stage-work-summary-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;font-weight:800;}
+  .stage-work-summary-main{font-size:11.5px;font-weight:800;line-height:1.35;}
+  .stage-work-summary-sub{font-size:9.8px;color:var(--muted);line-height:1.35;}
+  .stage-work-source{font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-soft);color:var(--muted);white-space:nowrap;}
+  .stage-item-modal-list{display:grid;gap:9px;margin-top:12px;}
+  .stage-item-modal-card{border:1px solid var(--line-soft);border-radius:11px;background:var(--surface-1);padding:11px 12px;}
+  .stage-item-modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;}
+  .stage-item-modal-name{font-size:12px;font-weight:900;color:var(--text);}
+  .stage-item-modal-qty{font-size:10.5px;font-weight:800;color:var(--muted);}
+  .stage-item-modal-facts{display:flex;flex-wrap:wrap;gap:6px;}
+  .stage-item-modal-fact{font-size:10px;color:var(--gray-600);padding:4px 7px;border-radius:7px;background:var(--surface-2);border:1px solid var(--line-soft);}
+  .stage-item-modal-total{margin-top:12px;padding:11px 12px;border-radius:11px;background:var(--surface-2);border:1px solid var(--line-soft);font-size:11px;line-height:1.5;}
   .process-item-fields .field label{font-size:9.5px;margin-bottom:5px;}
   .process-item-fields input,.process-item-fields select{min-height:36px;padding:8px 9px!important;font-size:12px!important;}
   .process-item-remove{min-height:30px!important;padding:5px 9px!important;font-size:10px!important;}
@@ -2654,7 +2668,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.30</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.32</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -2901,6 +2915,7 @@ function renderTrackingView(){
               </div>
             </div>
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
+            ${renderStageWorkSummary(part,s)}
             <div style="margin-top:9px;display:grid;gap:7px;">
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
@@ -3515,7 +3530,9 @@ function processItemFromDrawingProfile(stage,drawing,prof,part,qtyOverride=null)
 }
 function processItemNumber(v,fallback=0){ const n=Number(v); return Number.isFinite(n)&&n>0?n:(Number(fallback)||0); }
 function legacyProcessItem(profile,stage,part){
-  const qty=Math.max(1,Number(part?.orderedQty)||1),p=profile||{};
+  // İş kalemi girilmemişse o prosesin kendi İstenen Adet değeri kullanılır.
+  // Böylece genel sipariş adedi proses hedefinin üstüne ikinci kez eklenmez.
+  const qty=Math.max(1,Number(stageRequestedQty(part,stage))||Number(part?.orderedQty)||1),p=profile||{};
   const common={id:uid('pci'),label:'',qty};
   if(stage==='Kesim') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,holeCount:Number(p.holeCount)||0,laserCutLengthMm:Number(p.laserCutLengthMm)||0,laserFeedMmMin:Number(p.laserFeedMmMin)||0};
   if(stage==='CNC') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,holeCount:Number(p.holeCount)||0,cncPathMm:Number(p.cncPathMm)||0,cncFeedMmMin:Number(p.cncFeedMmMin)||0,cncToolChanges:Math.max(1,Number(p.cncToolChanges)||1)};
@@ -3536,8 +3553,17 @@ function processItemsForStage(profile,stage,part){
   if(autoRows) return autoRows.map(r=>({...r,id:r?.id||uid('pci')}));
   return [legacyProcessItem(profile,stage,part)];
 }
+function stageProcessItemsData(part,stage){
+  const baseProfile=processProfile(part),stageAuto=stageDrawingAnalysisProfile(part,stage);
+  const calcProfile=stageAuto?Object.assign({},baseProfile,stageAuto,{processItems:baseProfile.processItems,autoProcessItemsByStage:baseProfile.autoProcessItemsByStage}):baseProfile;
+  const savedRows=Array.isArray(baseProfile.processItems?.[stage])&&baseProfile.processItems[stage].length?baseProfile.processItems[stage]:null;
+  const autoRows=autoProcessItemsForStage(baseProfile,stage);
+  const source=savedRows?'manual':autoRows?'auto':'fallback';
+  const rows=(savedRows||autoRows||[legacyProcessItem(calcProfile,stage,part)]).map(r=>({...r,id:r?.id||uid('pci')}));
+  return {baseProfile,calcProfile,rows,source};
+}
 function blankProcessItem(stage,part){
-  const q=Math.max(1,Number(part?.orderedQty)||1);
+  const q=Math.max(1,Number(stageRequestedQty(part,stage))||Number(part?.orderedQty)||1);
   const base={id:uid('pci'),label:'',qty:q};
   if(stage==='CNC') return {...base,cncToolChanges:1};
   if(stage==='Torna') return {...base,turnPasses:2};
@@ -3575,6 +3601,42 @@ function renderProcessItemRow(stage,item,index,part){
 function processStageHint(stage){
   const hints={Kesim:'Lazer kesilecek farklı sac/alt parçaları ayrı satır ekleyin.',CNC:'Farklı 3 eksen CNC parçalarını ayrı satır ekleyin.',Torna:'Her farklı tornalanacak parça için çap ve boyu ayrı girin.',Büküm:'Farklı bükülecek alt parçaları ayrı satır ekleyin.',Kaynak:'Her parça için toplam kaynak uzunluğunu ve ayrı dikiş sayısını girin; akım/voltaj girmeden hız kalınlığa göre otomatik tahmin edilir.',Montaj:'Birden fazla farklı montaj varsa ayrı iş kalemi kullanın.',Taşlama:'Farklı taşlama işleri için ayrı satır ekleyin.',Boya:'Farklı ebatlı boya parçalarını ayrı satır ekleyin.',Kaplama:'Farklı kaplama gruplarını ayrı satır ekleyin.',Paketleme:'Farklı paket tiplerini ayrı satır ekleyin.',Sevkiyat:'Farklı sevkiyat gruplarını ayrı satır ekleyin.'};
   return hints[stage]||'';
+}
+function compactStageEstimate(minutes){
+  if(minutes==null||!Number.isFinite(Number(minutes))) return 'süre için veri eksik';
+  const m=Math.max(0,Number(minutes));
+  if(m<60) return `~${Math.round(m)} dk`;
+  return `~${(m/60).toLocaleString('tr-TR',{minimumFractionDigits:1,maximumFractionDigits:1})} saat`;
+}
+function stageProcessItemFacts(stage,item){
+  const f=[];
+  const add=(label,value,suffix='')=>{if(value!==''&&value!=null&&Number(value)!==0)f.push(`${label}: ${value}${suffix}`);};
+  if(stage==='Kesim'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik/Pierce',item.holeCount);add('Kesim yolu',item.laserCutLengthMm,' mm');}
+  else if(stage==='CNC'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik',item.holeCount);add('Takım yolu',item.cncPathMm,' mm');add('İlerleme',item.cncFeedMmMin,' mm/dk');add('Takım',item.cncToolChanges);}
+  else if(stage==='Torna'){add('Çap',item.turnDiameterMm,' mm');add('Boy',item.turnLengthMm,' mm');add('Paso',item.turnPasses);}
+  else if(stage==='Büküm'){add('En',item.width,' mm');add('Kalınlık',item.thickness,' mm');add('Büküm',item.bendCount);}
+  else if(stage==='Kaynak'){add('Kalınlık',item.thickness,' mm');add('Kaynak',item.weldLengthMm,' mm/parça');add('Dikiş',item.weldSeamCount);if(item.weldType)f.push(`Tip: ${item.weldType==='argon'?'Argon TIG':'Gazaltı MIG/MAG'}`);}
+  else if(stage==='Taşlama'){add('Hat',item.grindLengthMm,' mm');}
+  else if(stage==='Montaj'){add('Alt parça',item.assemblySubparts);add('Bağlantı',item.assemblyFasteners);add('Hizalama',item.assemblyAlignments);add('Ağırlık',item.assemblyWeightKg,' kg');}
+  else if(stage==='Boya'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Batch',item.paintBatchQty);add('Fırın',item.paintCureMinutes,' dk');}
+  else if(stage==='Kaplama'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Batch',item.coatingBatchMinutes,' dk');}
+  else if(stage==='Paketleme'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Yükseklik',item.thickness,' mm');add('Ağırlık',item.assemblyWeightKg,' kg');}
+  return f;
+}
+function renderStageWorkSummary(part,stage){
+  const data=stageProcessItemsData(part,stage),rows=data.rows||[];
+  const explicit=data.source!=='fallback';
+  const qtyTotal=rows.reduce((sum,r)=>sum+Math.max(0,Number(r.qty)||0),0);
+  const info=estimateStageMinutesInfo(part,stage);
+  const sourceLabel=data.source==='manual'?'Kayıtlı iş kalemleri':data.source==='auto'?'Teknik resimden':'Genel proses verisi + proses İstenen Adet';
+  const main=explicit?`${rows.length} ${rows.length===1?'iş kalemi':'farklı parça'} · ${fmtNum(qtyTotal)} toplam iş adedi`:`Tek iş kalemi · ${fmtNum(qtyTotal)} iş adedi`;
+  return `<button type="button" class="stage-work-summary" data-action="openStageItemsQuickView" data-part="${escapeHtml(part.id)}" data-stage="${escapeHtml(stage)}"><span class="stage-work-summary-top"><span>🧩 İş kalemleri</span><span class="stage-work-source">${escapeHtml(sourceLabel)}</span></span><span class="stage-work-summary-main">${escapeHtml(main)} · ${escapeHtml(compactStageEstimate(info.minutes))}</span><span class="stage-work-summary-sub">Detayı aç · İş kalemi yoksa proses verisinden hesaplanır; varsa iş kalemleri kullanılır. Çift hesaplama yapılmaz.</span></button>`;
+}
+function renderStageItemsQuickView(part,stage){
+  const data=stageProcessItemsData(part,stage),info=estimateStageMinutesInfo(part,stage),rows=data.rows||[];
+  const sourceLabel=data.source==='manual'?'Kayıtlı iş kalemleri':data.source==='auto'?'Teknik resim taramasından':'Genel proses verisi + proses İstenen Adet';
+  const qtyTotal=rows.reduce((sum,r)=>sum+Math.max(0,Number(r.qty)||0),0);
+  return `<div class="stage-item-modal-list">${rows.map((item,i)=>{const facts=stageProcessItemFacts(stage,item);return `<div class="stage-item-modal-card"><div class="stage-item-modal-head"><div class="stage-item-modal-name">${escapeHtml(item.label||`İş kalemi ${i+1}`)}</div><div class="stage-item-modal-qty">${fmtNum(Math.max(0,Number(item.qty)||0))} adet</div></div><div class="stage-item-modal-facts">${facts.length?facts.map(x=>`<span class="stage-item-modal-fact">${escapeHtml(x)}</span>`).join(''):'<span class="stage-item-modal-fact">Detay verisi eksik</span>'}</div></div>`;}).join('')}</div><div class="stage-item-modal-total"><b>${escapeHtml(stage)} toplamı:</b> ${rows.length} iş kalemi · ${fmtNum(qtyTotal)} toplam iş adedi · <b>${escapeHtml(compactStageEstimate(info.minutes))}</b><br/><span style="color:var(--muted);">Kaynak: ${escapeHtml(sourceLabel)}. İş kalemi yoksa genel proses/analiz verileri o prosesin “İstenen Adet” değeriyle hesaplanır. İş kalemleri varsa yalnızca iş kalemleri hesaplanır; genel proses adedi ayrıca eklenmez.</span></div>`;
 }
 function renderProcessItemsEditor(profile,part,company){
   const stages=(company?.stages||PROCESS_CALC_STAGES).filter(s=>PROCESS_CALC_STAGES.includes(s));
@@ -3654,14 +3716,10 @@ function flatSurfaceAreaM2(profile){
   return (2*w*l + 2*t*(w+l))/1e6;
 }
 function estimateStageMinutesInfo(part,stage){
-  const baseProfile=processProfile(part), stageAuto=stageDrawingAnalysisProfile(part,stage);
-  const p=stageAuto?Object.assign({},baseProfile,stageAuto,{processItems:baseProfile.processItems,autoProcessItemsByStage:baseProfile.autoProcessItemsByStage}):baseProfile;
+  const processData=stageProcessItemsData(part,stage),baseProfile=processData.baseProfile,p=processData.calcProfile,rows=processData.rows;
   const defaultQty=Math.max(1,stageRequestedQty(part,stage)||Number(part.orderedQty)||1),mat=materialFamily(p);
   const cf=p.complexity==='high'?1.35:p.complexity==='low'?.88:1, tf=p.toleranceClass==='precision'?1.28:p.toleranceClass==='rough'?.92:1;
   const meta=stageProcessMeta(part,stage,false);
-  const savedRows=Array.isArray(baseProfile.processItems?.[stage])&&baseProfile.processItems[stage].length?baseProfile.processItems[stage]:null;
-  const autoRows=autoProcessItemsForStage(baseProfile,stage);
-  const rows=savedRows||autoRows||[legacyProcessItem(p,stage,part)];
   let total=0,valid=0; const bases=[];
   for(let ri=0;ri<rows.length;ri++){
     const item=rows[ri]||{},qty=processItemNumber(item.qty,defaultQty);
@@ -5826,6 +5884,13 @@ function renderNoCompanySelected(){
 function renderModal(){
   const m = state.modal;
   if(!m) return '';
+  if(m.type==='stageItemsQuickView'){
+    const company=getCompany(state.selectedCompanyId);
+    const part=company?getParts(company.id).find(p=>p.id===m.payload?.partId):null;
+    const stage=String(m.payload?.stage||'');
+    if(!company||!part||!company.stages.includes(stage)) return modalWrap(`<h2>İş Kalemleri</h2><div class="modal-sub">Kayıt bulunamadı.</div><div class="modal-actions"><button class="btn btn-primary" data-action="closeModal">Kapat</button></div>`);
+    return modalWrap(`<h2>${escapeHtml(stage)} · İş Kalemleri</h2><div class="modal-sub">${escapeHtml(part.partNo||'')} ${part.partName?`· ${escapeHtml(part.partName)}`:''} · Buradaki satırlar süre hesabında kullanılan aynı kayıtlardır.</div>${renderStageItemsQuickView(part,stage)}<div class="modal-actions"><button class="btn btn-primary" data-action="closeModal">Kapat</button></div>`, 'wide');
+  }
   if(m.type==='addCompany' || m.type==='editCompany'){
     const isEdit = m.type==='editCompany';
     const company = isEdit ? getCompany(m.payload.id) : null;
@@ -6884,6 +6949,10 @@ function attachHandlers(){
 async function handleAction(action, el){
   switch(action){
     case 'setThemeMode': { setThemeMode(el.getAttribute('data-theme-mode')||'auto'); render(); break; }
+    case 'openStageItemsQuickView': {
+      state.modal={type:'stageItemsQuickView',payload:{partId:el.getAttribute('data-part')||'',stage:el.getAttribute('data-stage')||''}};
+      render(); break;
+    }
 
     case 'setManualCurrentStage': {
       const company=getCompany(state.selectedCompanyId); if(!company) return;
