@@ -1300,10 +1300,11 @@
   .cnc-hole-specs{grid-column:1/-1;border:1px dashed var(--line-soft);border-radius:10px;padding:9px 10px;background:var(--surface-2);display:grid;gap:7px;}
   .cnc-hole-specs-title{font-size:10px;font-weight:800;color:var(--text);display:flex;justify-content:space-between;gap:8px;align-items:center;}
   .cnc-hole-specs-note{font-size:9px;color:var(--muted);font-weight:500;}
-  .cnc-hole-spec-row{display:grid;grid-template-columns:70px minmax(120px,1fr) minmax(140px,1fr);gap:8px;align-items:end;}
+  .cnc-hole-spec-row{display:grid;grid-template-columns:62px repeat(4,minmax(112px,1fr));gap:8px;align-items:end;}
   .cnc-hole-spec-no{font-size:10px;font-weight:800;color:var(--muted);padding-bottom:10px;}
   .cnc-hole-spec-row .field{margin:0;}
-  @media(max-width:720px){.cnc-hole-spec-row{grid-template-columns:56px 1fr;}.cnc-hole-spec-row .field:last-child{grid-column:2;}}
+  @media(max-width:900px){.cnc-hole-spec-row{grid-template-columns:56px repeat(2,minmax(110px,1fr));}.cnc-hole-spec-no{grid-row:1/3;}.cnc-hole-spec-row .field{min-width:0;}}
+  @media(max-width:620px){.cnc-hole-spec-row{grid-template-columns:52px 1fr;}.cnc-hole-spec-no{grid-row:auto;}.cnc-hole-spec-row .field{grid-column:2;}}
   @media(max-width:720px){.process-item-drawing-field{grid-column:1/-1;}.process-item-drawing-row{grid-template-columns:1fr;}}
   .stage-work-summary{width:100%;margin-top:9px;padding:9px 10px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface-1);color:var(--text);cursor:pointer;text-align:left;display:grid;gap:3px;transition:border-color .15s,background .15s,transform .15s;}
   .stage-work-summary:hover{border-color:var(--navy-600);background:var(--surface-2);transform:translateY(-1px);}
@@ -2681,7 +2682,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.38</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.40</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -3065,27 +3066,28 @@ function stageRequestedQty(part,stage){
   return Math.max(0,Number(part&&part.orderedQty)||0);
 }
 
-const STAGE_CLOCK_OPTIONS=['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
+const STAGE_CLOCK_MIN='08:00', STAGE_CLOCK_MAX='18:00';
 function splitStageDateTimeValue(value){
   const m=String(value||'').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
   return m?{date:m[1],time:m[2]}:{date:'',time:''};
 }
-function stageClockOptionsHtml(selected){
-  const current=String(selected||'');
-  const selectedAllowed=STAGE_CLOCK_OPTIONS.includes(current)?current:'';
-  return `<option value="" ${!selectedAllowed?'selected':''}>Saat seç</option>${STAGE_CLOCK_OPTIONS.map(t=>`<option value="${t}" ${t===selectedAllowed?'selected':''}>${t}</option>`).join('')}`;
+function clampStageClockTime(value){
+  const t=String(value||'').slice(0,5);
+  if(!/^\d{2}:\d{2}$/.test(t)) return '';
+  if(t<STAGE_CLOCK_MIN) return STAGE_CLOCK_MIN;
+  if(t>STAGE_CLOCK_MAX) return STAGE_CLOCK_MAX;
+  return t;
 }
 function renderStageDateTimeControl(part,stage,kind,value,originalValue,editable){
   const v=splitStageDateTimeValue(value);
   const hiddenAttrs=kind==='start'
     ? `data-stage-datetime="${escapeHtml(stage)}" data-stage-datetime-original="${escapeHtml(originalValue||'')}"`
     : `data-stage-end-datetime="${escapeHtml(stage)}" data-stage-end-datetime-part="${escapeHtml(part.id)}"`;
-  const legacyTime=v.time&&!STAGE_CLOCK_OPTIONS.includes(v.time)?v.time:'';
+  const displayTime=clampStageClockTime(v.time);
   return `<div class="stage-datetime-combo" data-stage-datetime-combo="${escapeHtml(kind)}" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">
     <input type="date" data-stage-date-day value="${escapeHtml(v.date)}" ${!editable?'disabled':''}/>
-    <select data-stage-date-time ${!editable?'disabled':''}>${stageClockOptionsHtml(v.time)}</select>
+    <input type="time" data-stage-date-time min="${STAGE_CLOCK_MIN}" max="${STAGE_CLOCK_MAX}" step="60" value="${escapeHtml(displayTime)}" ${!editable?'disabled':''}/>
     <input type="hidden" ${hiddenAttrs} value="${escapeHtml(value||'')}"/>
-    ${legacyTime?`<div class="stage-datetime-legacy">Eski kayıt saati ${escapeHtml(legacyTime)} · değiştirilene kadar korunur.</div>`:''}
   </div>`;
 }
 function localInputFromTs(ts){
@@ -3448,6 +3450,7 @@ function processProfile(part){
   ensurePartQualityData(part);
   return Object.assign({
     material:'',thickness:'',width:'',length:'',holeCount:0,bendCount:0,weldLengthMm:0,complexity:'normal',toleranceClass:'normal',
+    holeDiameters:[],holeTolerances:[],holeUpperDeviations:[],holeLowerDeviations:[],
     laserCutLengthMm:0,laserFeedMmMin:0,
     cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1,cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal',
     turnDiameterMm:0,turnLengthMm:0,turnPasses:2,
@@ -3533,7 +3536,8 @@ function processItemFromDrawingProfile(stage,drawing,prof,part,qtyOverride=null)
     const holeDiameters=(Array.isArray(prof?.holeDiameters)?prof.holeDiameters:[]).map(Number).filter(x=>Number.isFinite(x)&&x>0).slice(0,200);
     const count=Math.max(holes,holeDiameters.length);
     const holeTolerances=Array.from({length:count},()=>0);
-    return {...common,width:safeW,length:safeL,thickness:t,holeCount:count,holeDiameters:holeDiameters.slice(0,count),holeTolerances,cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1,cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal'};
+    const holeUpperDeviations=Array.from({length:count},()=>null),holeLowerDeviations=Array.from({length:count},()=>null);
+    return {...common,width:safeW,length:safeL,thickness:t,holeCount:count,holeDiameters:holeDiameters.slice(0,count),holeTolerances,holeUpperDeviations,holeLowerDeviations,cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1,cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal'};
   }
   if(stage==='Torna'){
     const dims=[w,l].filter(x=>x>0).sort((a,b)=>a-b);
@@ -3555,7 +3559,7 @@ function legacyProcessItem(profile,stage,part){
   const qty=Math.max(1,Number(stageRequestedQty(part,stage))||Number(part?.orderedQty)||1),p=profile||{};
   const common={id:uid('pci'),label:'',qty};
   if(stage==='Kesim') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,holeCount:Number(p.holeCount)||0,laserCutLengthMm:Number(p.laserCutLengthMm)||0,laserFeedMmMin:Number(p.laserFeedMmMin)||0};
-  if(stage==='CNC') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,holeCount:Number(p.holeCount)||0,holeDiameters:Array.isArray(p.holeDiameters)?p.holeDiameters:[],holeTolerances:Array.isArray(p.holeTolerances)?p.holeTolerances:[],cncPathMm:Number(p.cncPathMm)||0,cncFeedMmMin:Number(p.cncFeedMmMin)||0,cncToolChanges:Math.max(1,Number(p.cncToolChanges)||1),cncDepthMm:Number(p.cncDepthMm)||0,cncPasses:Number(p.cncPasses)||0,cncToleranceClass:p.cncToleranceClass||'',cncSetupMinutes:Number(p.cncSetupMinutes)||0,cncLearningMode:p.cncLearningMode||'normal'};
+  if(stage==='CNC') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,holeCount:Number(p.holeCount)||0,holeDiameters:Array.isArray(p.holeDiameters)?p.holeDiameters:[],holeTolerances:Array.isArray(p.holeTolerances)?p.holeTolerances:[],holeUpperDeviations:Array.isArray(p.holeUpperDeviations)?p.holeUpperDeviations:[],holeLowerDeviations:Array.isArray(p.holeLowerDeviations)?p.holeLowerDeviations:[],cncPathMm:Number(p.cncPathMm)||0,cncFeedMmMin:Number(p.cncFeedMmMin)||0,cncToolChanges:Math.max(1,Number(p.cncToolChanges)||1),cncDepthMm:Number(p.cncDepthMm)||0,cncPasses:Number(p.cncPasses)||0,cncToleranceClass:p.cncToleranceClass||'',cncSetupMinutes:Number(p.cncSetupMinutes)||0,cncLearningMode:p.cncLearningMode||'normal'};
   if(stage==='Torna') return {...common,turnDiameterMm:Number(p.turnDiameterMm)||0,turnLengthMm:Number(p.turnLengthMm)||0,turnPasses:Math.max(1,Number(p.turnPasses)||2)};
   if(stage==='Büküm') return {...common,width:Number(p.width)||0,thickness:Number(p.thickness)||0,bendCount:Number(p.bendCount)||0};
   if(stage==='Kaynak') return {...common,thickness:Number(p.thickness)||0,weldLengthMm:Number(p.weldLengthMm)||0,weldSeamCount:1,weldType:''};
@@ -3585,7 +3589,7 @@ function stageProcessItemsData(part,stage){
 function blankProcessItem(stage,part){
   const q=Math.max(1,Number(stageRequestedQty(part,stage))||Number(part?.orderedQty)||1);
   const base={id:uid('pci'),label:'',qty:q};
-  if(stage==='CNC') return {...base,cncToolChanges:1,holeDiameters:[],holeTolerances:[],cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal'};
+  if(stage==='CNC') return {...base,cncToolChanges:1,holeDiameters:[],holeTolerances:[],holeUpperDeviations:[],holeLowerDeviations:[],cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal'};
   if(stage==='Torna') return {...base,turnPasses:2};
   if(stage==='Kaynak') return {...base,weldSeamCount:1};
   if(stage==='Montaj') return {...base,assemblyClass:'normal'};
@@ -3601,18 +3605,28 @@ function cncHoleArrays(item,count){
   count=Math.max(0,Math.floor(Number(count)||0));
   const ds=Array.isArray(item?.holeDiameters)?item.holeDiameters:[];
   const ts=Array.isArray(item?.holeTolerances)?item.holeTolerances:[];
-  return {diameters:Array.from({length:count},(_,i)=>Number(ds[i])||0),tolerances:Array.from({length:count},(_,i)=>Number(ts[i])||0)};
+  const us=Array.isArray(item?.holeUpperDeviations)?item.holeUpperDeviations:[];
+  const ls=Array.isArray(item?.holeLowerDeviations)?item.holeLowerDeviations:[];
+  const nullable=(arr,i)=>arr[i]===null||arr[i]===undefined||arr[i]===''?null:Number(arr[i]);
+  return {
+    diameters:Array.from({length:count},(_,i)=>Number(ds[i])||0),
+    tolerances:Array.from({length:count},(_,i)=>Math.abs(Number(ts[i])||0)),
+    upperDeviations:Array.from({length:count},(_,i)=>nullable(us,i)),
+    lowerDeviations:Array.from({length:count},(_,i)=>nullable(ls,i))
+  };
 }
 function renderCncHoleSpecs(item){
   const count=Math.max(0,Math.floor(Number(item?.holeCount)||0));
   const a=cncHoleArrays(item,count);
   if(!count) return `<div class="cnc-hole-specs" data-cnc-hole-specs><div class="cnc-hole-specs-title">Delik çapları <span class="cnc-hole-specs-note">Delik sayısı girince alanlar oluşur.</span></div></div>`;
-  return `<div class="cnc-hole-specs" data-cnc-hole-specs><div class="cnc-hole-specs-title">Delik çapları ve toleransları <span class="cnc-hole-specs-note">Her delik süre hesabına ayrı girer.</span></div>${Array.from({length:count},(_,i)=>`<div class="cnc-hole-spec-row"><div class="cnc-hole-spec-no">Delik ${i+1}</div><div class="field"><label>Çap Ø (mm)</label><input type="number" min="0" step="0.01" data-cnc-hole-diameter="${i}" value="${a.diameters[i]||''}" placeholder="Örn. 12"></div><div class="field"><label>Tolerans ± (mm, ops.)</label><input type="number" min="0" step="0.001" data-cnc-hole-tolerance="${i}" value="${a.tolerances[i]||''}" placeholder="Örn. 0.02"></div></div>`).join('')}</div>`;
+  return `<div class="cnc-hole-specs" data-cnc-hole-specs><div class="cnc-hole-specs-title">Delik çapları ve toleransları <span class="cnc-hole-specs-note">± veya üst/alt sapma girebilirsiniz. Üst/alt doluysa onlar kullanılır.</span></div>${Array.from({length:count},(_,i)=>`<div class="cnc-hole-spec-row"><div class="cnc-hole-spec-no">Delik ${i+1}</div><div class="field"><label>Nominal Çap Ø (mm)</label><input type="number" min="0" step="0.001" data-cnc-hole-diameter="${i}" value="${a.diameters[i]||''}" placeholder="Örn. 30"></div><div class="field"><label>Simetrik ± (mm, ops.)</label><input type="number" min="0" step="0.001" data-cnc-hole-tolerance="${i}" value="${a.tolerances[i]||''}" placeholder="Örn. 0.02"></div><div class="field"><label>Üst Sapma (mm, ops.)</label><input type="number" step="0.001" data-cnc-hole-upper="${i}" value="${a.upperDeviations[i]===null?'':a.upperDeviations[i]}" placeholder="Örn. +0.07"></div><div class="field"><label>Alt Sapma (mm, ops.)</label><input type="number" step="0.001" data-cnc-hole-lower="${i}" value="${a.lowerDeviations[i]===null?'':a.lowerDeviations[i]}" placeholder="Örn. +0.02"></div></div>`).join('')}<div class="cnc-hole-specs-note">Örnek: Ø30 +0,07 / +0,02 için çap=30, Üst Sapma=0,07, Alt Sapma=0,02. Kabul aralığı 30,020–30,070 mm olur.</div></div>`;
 }
 function readCncHoleSpecsFromRow(row){
   const diameters=Array.from(row?.querySelectorAll('[data-cnc-hole-diameter]')||[]).map(x=>Number(x.value)||0);
-  const tolerances=Array.from(row?.querySelectorAll('[data-cnc-hole-tolerance]')||[]).map(x=>Number(x.value)||0);
-  return {diameters,tolerances};
+  const tolerances=Array.from(row?.querySelectorAll('[data-cnc-hole-tolerance]')||[]).map(x=>Math.abs(Number(x.value)||0));
+  const upperDeviations=Array.from(row?.querySelectorAll('[data-cnc-hole-upper]')||[]).map(x=>x.value===''?null:(Number(x.value)||0));
+  const lowerDeviations=Array.from(row?.querySelectorAll('[data-cnc-hole-lower]')||[]).map(x=>x.value===''?null:(Number(x.value)||0));
+  return {diameters,tolerances,upperDeviations,lowerDeviations};
 }
 function refreshCncHoleSpecs(row,override=null){
   if(!row) return;
@@ -3621,8 +3635,34 @@ function refreshCncHoleSpecs(row,override=null){
   const box=row.querySelector('[data-cnc-hole-specs]');
   if(!box) return;
   const temp=document.createElement('div');
-  temp.innerHTML=renderCncHoleSpecs({holeCount:count,holeDiameters:current.diameters,holeTolerances:current.tolerances});
+  temp.innerHTML=renderCncHoleSpecs({holeCount:count,holeDiameters:current.diameters,holeTolerances:current.tolerances,holeUpperDeviations:current.upperDeviations,holeLowerDeviations:current.lowerDeviations});
   box.replaceWith(temp.firstElementChild);
+}
+function cncHoleToleranceInfo(item,i){
+  const ts=Array.isArray(item?.holeTolerances)?item.holeTolerances:[];
+  const us=Array.isArray(item?.holeUpperDeviations)?item.holeUpperDeviations:[];
+  const ls=Array.isArray(item?.holeLowerDeviations)?item.holeLowerDeviations:[];
+  const hasUpper=us[i]!==null&&us[i]!==undefined&&us[i]!=='';
+  const hasLower=ls[i]!==null&&ls[i]!==undefined&&ls[i]!=='';
+  const symmetric=Math.abs(Number(ts[i])||0);
+  if(hasUpper||hasLower){
+    const upper=hasUpper?(Number(us[i])||0):0;
+    const lower=hasLower?(Number(ls[i])||0):0;
+    const zone=Math.abs(upper-lower);
+    const effective=zone>0?zone/2:Math.max(Math.abs(upper),Math.abs(lower));
+    return {mode:'deviation',upper,lower,effective};
+  }
+  return {mode:symmetric>0?'symmetric':'none',upper:symmetric,lower:-symmetric,effective:symmetric};
+}
+function signedTol(v){
+  const n=Number(v)||0;
+  return `${n>=0?'+':''}${decimalDisplay(n)}`;
+}
+function cncHoleToleranceLabel(item,i){
+  const x=cncHoleToleranceInfo(item,i);
+  if(x.mode==='deviation') return ` ${signedTol(x.upper)}/${signedTol(x.lower)}`;
+  if(x.mode==='symmetric') return ` ±${decimalDisplay(x.effective)}`;
+  return '';
 }
 
 function processItemDrawingField(stage,item,part,company){
@@ -3664,7 +3704,7 @@ function applyProcessItemAnalysisToRow(row,generated,drawing){
     }
   });
   if(Array.isArray(generated.holeDiameters)){
-    refreshCncHoleSpecs(row,{diameters:generated.holeDiameters,tolerances:Array.isArray(generated.holeTolerances)?generated.holeTolerances:[]});
+    refreshCncHoleSpecs(row,{diameters:generated.holeDiameters,tolerances:Array.isArray(generated.holeTolerances)?generated.holeTolerances:[],upperDeviations:Array.isArray(generated.holeUpperDeviations)?generated.holeUpperDeviations:[],lowerDeviations:Array.isArray(generated.holeLowerDeviations)?generated.holeLowerDeviations:[]});
   }
 }
 function renderProcessItemRow(stage,item,index,part,company){
@@ -3709,7 +3749,7 @@ function stageProcessItemFacts(stage,item){
   const drawingName=String(item?.sourceDrawingName||item?.autoSourceDrawingName||'').trim();
   if(drawingName) f.push(`Resim: ${drawingName}`);
   if(stage==='Kesim'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik/Pierce',item.holeCount);add('Kesim yolu',item.laserCutLengthMm,' mm');}
-  else if(stage==='CNC'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik',item.holeCount);if(Array.isArray(item.holeDiameters)&&item.holeDiameters.some(Number)){f.push(`Çaplar: ${item.holeDiameters.map((d,i)=>Number(d)>0?`Ø${decimalDisplay(d)}${Number(item.holeTolerances?.[i])>0?` ±${decimalDisplay(item.holeTolerances[i])}`:''}`:'?').join(', ')}`);}add('Takım yolu',item.cncPathMm,' mm');add('İşleme derinliği',item.cncDepthMm,' mm');add('Paso',item.cncPasses);add('İlerleme',item.cncFeedMmMin,' mm/dk');add('Takım',item.cncToolChanges);add('İlk kurulum',item.cncSetupMinutes,' dk');if(item.cncToleranceClass)f.push(`CNC tolerans: ${item.cncToleranceClass==='precision'?'Hassas':item.cncToleranceClass==='rough'?'Geniş':'Normal'}`);if(item.cncLearningMode&&item.cncLearningMode!=='off')f.push(`Seri alışma: ${item.cncLearningMode==='strong'?'Güçlü':'Normal'}`);}
+  else if(stage==='CNC'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik',item.holeCount);if(Array.isArray(item.holeDiameters)&&item.holeDiameters.some(Number)){f.push(`Çaplar: ${item.holeDiameters.map((d,i)=>Number(d)>0?`Ø${decimalDisplay(d)}${cncHoleToleranceLabel(item,i)}`:'?').join(', ')}`);}add('Takım yolu',item.cncPathMm,' mm');add('İşleme derinliği',item.cncDepthMm,' mm');add('Paso',item.cncPasses);add('İlerleme',item.cncFeedMmMin,' mm/dk');add('Takım',item.cncToolChanges);add('İlk kurulum',item.cncSetupMinutes,' dk');if(item.cncToleranceClass)f.push(`CNC tolerans: ${item.cncToleranceClass==='precision'?'Hassas':item.cncToleranceClass==='rough'?'Geniş':'Normal'}`);if(item.cncLearningMode&&item.cncLearningMode!=='off')f.push(`Seri alışma: ${item.cncLearningMode==='strong'?'Güçlü':'Normal'}`);}
   else if(stage==='Torna'){add('Çap',item.turnDiameterMm,' mm');add('Boy',item.turnLengthMm,' mm');add('Paso',item.turnPasses);}
   else if(stage==='Büküm'){add('En',item.width,' mm');add('Kalınlık',item.thickness,' mm');add('Büküm',item.bendCount);}
   else if(stage==='Kaynak'){add('Kalınlık',item.thickness,' mm');add('Kaynak',item.weldLengthMm,' mm/parça');add('Dikiş',item.weldSeamCount);if(item.weldType)f.push(`Tip: ${item.weldType==='argon'?'Argon TIG':'Gazaltı MIG/MAG'}`);}
@@ -3765,6 +3805,8 @@ function collectProcessItemsFromForm(){
         const count=Math.max(0,Math.floor(Number(item.holeCount)||0));
         item.holeDiameters=specs.diameters.slice(0,count);
         item.holeTolerances=specs.tolerances.slice(0,count);
+        item.holeUpperDeviations=specs.upperDeviations.slice(0,count);
+        item.holeLowerDeviations=specs.lowerDeviations.slice(0,count);
       }
       return item;
     });
@@ -3826,12 +3868,12 @@ function flatSurfaceAreaM2(profile){
 function cncHoleMachiningEstimate(item,thickness,material){
   const holes=Math.max(0,Math.floor(Number(item?.holeCount)||0));
   const ds=Array.isArray(item?.holeDiameters)?item.holeDiameters:[];
-  const ts=Array.isArray(item?.holeTolerances)?item.holeTolerances:[];
   if(!holes) return {minutes:0,detailed:false,uniqueDiameters:0,precisionHoles:0};
   let minutes=0,detailed=false,precisionHoles=0;
   const unique=new Set();
   for(let i=0;i<holes;i++){
-    const d=Number(ds[i])||0,tol=Number(ts[i])||0;
+    const d=Number(ds[i])||0;
+    const tolInfo=cncHoleToleranceInfo(item,i),tol=tolInfo.effective;
     if(d<=0){minutes+=0.32;continue;}
     detailed=true; unique.add(d.toFixed(3));
     const depth=Math.max(0,Number(thickness)||0);
@@ -3917,7 +3959,7 @@ function estimateStageMinutesInfo(part,stage){
         const setupMin=setupInput>0?setupInput:15;
         minutes=setupMin+qty*(machiningPerPart+toolAndMovePerPart)+handling.total;
 
-        const holeText=holes>0?(hasDetailedHoles?` · ${holes} delik (${(item.holeDiameters||[]).slice(0,holes).map((d,i)=>Number(d)>0?`Ø${decimalDisplay(d)}${Number(item.holeTolerances?.[i])>0?`±${decimalDisplay(item.holeTolerances[i])}`:''}`:'Ø?').join(', ')})`:` · ${holes} delik · çap girilmedi`):'';
+        const holeText=holes>0?(hasDetailedHoles?` · ${holes} delik (${(item.holeDiameters||[]).slice(0,holes).map((d,i)=>Number(d)>0?`Ø${decimalDisplay(d)}${cncHoleToleranceLabel(item,i)}`:'Ø?').join(', ')})`:` · ${holes} delik · çap girilmedi`):'';
         const pathText=explicitPath>0?` · ${Math.round(explicitPath)} mm diğer takım yolu · ${passes} paso${depth>0?` · ${decimalDisplay(depth)} mm derinlik`:''}`:'';
         const sizeText=(w>0&&l>0)?` · ${Math.round(w)}×${Math.round(l)} mm parça`:'';
         const learnText=learningMode==='off'?` · bağlama sabit ~${handling.average.toFixed(1)} dk/adet`:` · seri alışma ${learningMode==='strong'?'güçlü':'normal'}: bağlama ilk ~${baseHandling.toFixed(1)} → son ~${handling.last.toFixed(1)} dk`;
@@ -6886,18 +6928,18 @@ function attachHandlers(){
       let time=timeSelect?.value||'';
       const hidden=box.querySelector('input[type="hidden"]');
       if(!hidden) return;
-      // Sadece tarih seçilmişse kaydı kaybetme: varsayılan başlangıç saati 08:00 olur.
-      // Kullanıcı isterse hemen yanındaki saat listesinden 09:00–18:00 arasında değiştirebilir.
-      if(day&&!time){
-        time=STAGE_CLOCK_OPTIONS[0]||'08:00';
-        if(timeSelect) timeSelect.value=time;
-      }
+      // Sadece tarih seçilmişse 08:00 kullan. Saat alanı 08:00–18:00 arasında
+      // dakika hassasiyetinde serbesttir (örn. 08:17, 13:42, 17:59).
+      if(day&&!time) time=STAGE_CLOCK_MIN;
+      time=clampStageClockTime(time);
+      if(timeSelect) timeSelect.value=time;
       hidden.value=day?`${day}T${time}`:'';
       hidden.dispatchEvent(new Event('input',{bubbles:false}));
       hidden.dispatchEvent(new Event('change',{bubbles:false}));
     };
     box.querySelector('[data-stage-date-day]')?.addEventListener('input',sync);
     box.querySelector('[data-stage-date-day]')?.addEventListener('change',sync);
+    box.querySelector('[data-stage-date-time]')?.addEventListener('input',sync);
     box.querySelector('[data-stage-date-time]')?.addEventListener('change',sync);
   });
 
@@ -7584,7 +7626,9 @@ async function handleAction(action, el){
         let time=timeSelect?.value||'';
         const hidden=box.querySelector('input[type="hidden"]');
         if(!hidden) return;
-        if(day&&!time){time=STAGE_CLOCK_OPTIONS[0]||'08:00';if(timeSelect)timeSelect.value=time;}
+        if(day&&!time) time=STAGE_CLOCK_MIN;
+        time=clampStageClockTime(time);
+        if(timeSelect) timeSelect.value=time;
         hidden.value=day?`${day}T${time}`:'';
         if(hidden.hasAttribute('data-stage-datetime')){
           state.stageEventDateDraftsByPart=state.stageEventDateDraftsByPart||{};
@@ -7830,7 +7874,7 @@ async function handleAction(action, el){
       // Eski alanları da ilk iş kaleminden güncel tutuyoruz; mevcut rapor/öğrenme kodları geriye uyumlu kalsın.
       const cut0=firstProcessItem(edited.processItems,'Kesim'),cnc0=firstProcessItem(edited.processItems,'CNC'),turn0=firstProcessItem(edited.processItems,'Torna'),asm0=firstProcessItem(edited.processItems,'Montaj'),paint0=firstProcessItem(edited.processItems,'Boya'),coat0=firstProcessItem(edited.processItems,'Kaplama');
       edited.laserCutLengthMm=Number(cut0.laserCutLengthMm)||0; edited.laserFeedMmMin=Number(cut0.laserFeedMmMin)||0;
-      edited.cncPathMm=Number(cnc0.cncPathMm)||0; edited.cncFeedMmMin=Number(cnc0.cncFeedMmMin)||0; edited.cncToolChanges=Math.max(1,Number(cnc0.cncToolChanges)||1); edited.cncDepthMm=Number(cnc0.cncDepthMm)||0; edited.cncPasses=Number(cnc0.cncPasses)||0; edited.cncToleranceClass=cnc0.cncToleranceClass||''; edited.cncSetupMinutes=Number(cnc0.cncSetupMinutes)||0; edited.cncLearningMode=cnc0.cncLearningMode||'normal';
+      edited.cncPathMm=Number(cnc0.cncPathMm)||0; edited.cncFeedMmMin=Number(cnc0.cncFeedMmMin)||0; edited.cncToolChanges=Math.max(1,Number(cnc0.cncToolChanges)||1); edited.cncDepthMm=Number(cnc0.cncDepthMm)||0; edited.cncPasses=Number(cnc0.cncPasses)||0; edited.cncToleranceClass=cnc0.cncToleranceClass||''; edited.cncSetupMinutes=Number(cnc0.cncSetupMinutes)||0; edited.cncLearningMode=cnc0.cncLearningMode||'normal'; edited.holeDiameters=Array.isArray(cnc0.holeDiameters)?cnc0.holeDiameters:[]; edited.holeTolerances=Array.isArray(cnc0.holeTolerances)?cnc0.holeTolerances:[]; edited.holeUpperDeviations=Array.isArray(cnc0.holeUpperDeviations)?cnc0.holeUpperDeviations:[]; edited.holeLowerDeviations=Array.isArray(cnc0.holeLowerDeviations)?cnc0.holeLowerDeviations:[];
       edited.turnDiameterMm=Number(turn0.turnDiameterMm)||0; edited.turnLengthMm=Number(turn0.turnLengthMm)||0; edited.turnPasses=Math.max(1,Number(turn0.turnPasses)||2);
       edited.assemblySubparts=Number(asm0.assemblySubparts)||0; edited.assemblyFasteners=Number(asm0.assemblyFasteners)||0; edited.assemblyAlignments=Number(asm0.assemblyAlignments)||0; edited.assemblyHeightMm=Number(asm0.assemblyHeightMm)||0; edited.assemblyWeightKg=Number(asm0.assemblyWeightKg)||0; edited.assemblyClass=asm0.assemblyClass||'normal';
       edited.paintBatchQty=Math.max(1,Number(paint0.paintBatchQty)||20); edited.paintCureMinutes=Math.max(1,Number(paint0.paintCureMinutes)||25); edited.coatingBatchMinutes=Number(coat0.coatingBatchMinutes)||0;
