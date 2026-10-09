@@ -1292,6 +1292,12 @@
   .process-calc-row-no{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.45px;}
   .process-item-fields{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:9px 10px;}
   .process-item-fields .field{margin:0;}
+  .process-item-drawing-field{grid-column:span 2;}
+  .process-item-drawing-row{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:7px;align-items:center;}
+  .process-item-drawing-row select{min-width:0;}
+  .process-item-drawing-field .helper-text{font-size:9px;line-height:1.35;margin-top:4px;}
+  .process-item-analyze-btn{white-space:nowrap;}
+  @media(max-width:720px){.process-item-drawing-field{grid-column:1/-1;}.process-item-drawing-row{grid-template-columns:1fr;}}
   .stage-work-summary{width:100%;margin-top:9px;padding:9px 10px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface-1);color:var(--text);cursor:pointer;text-align:left;display:grid;gap:3px;transition:border-color .15s,background .15s,transform .15s;}
   .stage-work-summary:hover{border-color:var(--navy-600);background:var(--surface-2);transform:translateY(-1px);}
   .stage-work-summary-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;font-weight:800;}
@@ -2668,7 +2674,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.32</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.34</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -3511,7 +3517,7 @@ function autoProcessItemsForStage(profile,stage){
 function processItemFromDrawingProfile(stage,drawing,prof,part,qtyOverride=null){
   const qty=Math.max(1,Number(qtyOverride)||stageRequestedQty(part,stage)||Number(part?.orderedQty)||1);
   const label=String(drawing?.detectedDrawingNo||drawing?.name||'Teknik resim').replace(/\.[^.]+$/,'');
-  const common={id:uid('pci'),label,qty,autoSourceDrawingId:drawing?.id||'',autoSourceDrawingName:drawing?.name||''};
+  const common={id:uid('pci'),label,qty,sourceDrawingId:drawing?.id||'',sourceDrawingName:drawing?.name||'',autoSourceDrawingId:drawing?.id||'',autoSourceDrawingName:drawing?.name||''};
   const w=Number(prof?.width)||0,l=Number(prof?.length)||0,t=Number(prof?.thickness)||0,holes=Number(prof?.holeCount)||0,bends=Number(prof?.bendCount)||0,weld=Number(prof?.weldLengthMm)||0;
   if(stage==='Kesim') return {...common,width:w,length:l,thickness:t,holeCount:holes,laserCutLengthMm:0,laserFeedMmMin:0};
   if(stage==='CNC') return {...common,width:w,length:l,thickness:t,holeCount:holes,cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1};
@@ -3577,9 +3583,48 @@ function piField(label,key,value,type='number',extra=''){
   if(type==='text') return `<div class="field"><label>${escapeHtml(label)}</label><input data-pi-field="${key}" type="text" value="${escapeHtml(String(val))}" ${extra}></div>`;
   return `<div class="field"><label>${escapeHtml(label)}</label><input data-pi-field="${key}" type="number" min="0" value="${escapeHtml(String(val))}" ${extra}></div>`;
 }
-function renderProcessItemRow(stage,item,index,part){
+function processItemDrawingField(stage,item,part,company){
+  item=item||{};
+  const selectedId=String(item.sourceDrawingId||item.autoSourceDrawingId||'').trim();
+  const selectedName=String(item.sourceDrawingName||item.autoSourceDrawingName||'').trim();
+  const linked=mappedDrawingsForStage(part,stage,company).map(d=>{ensureDrawingId(d);return d;});
+  const all=Array.isArray(part?.drawings)?part.drawings:[];
+  const selectedDrawing=selectedId?all.find(d=>String(d?.id||'')===selectedId):null;
+  const rows=[...linked];
+  if(selectedDrawing&&!rows.some(d=>String(d?.id||'')===selectedId)) rows.unshift(selectedDrawing);
+  const optionRows=rows.map(d=>{
+    const id=String(ensureDrawingId(d)||'');
+    const name=String(d?.detectedDrawingNo||d?.name||'Teknik resim');
+    const stale=selectedId===id&&!effectiveDrawingProcessStages(d,company?.stages||PROCESS_CALC_STAGES).includes(stage);
+    return `<option value="${escapeHtml(id)}" data-drawing-name="${escapeHtml(name)}" ${selectedId===id?'selected':''}>${escapeHtml(name)}${stale?' · bu prosese bağlı değil':''}</option>`;
+  }).join('');
+  const missingSelected=selectedId&&!rows.some(d=>String(d?.id||'')===selectedId);
+  const missingOption=missingSelected?`<option value="${escapeHtml(selectedId)}" data-drawing-name="${escapeHtml(selectedName||'Eski teknik resim')}" selected>${escapeHtml(selectedName||'Eski teknik resim')} · kayıt bulunamadı</option>`:'';
+  const emptyLabel=rows.length||missingSelected?'Teknik resim seç (opsiyonel)':'Bu prosese bağlı teknik resim yok';
+  const canAnalyze=rows.length>0;
+  return `<div class="field process-item-drawing-field"><label>Teknik Resim</label><div class="process-item-drawing-row"><select data-pi-field="sourceDrawingId"><option value="">${emptyLabel}</option>${missingOption}${optionRows}</select><button type="button" class="btn btn-ghost btn-sm process-item-analyze-btn" data-action="analyzeProcessItemDrawing" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}" ${canAnalyze?'':'disabled'}>🔎 Resmi Analiz Et</button></div><div class="helper-text" data-process-item-analysis-status>Yalnızca ${escapeHtml(stage)} prosesine bağladığınız teknik resimler listelenir. Resmi seçip analiz ettiğinizde bulunan ölçüler sadece bu iş kalemine aktarılır.</div></div>`;
+}
+function applyProcessItemAnalysisToRow(row,generated,drawing){
+  if(!row||!generated) return;
+  const labelInput=row.querySelector('[data-pi-field="label"]');
+  if(labelInput && !(labelInput.value||'').trim()) labelInput.value=generated.label||String(drawing?.name||'').replace(/\.[^.]+$/,'');
+  const drawingSelect=row.querySelector('[data-pi-field="sourceDrawingId"]');
+  if(drawingSelect && drawing?.id) drawingSelect.value=String(drawing.id);
+  row.querySelectorAll('[data-pi-field]').forEach(inp=>{
+    const key=inp.getAttribute('data-pi-field');
+    if(!key||key==='label'||key==='qty'||key==='sourceDrawingId') return;
+    if(!Object.prototype.hasOwnProperty.call(generated,key)) return;
+    const value=generated[key];
+    if(typeof value==='number'){
+      if(value>0 || ['cncToolChanges','turnPasses','weldSeamCount','paintBatchQty','paintCureMinutes'].includes(key)) inp.value=String(value);
+    }else if(value!=null && String(value).trim()!==''){
+      inp.value=String(value);
+    }
+  });
+}
+function renderProcessItemRow(stage,item,index,part,company){
   item=item||blankProcessItem(stage,part);
-  let fields=piField('İş Kalemi / Alt Parça','label',item.label||'','text','placeholder="Örn. Mil-1 / Braket-2"')+piField('Adet','qty',Number(item.qty)||Math.max(1,Number(part?.orderedQty)||1));
+  let fields=piField('İş Kalemi / Alt Parça','label',item.label||'','text','placeholder="Örn. Mil-1 / Braket-2"')+processItemDrawingField(stage,item,part,company)+piField('Adet','qty',Number(item.qty)||Math.max(1,Number(part?.orderedQty)||1));
   if(stage==='Kesim') fields+=piField('En (mm)','width',item.width||'')+piField('Boy (mm)','length',item.length||'')+piField('Kalınlık (mm)','thickness',item.thickness||'','number','step="0.1"')+piField('Delik / Pierce','holeCount',item.holeCount||0)+piField('Kesim Yolu (mm)','laserCutLengthMm',item.laserCutLengthMm||'','number','placeholder="Boşsa dış çevre"')+piField('Lazer İlerleme (mm/dk)','laserFeedMmMin',item.laserFeedMmMin||'');
   if(stage==='CNC') fields+=piField('En (mm)','width',item.width||'')+piField('Boy (mm)','length',item.length||'')+piField('Kalınlık (mm)','thickness',item.thickness||'','number','step="0.1"')+piField('Delik Sayısı','holeCount',item.holeCount||0)+piField('Takım Yolu (mm)','cncPathMm',item.cncPathMm||'')+piField('İlerleme (mm/dk)','cncFeedMmMin',item.cncFeedMmMin||'')+piField('Takım Sayısı','cncToolChanges',Math.max(1,Number(item.cncToolChanges)||1));
   if(stage==='Torna') fields+=piField('Çap Ø (mm)','turnDiameterMm',item.turnDiameterMm||'','number','step="0.1"')+piField('Boy (mm)','turnLengthMm',item.turnLengthMm||'','number','step="0.1"')+piField('Paso Sayısı','turnPasses',Math.max(1,Number(item.turnPasses)||2));
@@ -3611,6 +3656,8 @@ function compactStageEstimate(minutes){
 function stageProcessItemFacts(stage,item){
   const f=[];
   const add=(label,value,suffix='')=>{if(value!==''&&value!=null&&Number(value)!==0)f.push(`${label}: ${value}${suffix}`);};
+  const drawingName=String(item?.sourceDrawingName||item?.autoSourceDrawingName||'').trim();
+  if(drawingName) f.push(`Resim: ${drawingName}`);
   if(stage==='Kesim'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik/Pierce',item.holeCount);add('Kesim yolu',item.laserCutLengthMm,' mm');}
   else if(stage==='CNC'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik',item.holeCount);add('Takım yolu',item.cncPathMm,' mm');add('İlerleme',item.cncFeedMmMin,' mm/dk');add('Takım',item.cncToolChanges);}
   else if(stage==='Torna'){add('Çap',item.turnDiameterMm,' mm');add('Boy',item.turnLengthMm,' mm');add('Paso',item.turnPasses);}
@@ -3643,7 +3690,7 @@ function renderProcessItemsEditor(profile,part,company){
   return `<div class="process-item-editor">${stages.map(stage=>{
     const rows=processItemsForStage(profile,stage,part);
     const linked=mappedDrawingsForStage(part,stage,company);
-    return `<div class="process-item-group"><div class="process-item-head"><div><div class="process-item-title">${escapeHtml(stage)}</div><div class="process-item-sub">${escapeHtml(processStageHint(stage))}${linked.length?` · ${linked.length} teknik resim bağlı`:''}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${isAdmin()&&linked.length?`<button type="button" class="btn btn-ghost btn-sm" data-action="analyzeStageDrawings" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">🔎 Bağlı Resimleri Tara</button>`:''}<button type="button" class="btn btn-ghost btn-sm" data-action="addProcessCalcItem" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">+ İş Kalemi Ekle</button></div></div><div class="process-item-list" data-process-items-stage="${escapeHtml(stage)}">${rows.map((r,i)=>renderProcessItemRow(stage,r,i,part)).join('')}</div></div>`;
+    return `<div class="process-item-group"><div class="process-item-head"><div><div class="process-item-title">${escapeHtml(stage)}</div><div class="process-item-sub">${escapeHtml(processStageHint(stage))}${linked.length?` · ${linked.length} teknik resim bağlı`:''}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${isAdmin()&&linked.length?`<button type="button" class="btn btn-ghost btn-sm" data-action="analyzeStageDrawings" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">🔎 Bağlı Resimleri Tara</button>`:''}<button type="button" class="btn btn-ghost btn-sm" data-action="addProcessCalcItem" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">+ İş Kalemi Ekle</button></div></div><div class="process-item-list" data-process-items-stage="${escapeHtml(stage)}">${rows.map((r,i)=>renderProcessItemRow(stage,r,i,part,company)).join('')}</div></div>`;
   }).join('')}</div>`;
 }
 function collectProcessItemsFromForm(){
@@ -3658,6 +3705,11 @@ function collectProcessItemsFromForm(){
         if(inp.tagName==='SELECT' || inp.type==='text') item[key]=(inp.value||'').trim();
         else item[key]=inp.value===''?0:(Number(inp.value)||0);
       });
+      const drawingSelect=row.querySelector('[data-pi-field="sourceDrawingId"]');
+      if(drawingSelect){
+        const opt=drawingSelect.selectedOptions&&drawingSelect.selectedOptions[0];
+        item.sourceDrawingName=item.sourceDrawingId?String(opt?.getAttribute('data-drawing-name')||opt?.textContent||'').replace(/ · (bu prosese bağlı değil|kayıt bulunamadı)$/,'').trim():'';
+      }
       return item;
     });
   });
@@ -7550,10 +7602,11 @@ async function handleAction(action, el){
       const group=Array.from(document.querySelectorAll('[data-process-items-stage]')).find(x=>x.getAttribute('data-process-items-stage')===stage);
       if(!group) return;
       const idx=group.querySelectorAll('[data-process-item-row]').length;
-      group.insertAdjacentHTML('beforeend',renderProcessItemRow(stage,blankProcessItem(stage,part),idx,part));
+      group.insertAdjacentHTML('beforeend',renderProcessItemRow(stage,blankProcessItem(stage,part),idx,part,company));
       const addedRow=group.querySelectorAll('[data-process-item-row]')[idx];
       if(addedRow){
         addedRow.classList.add('process-item-new');
+        addedRow.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',(e)=>handleAction(btn.getAttribute('data-action'),btn,e)));
         addedRow.scrollIntoView({behavior:'smooth',block:'nearest'});
         setTimeout(()=>addedRow.querySelector('[data-pi-field="label"]')?.focus(),80);
       }
@@ -7562,6 +7615,44 @@ async function handleAction(action, el){
     case 'removeProcessCalcItem': {
       const row=el.closest('[data-process-item-row]');
       if(row) row.remove();
+      break;
+    }
+    case 'analyzeProcessItemDrawing': {
+      const company=getCompany(state.selectedCompanyId); if(!company) return;
+      const part=getParts(company.id).find(p=>p.id===el.getAttribute('data-part')); if(!part) return;
+      const stage=el.getAttribute('data-stage')||'';
+      const row=el.closest('[data-process-item-row]'); if(!row) return;
+      const select=row.querySelector('[data-pi-field="sourceDrawingId"]');
+      const status=row.querySelector('[data-process-item-analysis-status]');
+      const drawingId=String(select?.value||'').trim();
+      if(!drawingId){
+        if(status){status.textContent='Önce bu iş kalemi için bir teknik resim seçin.';status.style.color='var(--red-500)';}
+        return;
+      }
+      const drawing=(part.drawings||[]).find(d=>String(d?.id||'')===drawingId);
+      if(!drawing){
+        if(status){status.textContent='Seçilen teknik resim bulunamadı.';status.style.color='var(--red-500)';}
+        return;
+      }
+      const oldLabel=el.textContent;
+      el.disabled=true; el.textContent='Analiz ediliyor…';
+      if(status){status.textContent=`${drawing.name||'Teknik resim'} içindeki parça analiz ediliyor…`;status.style.color='var(--gray-500)';}
+      try{
+        const prof=await deepAnalyzeTechnicalDrawings(part,{drawingsOverride:[drawing],skipPrimaryMatch:true,stage});
+        const qty=Math.max(1,Number(row.querySelector('[data-pi-field="qty"]')?.value)||stageRequestedQty(part,stage)||Number(part.orderedQty)||1);
+        const generated=processItemFromDrawingProfile(stage,drawing,prof,part,qty);
+        applyProcessItemAnalysisToRow(row,generated,drawing);
+        if(status){
+          const found=Number(prof?.autoAnalysisFoundCount)||0,conf=Number(prof?.autoAnalysisConfidence)||0;
+          status.textContent=`✓ ${drawing.name||'Teknik resim'} analiz edildi${found?` · ${found} alan · güven %${conf}`:''}. Bulunan değerler yalnızca bu iş kalemine aktarıldı. Kaydetmeyi unutmayın.`;
+          status.style.color='var(--green-signal)';
+        }
+      }catch(err){
+        console.error('process item drawing analysis',err);
+        if(status){status.textContent=err?.message||'Teknik resim analiz edilemedi.';status.style.color='var(--red-500)';}
+      }finally{
+        el.disabled=false; el.textContent=oldLabel;
+      }
       break;
     }
 
