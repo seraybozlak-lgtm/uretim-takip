@@ -1493,6 +1493,13 @@
   body[data-theme="day"] .process-mode-note{background:#FFF1F5!important;border-color:#E9C8D3!important;color:#765161!important;}
   [data-cnc-full-only][hidden],[data-weld-full-only][hidden],[data-weld-tack-only][hidden]{display:none!important;}
 
+
+  .cnc-calibration-box{margin:0 10px 10px;padding:10px 11px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface-2);display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:10px;align-items:end;}
+  .cnc-calibration-box .field{margin:0;}
+  .cnc-calibration-status{font-size:10px;line-height:1.5;color:var(--muted);padding-bottom:5px;}
+  body[data-theme="day"] .cnc-calibration-box{background:#FFF1F5;border-color:#E8C9D4;}
+  body[data-theme="day"] .cnc-calibration-status{color:#765161;}
+  @media(max-width:720px){.cnc-calibration-box{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -2731,7 +2738,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.09.41</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.12.42</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -3501,7 +3508,7 @@ function processProfile(part){
     material:'',thickness:'',width:'',length:'',holeCount:0,bendCount:0,weldLengthMm:0,weldMode:'full',weldTackCount:0,complexity:'normal',toleranceClass:'normal',
     holeDiameters:[],holeTolerances:[],holeUpperDeviations:[],holeLowerDeviations:[],
     laserCutLengthMm:0,laserFeedMmMin:0,
-    cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1,cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal',cncWorkMode:'full',
+    cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1,cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal',cncWorkMode:'full',cncActualNetHours:0,
     turnDiameterMm:0,turnLengthMm:0,turnPasses:2,
     assemblySubparts:0,assemblyFasteners:0,assemblyAlignments:0,assemblyHeightMm:0,assemblyWeightKg:0,assemblyClass:'normal',
     paintBatchQty:20,paintCureMinutes:25,coatingBatchMinutes:0,
@@ -3893,7 +3900,9 @@ function renderProcessItemsEditor(profile,part,company){
   return `<div class="process-item-editor">${stages.map(stage=>{
     const rows=processItemsForStage(profile,stage,part);
     const linked=mappedDrawingsForStage(part,stage,company);
-    return `<div class="process-item-group"><div class="process-item-head"><div><div class="process-item-title">${escapeHtml(stage)}</div><div class="process-item-sub">${escapeHtml(processStageHint(stage))}${linked.length?` · ${linked.length} teknik resim bağlı`:''}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${isAdmin()&&linked.length?`<button type="button" class="btn btn-ghost btn-sm" data-action="analyzeStageDrawings" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">🔎 Bağlı Resimleri Tara</button>`:''}<button type="button" class="btn btn-ghost btn-sm" data-action="addProcessCalcItem" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">+ İş Kalemi Ekle</button></div></div><div class="process-item-list" data-process-items-stage="${escapeHtml(stage)}">${rows.map((r,i)=>renderProcessItemRow(stage,r,i,part,company)).join('')}</div></div>`;
+    const cncCal=stage==='CNC'?cncCalibrationInfo(company,cncCalibrationModeFromRows(rows)):null;
+    const cncCalibrationBox=stage==='CNC'?`<div class="cnc-calibration-box"><div class="field"><label>Gerçek Net CNC Süresi (saat)</label><input id="ppCncActualNetHours" type="number" min="0" step="0.1" value="${Number(profile?.cncActualNetHours)||''}" placeholder="İş bittiyse örn. 3.5"></div><div class="cnc-calibration-status"><b>Gerçek üretim geri bildirimi:</b> Bekleme/duruş eklemeden, gerçekten CNC işiyle uğraşılan net süreyi gir. Sistem sonraki CNC tahminlerini bu atölyenin gerçek verisine göre düzeltir.${cncCal&&cncCal.count?`<br>Aktif kalibrasyon: <b>×${cncCal.factor.toLocaleString('tr-TR',{maximumFractionDigits:2})}</b> · ${cncCal.count} gerçek iş`:''}</div></div>`:'';
+    return `<div class="process-item-group"><div class="process-item-head"><div><div class="process-item-title">${escapeHtml(stage)}</div><div class="process-item-sub">${escapeHtml(processStageHint(stage))}${linked.length?` · ${linked.length} teknik resim bağlı`:''}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;">${isAdmin()&&linked.length?`<button type="button" class="btn btn-ghost btn-sm" data-action="analyzeStageDrawings" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">🔎 Bağlı Resimleri Tara</button>`:''}<button type="button" class="btn btn-ghost btn-sm" data-action="addProcessCalcItem" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">+ İş Kalemi Ekle</button></div></div><div class="process-item-list" data-process-items-stage="${escapeHtml(stage)}">${rows.map((r,i)=>renderProcessItemRow(stage,r,i,part,company)).join('')}</div>${cncCalibrationBox}</div>`;
   }).join('')}</div>`;
 }
 function collectProcessItemsFromForm(){
@@ -4017,7 +4026,36 @@ function cncSeriesHandlingEstimate(baseHandling,qty,mode='normal'){
   return {total,average:total/n,last,floorFactor};
 }
 
-function estimateStageMinutesInfo(part,stage){
+
+function cncCalibrationModeFromRows(rows){
+  const modes=(Array.isArray(rows)?rows:[]).map(r=>resolvedCncWorkMode(r)).filter(Boolean);
+  if(!modes.length) return 'full';
+  return modes.every(x=>x===modes[0])?modes[0]:'mixed';
+}
+function cncCalibrationInfo(company,mode='full'){
+  const raw=Array.isArray(company?.cncTimeCalibrationSamples)?company.cncTimeCalibrationSamples:[];
+  const valid=raw.filter(s=>Number.isFinite(Number(s?.factor))&&Number(s.factor)>=0.5&&Number(s.factor)<=4);
+  let pool=valid.filter(s=>(s.mode||'full')===mode);
+  if(!pool.length&&mode==='mixed') pool=valid;
+  if(!pool.length) return {factor:1,count:0};
+  const vals=pool.slice(-20).map(s=>Number(s.factor)).sort((a,b)=>a-b);
+  const mid=Math.floor(vals.length/2);
+  const median=vals.length%2?vals[mid]:(vals[mid-1]+vals[mid])/2;
+  return {factor:Math.max(.65,Math.min(3.5,median)),count:vals.length};
+}
+function updateCncCalibrationSample(company,partId,mode,estimatedHours,actualHours){
+  if(!company) return null;
+  const est=Number(estimatedHours)||0,act=Number(actualHours)||0;
+  company.cncTimeCalibrationSamples=Array.isArray(company.cncTimeCalibrationSamples)?company.cncTimeCalibrationSamples:[];
+  company.cncTimeCalibrationSamples=company.cncTimeCalibrationSamples.filter(s=>String(s?.partId||'')!==String(partId||''));
+  if(est<=0||act<=0) return null;
+  const factor=Math.max(.5,Math.min(4,act/est));
+  company.cncTimeCalibrationSamples.push({partId:String(partId||''),mode:mode||'full',estimatedHours:est,actualHours:act,factor,date:todayStr()});
+  if(company.cncTimeCalibrationSamples.length>30) company.cncTimeCalibrationSamples=company.cncTimeCalibrationSamples.slice(-30);
+  return factor;
+}
+function estimateStageMinutesInfo(part,stage,opts={}){
+
   const processData=stageProcessItemsData(part,stage),baseProfile=processData.baseProfile,p=processData.calcProfile,rows=processData.rows;
   const defaultQty=Math.max(1,stageRequestedQty(part,stage)||Number(part.orderedQty)||1),mat=materialFamily(p);
   const cf=p.complexity==='high'?1.35:p.complexity==='low'?.88:1, tf=p.toleranceClass==='precision'?1.28:p.toleranceClass==='rough'?.92:1;
@@ -4069,17 +4107,19 @@ function estimateStageMinutesInfo(part,stage){
 
         const itemTol=item.cncToleranceClass||'';
         const cncTf=itemTol==='precision'?1.28:itemTol==='rough'?.92:tf;
-        const machiningPerPart=(pathMin+holeMin)*cf*cncTf;
-        const toolAndMovePerPart=tools*.42+.35;
+        const machineRealityFactor=workMode==='full'?1.32:1.14;
+        const machiningPerPart=(pathMin+holeMin)*cf*cncTf*machineRealityFactor;
+        const toolAndMovePerPart=(tools*.52+.48)*(workMode==='full'?1.12:1);
         const setupInput=Number(item.cncSetupMinutes??p.cncSetupMinutes)||0;
         const setupMin=setupInput>0?setupInput:15;
         minutes=setupMin+qty*(machiningPerPart+toolAndMovePerPart)+handling.total;
 
         const holeText=holes>0?(hasDetailedHoles?` · ${holes} delik (${(item.holeDiameters||[]).slice(0,holes).map((d,i)=>Number(d)>0?`Ø${decimalDisplay(d)}${cncHoleToleranceLabel(item,i)}`:'Ø?').join(', ')})`:` · ${holes} delik · çap girilmedi`):'';
         const pathText=explicitPath>0?` · ${Math.round(explicitPath)} mm delik dışı CNC işleme · ${passes} paso${depth>0?` · ${decimalDisplay(depth)} mm derinlik`:''}`:'';
+        const missingFullText=workMode==='full'&&explicitPath<=0?' · ⚠ delik dışı CNC işleme bilgisi yok; ham tahmin düşük kalabilir':'';
         const sizeText=(w>0&&l>0)?` · ${Math.round(w)}×${Math.round(l)} mm parça`:'';
         const learnText=learningMode==='off'?` · bağlama sabit ~${handling.average.toFixed(1)} dk/adet`:` · seri alışma ${learningMode==='strong'?'güçlü':'normal'}: bağlama ilk ~${baseHandling.toFixed(1)} → son ~${handling.last.toFixed(1)} dk`;
-        basis=`${label}: ${qty} adet · ${workMode==='holes'?'sadece delik':'tam / genel CNC'}${holeText}${pathText}${sizeText} · ${decimalDisplay(th)} mm kalınlık · ${tools} takım · kurulum ${setupMin.toFixed(1)} dk${learnText}`;
+        basis=`${label}: ${qty} adet · ${workMode==='holes'?'sadece delik':'tam / genel CNC'}${holeText}${pathText}${missingFullText}${sizeText} · ${decimalDisplay(th)} mm kalınlık · ${tools} takım · kurulum ${setupMin.toFixed(1)} dk${learnText}`;
         break;
       }
       case 'Torna': {
@@ -4168,8 +4208,18 @@ function estimateStageMinutesInfo(part,stage){
     else if(basis) bases.push(`${label}: ${basis}`);
   }
   if(!valid) return {minutes:null,basis:bases.join(' · ')||'Eksik veri'};
+  let calibrationText='';
+  if(stage==='CNC'&&!opts.skipCncCalibration){
+    const company=opts.company||getCompany(state.selectedCompanyId);
+    const mode=cncCalibrationModeFromRows(rows);
+    const cal=cncCalibrationInfo(company,mode);
+    if(cal.count>0&&Math.abs(cal.factor-1)>.02){
+      total*=cal.factor;
+      calibrationText=`Atölye gerçek süre kalibrasyonu ×${cal.factor.toLocaleString('tr-TR',{maximumFractionDigits:2})} (${cal.count} gerçek CNC işi) · `;
+    }
+  }
   const prefix=rows.length>1?`${rows.length} iş kalemi toplamı · `:'';
-  return {minutes:total,basis:prefix+bases.join(' | ')};
+  return {minutes:total,basis:calibrationText+prefix+bases.join(' | ')};
 }
 const WORKDAY_SCHEDULED_MINUTES = 10 * 60; // 10 saatlik vardiya
 const WORKDAY_PLANNED_BREAK_MINUTES = 15 + 15 + 45; // iki 15 dk + bir 45 dk resmi mola
@@ -5448,7 +5498,7 @@ function renderProductionEstimateSection(part,company){
         ${relevant.map(stage=>{
           const info=estimateStageMinutesInfo(part,stage),d=estimateStageDays(part,stage),isCur=cur&&cur.stage===stage;
           const hours=info.minutes==null?null:info.minutes/60;
-          return `<div class="estimate-chip ${isCur?'current-'+cur.cls:''}"><div class="ec-name">${escapeHtml(stage)}${isCur?' · ŞU AN':''}</div><div class="ec-days">${d==null?'Eksik veri':`${hours.toLocaleString('tr-TR',{maximumFractionDigits:1})} net iş saati · ${d.toLocaleString('tr-TR',{maximumFractionDigits:2})} üretim günü`}</div><div class="helper-text" style="margin:5px 0 0;">${escapeHtml(info.basis||'')}</div>${isCur?`<div class="helper-text" style="margin:4px 0 0;">Gerçek proses süresi: ${cur.actual} çalışma günü</div>`:''}</div>`;
+          return `<div class="estimate-chip ${isCur?'current-'+cur.cls:''}"><div class="ec-name">${escapeHtml(stage)}${isCur?' · ŞU AN':''}</div><div class="ec-days">${d==null?'Eksik veri':`${hours.toLocaleString('tr-TR',{maximumFractionDigits:1})} net iş saati · ${d.toLocaleString('tr-TR',{maximumFractionDigits:2})} üretim günü`}</div><div class="helper-text" style="margin:5px 0 0;">${escapeHtml(info.basis||'')}</div>${stage==='CNC'&&Number(profile.cncActualNetHours)>0?`<div class="helper-text" style="margin:4px 0 0;"><b>Girilen gerçek net CNC:</b> ${Number(profile.cncActualNetHours).toLocaleString('tr-TR',{maximumFractionDigits:1})} saat</div>`:''}${isCur?`<div class="helper-text" style="margin:4px 0 0;">Gerçek proses süresi: ${cur.actual} çalışma günü</div>`:''}</div>`;
         }).join('')}
       </div>
     </div>`;
@@ -7995,6 +8045,7 @@ async function handleAction(action, el){
         weldLengthMm:Number(document.getElementById('ppWeld')?.value)||0,
         complexity:document.getElementById('ppComplexity')?.value||'normal',
         toleranceClass:document.getElementById('ppTolerance')?.value||'normal',
+        cncActualNetHours:Number(document.getElementById('ppCncActualNetHours')?.value)||0,
         processItems:collectProcessItemsFromForm()
       };
       // Eski alanları da ilk iş kaleminden güncel tutuyoruz; mevcut rapor/öğrenme kodları geriye uyumlu kalsın.
@@ -8005,8 +8056,21 @@ async function handleAction(action, el){
       edited.assemblySubparts=Number(asm0.assemblySubparts)||0; edited.assemblyFasteners=Number(asm0.assemblyFasteners)||0; edited.assemblyAlignments=Number(asm0.assemblyAlignments)||0; edited.assemblyHeightMm=Number(asm0.assemblyHeightMm)||0; edited.assemblyWeightKg=Number(asm0.assemblyWeightKg)||0; edited.assemblyClass=asm0.assemblyClass||'normal';
       edited.paintBatchQty=Math.max(1,Number(paint0.paintBatchQty)||20); edited.paintCureMinutes=Math.max(1,Number(paint0.paintCureMinutes)||25); edited.coatingBatchMinutes=Number(coat0.coatingBatchMinutes)||0;
       const learned=recordAnalysisFeedback(part,previousProfile,edited);
+      const tempPart={...part,processProfile:{...previousProfile,...edited}};
+      const cncRows=processItemsForStage(tempPart.processProfile,'CNC',tempPart);
+      const cncMode=cncCalibrationModeFromRows(cncRows);
+      const rawCnc=estimateStageMinutesInfo(tempPart,'CNC',{skipCncCalibration:true,company});
+      const actualCncHours=Number(edited.cncActualNetHours)||0;
+      let cncLearnedFactor=null;
+      if(actualCncHours>0&&rawCnc.minutes!=null&&rawCnc.minutes>0){
+        cncLearnedFactor=updateCncCalibrationSample(company,part.id,cncMode,rawCnc.minutes/60,actualCncHours);
+      }else if(actualCncHours<=0&&Array.isArray(company.cncTimeCalibrationSamples)){
+        company.cncTimeCalibrationSamples=company.cncTimeCalibrationSamples.filter(s=>String(s?.partId||'')!==String(part.id));
+      }
       part.processProfile={...previousProfile,...edited,confirmed:true,updatedAt:todayStr(),updatedBy:state.currentUser,manualConfirmedAt:todayStr(),manualCorrectionCount:(Number(previousProfile.manualCorrectionCount)||0)+learned};
-      await persistParts(company.id); showToast(learned?`${learned} düzeltme kaydedildi; teknik resim analizine öğretildi.`:'Analiz verileri doğrulandı ve kaydedildi.'); render(); break;
+      await Promise.all([persistParts(company.id),persistCompanies()]);
+      const cncMsg=cncLearnedFactor?` CNC gerçek süre kalibrasyonu öğrenildi: ×${cncLearnedFactor.toLocaleString('tr-TR',{maximumFractionDigits:2})}.`:'';
+      showToast((learned?`${learned} düzeltme kaydedildi; teknik resim analizine öğretildi.`:'Analiz verileri doğrulandı ve kaydedildi.')+cncMsg); render(); break;
     }
     case 'analyzeDrawingPdf': {
       const company=getCompany(state.selectedCompanyId);
