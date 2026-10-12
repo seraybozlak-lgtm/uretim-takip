@@ -1491,7 +1491,7 @@
   body[data-theme="day"] select option{background:#FFF7FA!important;color:#4B2F3D!important;}
   .process-mode-note{grid-column:1/-1;padding:8px 10px;border-radius:9px;border:1px solid var(--line-soft);background:var(--surface-2);font-size:10px;line-height:1.45;color:var(--muted);}
   body[data-theme="day"] .process-mode-note{background:#FFF1F5!important;border-color:#E9C8D3!important;color:#765161!important;}
-  [data-cnc-full-only][hidden],[data-weld-full-only][hidden],[data-weld-tack-only][hidden]{display:none!important;}
+  [data-cnc-full-only][hidden],[data-weld-full-only][hidden],[data-weld-tack-only][hidden],[data-weld-linear-only][hidden],[data-weld-circular-only][hidden]{display:none!important;}
 
 
   .cnc-calibration-box{margin:0 10px 10px;padding:10px 11px;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface-2);display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:10px;align-items:end;}
@@ -2738,7 +2738,7 @@ function renderPartsView(){
   return `
     <div class="page-head">
       <div>
-        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.12.42</span></div>
+        <div class="page-title">Parçalar <span style="color:var(--gray-500);font-size:19px;">— ${escapeHtml(company.name)}</span> <span style="font-size:10px;color:var(--gray-500);font-family:var(--font-mono);">FREE-SPLIT v2026.10.12.43</span></div>
         <div class="page-sub">${fmtNum(rawMonthParts.length)} parça · ${escapeHtml(monthLabel(monthKey))} · Proses: ${stages.map(escapeHtml).join(' → ')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
@@ -3505,7 +3505,7 @@ function ensureAutomaticMeasurementNcrs(part){
 function processProfile(part){
   ensurePartQualityData(part);
   return Object.assign({
-    material:'',thickness:'',width:'',length:'',holeCount:0,bendCount:0,weldLengthMm:0,weldMode:'full',weldTackCount:0,complexity:'normal',toleranceClass:'normal',
+    material:'',thickness:'',width:'',length:'',holeCount:0,bendCount:0,weldLengthMm:0,weldMode:'full',weldTackCount:0,weldGeometry:'linear',weldDiameterMm:0,weldCircleCount:1,complexity:'normal',toleranceClass:'normal',
     holeDiameters:[],holeTolerances:[],holeUpperDeviations:[],holeLowerDeviations:[],
     laserCutLengthMm:0,laserFeedMmMin:0,
     cncPathMm:0,cncFeedMmMin:0,cncToolChanges:1,cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal',cncWorkMode:'full',cncActualNetHours:0,
@@ -3600,7 +3600,7 @@ function processItemFromDrawingProfile(stage,drawing,prof,part,qtyOverride=null)
     return {...common,turnDiameterMm:dims[0]||0,turnLengthMm:dims[1]||0,turnPasses:2};
   }
   if(stage==='Büküm') return {...common,width:w,thickness:t,bendCount:bends};
-  if(stage==='Kaynak') return {...common,thickness:t,weldLengthMm:weld,weldSeamCount:1,weldType:'',weldMode:'full',weldTackCount:0};
+  if(stage==='Kaynak') return {...common,thickness:t,weldLengthMm:weld,weldSeamCount:1,weldType:'',weldMode:'full',weldTackCount:0,weldGeometry:'linear',weldDiameterMm:0,weldCircleCount:1};
   if(stage==='Taşlama') return {...common,grindLengthMm:weld};
   if(stage==='Montaj') return {...common,assemblySubparts:Number((prof?.autoAnalysisAssemblyPartNumbers||[]).length)||0,assemblyFasteners:0,assemblyAlignments:0,assemblyHeightMm:l||w||0,assemblyWeightKg:0,assemblyClass:'normal'};
   if(stage==='Boya') return {...common,width:w,length:l,thickness:t,paintBatchQty:20,paintCureMinutes:25};
@@ -3618,7 +3618,7 @@ function legacyProcessItem(profile,stage,part){
   if(stage==='CNC') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,holeCount:Number(p.holeCount)||0,holeDiameters:Array.isArray(p.holeDiameters)?p.holeDiameters:[],holeTolerances:Array.isArray(p.holeTolerances)?p.holeTolerances:[],holeUpperDeviations:Array.isArray(p.holeUpperDeviations)?p.holeUpperDeviations:[],holeLowerDeviations:Array.isArray(p.holeLowerDeviations)?p.holeLowerDeviations:[],cncPathMm:Number(p.cncPathMm)||0,cncFeedMmMin:Number(p.cncFeedMmMin)||0,cncToolChanges:Math.max(1,Number(p.cncToolChanges)||1),cncDepthMm:Number(p.cncDepthMm)||0,cncPasses:Number(p.cncPasses)||0,cncToleranceClass:p.cncToleranceClass||'',cncSetupMinutes:Number(p.cncSetupMinutes)||0,cncLearningMode:p.cncLearningMode||'normal',cncWorkMode:p.cncWorkMode||((Number(p.holeCount)>0&&!Number(p.cncPathMm))?'holes':'full')};
   if(stage==='Torna') return {...common,turnDiameterMm:Number(p.turnDiameterMm)||0,turnLengthMm:Number(p.turnLengthMm)||0,turnPasses:Math.max(1,Number(p.turnPasses)||2)};
   if(stage==='Büküm') return {...common,width:Number(p.width)||0,thickness:Number(p.thickness)||0,bendCount:Number(p.bendCount)||0};
-  if(stage==='Kaynak') return {...common,thickness:Number(p.thickness)||0,weldLengthMm:Number(p.weldLengthMm)||0,weldSeamCount:1,weldType:'',weldMode:p.weldMode||'full',weldTackCount:Number(p.weldTackCount)||0};
+  if(stage==='Kaynak') return {...common,thickness:Number(p.thickness)||0,weldLengthMm:Number(p.weldLengthMm)||0,weldSeamCount:1,weldType:'',weldMode:p.weldMode||'full',weldTackCount:Number(p.weldTackCount)||0,weldGeometry:p.weldGeometry||'linear',weldDiameterMm:Number(p.weldDiameterMm)||0,weldCircleCount:Math.max(1,Number(p.weldCircleCount)||1)};
   if(stage==='Taşlama') return {...common,grindLengthMm:Number(p.weldLengthMm)||0};
   if(stage==='Montaj') return {...common,assemblySubparts:Number(p.assemblySubparts)||Number((p.autoAnalysisAssemblyPartNumbers||[]).length)||0,assemblyFasteners:Number(p.assemblyFasteners)||0,assemblyAlignments:Number(p.assemblyAlignments)||0,assemblyHeightMm:Number(p.assemblyHeightMm)||0,assemblyWeightKg:Number(p.assemblyWeightKg)||0,assemblyClass:p.assemblyClass||'normal'};
   if(stage==='Boya') return {...common,width:Number(p.width)||0,length:Number(p.length)||0,thickness:Number(p.thickness)||0,paintBatchQty:Math.max(1,Number(p.paintBatchQty)||20),paintCureMinutes:Math.max(1,Number(p.paintCureMinutes)||25)};
@@ -3647,7 +3647,7 @@ function blankProcessItem(stage,part){
   const base={id:uid('pci'),label:'',qty:q};
   if(stage==='CNC') return {...base,cncToolChanges:1,holeDiameters:[],holeTolerances:[],holeUpperDeviations:[],holeLowerDeviations:[],cncDepthMm:0,cncPasses:0,cncToleranceClass:'',cncSetupMinutes:0,cncLearningMode:'normal',cncWorkMode:'full'};
   if(stage==='Torna') return {...base,turnPasses:2};
-  if(stage==='Kaynak') return {...base,weldSeamCount:1,weldMode:'full',weldTackCount:0};
+  if(stage==='Kaynak') return {...base,weldSeamCount:1,weldMode:'full',weldTackCount:0,weldGeometry:'linear',weldDiameterMm:0,weldCircleCount:1};
   if(stage==='Montaj') return {...base,assemblyClass:'normal'};
   if(stage==='Boya') return {...base,paintBatchQty:20,paintCureMinutes:25};
   return base;
@@ -3777,6 +3777,26 @@ function applyCncWorkModeVisibility(row){
     ? 'Sadece delik: En/Boy ve frezeleme mesafesi gerekmez. Kalınlık + delik çapları/toleransları + takım/kurulum bilgileriyle hesaplanır.'
     : 'Tam / genel CNC: Delikler varsa delik süreleri de eklenir; cep, kanal, kontur veya yüzey işleme için aşağıdaki delik dışı işleme mesafesini girin.';
 }
+function applyWeldGeometryVisibility(row){
+  if(!row) return;
+  const mode=row.querySelector('[data-weld-mode-select]')?.value||'full';
+  const geometry=row.querySelector('[data-weld-geometry-select]')?.value||'linear';
+  row.querySelectorAll('[data-weld-linear-only]').forEach(el=>{el.hidden=mode==='tack'||geometry!=='linear';});
+  row.querySelectorAll('[data-weld-circular-only]').forEach(el=>{el.hidden=mode==='tack'||geometry!=='circular';});
+  const note=row.querySelector('[data-weld-geometry-note]');
+  if(note){
+    if(mode==='tack') note.textContent='';
+    else if(geometry==='circular'){
+      const d=Number(row.querySelector('[data-pi-field="weldDiameterMm"]')?.value)||0;
+      const c=Math.max(1,Number(row.querySelector('[data-pi-field="weldCircleCount"]')?.value)||1);
+      note.textContent=d>0
+        ? `Çevresel kaynak uzunluğu otomatik: π × Ø${decimalDisplay(d)} × ${c} = ${decimalDisplay(Math.PI*d*c)} mm / parça.`
+        : 'Mil veya deliğin çapını girin; sistem çevreyi π × çap olarak otomatik kaynak uzunluğuna çevirir.';
+    }else{
+      note.textContent='Düz / hat kaynağında parça başına gerçek toplam kaynak uzunluğunu doğrudan girin.';
+    }
+  }
+}
 function applyWeldModeVisibility(row){
   if(!row) return;
   const mode=row.querySelector('[data-weld-mode-select]')?.value||'full';
@@ -3784,10 +3804,11 @@ function applyWeldModeVisibility(row){
   row.querySelectorAll('[data-weld-tack-only]').forEach(el=>{el.hidden=mode==='full';});
   const note=row.querySelector('[data-weld-mode-note]');
   if(note) note.textContent=mode==='tack'
-    ? 'Sadece punta seçildi: toplam kaynak uzunluğu hesaba katılmaz; punta sayısı, kalınlık, yöntem ve bağlama süresi kullanılır.'
+    ? 'Sadece punta seçildi: kaynak uzunluğu veya çap gerekmez; punta sayısı, kalınlık, yöntem ve bağlama süresi kullanılır.'
     : mode==='tack_full'
-      ? 'Önce puntalama, ardından tam kaynak: punta süresi ile dikiş süresi birlikte hesaplanır.'
-      : 'Tam kaynak: kaynak uzunluğu ve ayrı dikiş sayısı esas alınır.';
+      ? 'Önce puntalama, ardından tam kaynak: punta süresi ile seçtiğiniz tam kaynak geometrisinin süresi birlikte hesaplanır.'
+      : 'Tam kaynak: aşağıdan Düz / Hat veya Mil / Delik Çevresi seçin.';
+  applyWeldGeometryVisibility(row);
 }
 function wireProcessItemDynamicControls(root){
   if(!root) return;
@@ -3810,6 +3831,19 @@ function wireProcessItemDynamicControls(root){
       sel.addEventListener('change',()=>applyWeldModeVisibility(sel.closest('[data-process-item-row]')));
     }
     applyWeldModeVisibility(sel.closest('[data-process-item-row]'));
+  });
+  root.querySelectorAll('[data-weld-geometry-select]').forEach(sel=>{
+    if(sel.dataset.dynamicBound!=='1'){
+      sel.dataset.dynamicBound='1';
+      sel.addEventListener('change',()=>applyWeldGeometryVisibility(sel.closest('[data-process-item-row]')));
+    }
+    applyWeldGeometryVisibility(sel.closest('[data-process-item-row]'));
+  });
+  root.querySelectorAll('[data-pi-field="weldDiameterMm"],[data-pi-field="weldCircleCount"]').forEach(inp=>{
+    if(inp.dataset.weldGeometryBound==='1') return;
+    inp.dataset.weldGeometryBound='1';
+    inp.addEventListener('input',()=>applyWeldGeometryVisibility(inp.closest('[data-process-item-row]')));
+    inp.addEventListener('change',()=>applyWeldGeometryVisibility(inp.closest('[data-process-item-row]')));
   });
 }
 
@@ -3834,12 +3868,16 @@ function renderProcessItemRow(stage,item,index,part,company){
   if(stage==='Torna') fields+=piField('Çap Ø (mm)','turnDiameterMm',item.turnDiameterMm||'','number','step="0.1"')+piField('Boy (mm)','turnLengthMm',item.turnLengthMm||'','number','step="0.1"')+piField('Paso Sayısı','turnPasses',Math.max(1,Number(item.turnPasses)||2));
   if(stage==='Büküm') fields+=piField('Parça Eni (mm)','width',item.width||'')+piField('Kalınlık (mm)','thickness',item.thickness||'','number','step="0.1"')+piField('Büküm Sayısı','bendCount',item.bendCount||0);
   if(stage==='Kaynak'){
-    const weldMode=item.weldMode||'full';
+    const weldMode=item.weldMode||'full',weldGeometry=item.weldGeometry||'linear';
     fields+=`<div class="field"><label>Kaynak İşlemi</label><select data-pi-field="weldMode" data-weld-mode-select><option value="full" ${weldMode==='full'?'selected':''}>Tam Kaynak</option><option value="tack" ${weldMode==='tack'?'selected':''}>Sadece Punta</option><option value="tack_full" ${weldMode==='tack_full'?'selected':''}>Punta + Tam Kaynak</option></select></div>`;
     fields+=`<div class="process-mode-note" data-weld-mode-note></div>`;
     fields+=piField('Kalınlık (mm)','thickness',item.thickness||'','number','step="0.1"');
-    fields+=`<div data-weld-full-only>${piField('Toplam Kaynak Uzunluğu (mm / parça)','weldLengthMm',item.weldLengthMm||'')}</div>`;
-    fields+=`<div data-weld-full-only>${piField('Ayrı Dikiş Sayısı / Parça','weldSeamCount',Math.max(1,Number(item.weldSeamCount)||1),'number','step="1"')}</div>`;
+    fields+=`<div data-weld-full-only><div class="field"><label>Tam Kaynak Geometrisi</label><select data-pi-field="weldGeometry" data-weld-geometry-select><option value="linear" ${weldGeometry==='linear'?'selected':''}>Düz / Hat Kaynağı</option><option value="circular" ${weldGeometry==='circular'?'selected':''}>Mil / Delik Çevresi</option></select></div></div>`;
+    fields+=`<div class="process-mode-note" data-weld-full-only data-weld-geometry-note></div>`;
+    fields+=`<div data-weld-linear-only>${piField('Toplam Kaynak Uzunluğu (mm / parça)','weldLengthMm',item.weldLengthMm||'','number','placeholder="Düz kaynakların toplam gerçek uzunluğu"')}</div>`;
+    fields+=`<div data-weld-linear-only>${piField('Ayrı Dikiş Sayısı / Parça','weldSeamCount',Math.max(1,Number(item.weldSeamCount)||1),'number','step="1"')}</div>`;
+    fields+=`<div data-weld-circular-only>${piField('Mil / Delik Çapı Ø (mm)','weldDiameterMm',item.weldDiameterMm||'','number','step="0.1" placeholder="Örn. Ø30 için 30"')}</div>`;
+    fields+=`<div data-weld-circular-only>${piField('Çevresel Kaynak Sayısı / Parça','weldCircleCount',Math.max(1,Number(item.weldCircleCount)||1),'number','step="1" placeholder="1 mil çevresi = 1"')}</div>`;
     fields+=`<div data-weld-tack-only>${piField('Punta Sayısı / Parça','weldTackCount',Number(item.weldTackCount)||0,'number','step="1"')}</div>`;
     fields+=`<div class="field"><label>Kaynak Tipi</label><select data-pi-field="weldType"><option value="" ${!item.weldType?'selected':''}>Proses kartındaki seçimi kullan</option><option value="gasalti" ${item.weldType==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${item.weldType==='argon'?'selected':''}>Argon TIG</option></select></div>`;
   }
@@ -3854,7 +3892,7 @@ function renderProcessItemRow(stage,item,index,part,company){
   return `<div class="process-calc-row" data-process-item-row data-item-id="${escapeHtml(item.id||uid('pci'))}"><div class="process-calc-row-head"><div class="process-calc-row-no">İş kalemi ${index+1}</div><button type="button" class="btn btn-danger-ghost process-item-remove" data-action="removeProcessCalcItem">Sil</button></div><div class="process-item-fields">${fields}</div></div>`;
 }
 function processStageHint(stage){
-  const hints={Kesim:'Lazer kesilecek farklı sac/alt parçaları ayrı satır ekleyin.',CNC:'Delik, cep, kanal, kontur veya yüzey işlerini aynı kalemde birlikte tarif edin; sistem yalnızca girilen işlemleri toplar. Seri üretimde bağlama süresi ilk parçadan sonra otomatik azalabilir.',Torna:'Her farklı tornalanacak parça için çap ve boyu ayrı girin.',Büküm:'Farklı bükülecek alt parçaları ayrı satır ekleyin.',Kaynak:'Tam kaynak, sadece punta veya punta + tam kaynak seçebilirsiniz; süre seçtiğiniz işleme göre hesaplanır.',Montaj:'Birden fazla farklı montaj varsa ayrı iş kalemi kullanın.',Taşlama:'Farklı taşlama işleri için ayrı satır ekleyin.',Boya:'Farklı ebatlı boya parçalarını ayrı satır ekleyin.',Kaplama:'Farklı kaplama gruplarını ayrı satır ekleyin.',Paketleme:'Farklı paket tiplerini ayrı satır ekleyin.',Sevkiyat:'Farklı sevkiyat gruplarını ayrı satır ekleyin.'};
+  const hints={Kesim:'Lazer kesilecek farklı sac/alt parçaları ayrı satır ekleyin.',CNC:'Delik, cep, kanal, kontur veya yüzey işlerini aynı kalemde birlikte tarif edin; sistem yalnızca girilen işlemleri toplar. Seri üretimde bağlama süresi ilk parçadan sonra otomatik azalabilir.',Torna:'Her farklı tornalanacak parça için çap ve boyu ayrı girin.',Büküm:'Farklı bükülecek alt parçaları ayrı satır ekleyin.',Kaynak:'Tam kaynakta Düz / Hat veya Mil / Delik Çevresi seçebilirsiniz. Mil kaynağında çapı girin; çevre uzunluğu otomatik hesaplanır. Punta da ayrıca seçilebilir.',Montaj:'Birden fazla farklı montaj varsa ayrı iş kalemi kullanın.',Taşlama:'Farklı taşlama işleri için ayrı satır ekleyin.',Boya:'Farklı ebatlı boya parçalarını ayrı satır ekleyin.',Kaplama:'Farklı kaplama gruplarını ayrı satır ekleyin.',Paketleme:'Farklı paket tiplerini ayrı satır ekleyin.',Sevkiyat:'Farklı sevkiyat gruplarını ayrı satır ekleyin.'};
   return hints[stage]||'';
 }
 function compactStageEstimate(minutes){
@@ -3872,7 +3910,7 @@ function stageProcessItemFacts(stage,item){
   else if(stage==='CNC'){f.push(`İşlem: ${resolvedCncWorkMode(item)==='holes'?'Sadece delik':'Tam / genel CNC'}`);add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Delik',item.holeCount);if(Array.isArray(item.holeDiameters)&&item.holeDiameters.some(Number)){f.push(`Çaplar: ${item.holeDiameters.map((d,i)=>Number(d)>0?`Ø${decimalDisplay(d)}${cncHoleToleranceLabel(item,i)}`:'?').join(', ')}`);}add('Takım yolu',item.cncPathMm,' mm');add('İşleme derinliği',item.cncDepthMm,' mm');add('Paso',item.cncPasses);add('İlerleme',item.cncFeedMmMin,' mm/dk');add('Takım',item.cncToolChanges);add('İlk kurulum',item.cncSetupMinutes,' dk');if(item.cncToleranceClass)f.push(`CNC tolerans: ${item.cncToleranceClass==='precision'?'Hassas':item.cncToleranceClass==='rough'?'Geniş':'Normal'}`);if(item.cncLearningMode&&item.cncLearningMode!=='off')f.push(`Seri alışma: ${item.cncLearningMode==='strong'?'Güçlü':'Normal'}`);}
   else if(stage==='Torna'){add('Çap',item.turnDiameterMm,' mm');add('Boy',item.turnLengthMm,' mm');add('Paso',item.turnPasses);}
   else if(stage==='Büküm'){add('En',item.width,' mm');add('Kalınlık',item.thickness,' mm');add('Büküm',item.bendCount);}
-  else if(stage==='Kaynak'){const wm=item.weldMode||'full';f.push(`İşlem: ${wm==='tack'?'Sadece punta':wm==='tack_full'?'Punta + tam kaynak':'Tam kaynak'}`);add('Kalınlık',item.thickness,' mm');if(wm!=='tack'){add('Kaynak',item.weldLengthMm,' mm/parça');add('Dikiş',item.weldSeamCount);}if(wm!=='full')add('Punta',item.weldTackCount);if(item.weldType)f.push(`Tip: ${item.weldType==='argon'?'Argon TIG':'Gazaltı MIG/MAG'}`);}
+  else if(stage==='Kaynak'){const wm=item.weldMode||'full',wg=item.weldGeometry||'linear';f.push(`İşlem: ${wm==='tack'?'Sadece punta':wm==='tack_full'?'Punta + tam kaynak':'Tam kaynak'}`);add('Kalınlık',item.thickness,' mm');if(wm!=='tack'){if(wg==='circular'){add('Çap Ø',item.weldDiameterMm,' mm');add('Çevresel kaynak',item.weldCircleCount);}else{add('Kaynak',item.weldLengthMm,' mm/parça');add('Dikiş',item.weldSeamCount);}}if(wm!=='full')add('Punta',item.weldTackCount);if(item.weldType)f.push(`Tip: ${item.weldType==='argon'?'Argon TIG':'Gazaltı MIG/MAG'}`);}
   else if(stage==='Taşlama'){add('Hat',item.grindLengthMm,' mm');}
   else if(stage==='Montaj'){add('Alt parça',item.assemblySubparts);add('Bağlantı',item.assemblyFasteners);add('Hizalama',item.assemblyAlignments);add('Ağırlık',item.assemblyWeightKg,' kg');}
   else if(stage==='Boya'){add('En',item.width,' mm');add('Boy',item.length,' mm');add('Kalınlık',item.thickness,' mm');add('Batch',item.paintBatchQty);add('Fırın',item.paintCureMinutes,' dk');}
@@ -4141,14 +4179,20 @@ function estimateStageMinutesInfo(part,stage,opts={}){
       }
       case 'Kaynak': {
         const weldMode=item.weldMode||p.weldMode||'full';
+        const weldGeometry=item.weldGeometry||p.weldGeometry||'linear';
         const type=item.weldType||meta.weldType||'gasalti';
-        const seamCount=Math.max(1,Number(item.weldSeamCount)||1);
+        const linearSeams=Math.max(1,Number(item.weldSeamCount)||1);
+        const diameter=Math.max(0,Number(item.weldDiameterMm??p.weldDiameterMm)||0);
+        const circleCount=Math.max(1,Math.floor(Number(item.weldCircleCount??p.weldCircleCount)||1));
+        const effectiveWeldMm=weldGeometry==='circular'?Math.PI*diameter*circleCount:weldMm;
+        const seamCount=weldGeometry==='circular'?circleCount:linearSeams;
         const tackCount=Math.max(0,Math.floor(Number(item.weldTackCount??p.weldTackCount)||0));
         if(weldMode==='tack'&&tackCount<=0){basis='sadece punta seçildi; punta sayısı eksik';break;}
-        if(weldMode!=='tack'&&weldMm<=0){basis='tam kaynak için kaynak uzunluğu eksik';break;}
+        if(weldMode!=='tack'&&weldGeometry==='circular'&&diameter<=0){basis='mil / delik çevresi için çap eksik';break;}
+        if(weldMode!=='tack'&&weldGeometry!=='circular'&&effectiveWeldMm<=0){basis='tam kaynak için kaynak uzunluğu eksik';break;}
         const speed=autoWeldTravelSpeed(type,th,mat);
         const passFactor=autoWeldPassFactor(type,th);
-        const arcMin=weldMode==='tack'?0:(weldMm/speed)*passFactor*cf;
+        const arcMin=weldMode==='tack'?0:(effectiveWeldMm/speed)*passFactor*cf;
         const handlingMin=weldMode==='tack'
           ? (0.85+Math.min(1.1,Math.max(0,th)*0.045))*cf*Math.sqrt(tf)
           : autoWeldHandlingMinutes(type,th,seamCount,cf,tf);
@@ -4159,7 +4203,9 @@ function estimateStageMinutesInfo(part,stage,opts={}){
         const setupMin=weldMode==='tack'?6:10;
         minutes=setupMin+qty*(arcMin+handlingMin+tackMin);
         const modeText=weldMode==='tack'?'sadece punta':weldMode==='tack_full'?'punta + tam kaynak':'tam kaynak';
-        const fullText=weldMode==='tack'?'':` · ${Math.round(weldMm)} mm/adet · ${seamCount} dikiş/adet`;
+        const fullText=weldMode==='tack'?'':weldGeometry==='circular'
+          ? ` · Ø${decimalDisplay(diameter)} mm × ${circleCount} çevresel kaynak = ${Math.round(effectiveWeldMm)} mm/adet`
+          : ` · ${Math.round(effectiveWeldMm)} mm/adet · ${seamCount} dikiş/adet`;
         const tackText=weldMode==='full'?'':` · ${tackCount} punta/adet`;
         basis=`${label}: ${qty} adet · ${modeText} · ${type==='argon'?'Argon TIG':'Gazaltı MIG/MAG'}${fullText}${tackText} · ${decimalDisplay(th)} mm kalınlık`;
         break;
@@ -8052,7 +8098,7 @@ async function handleAction(action, el){
       const cut0=firstProcessItem(edited.processItems,'Kesim'),cnc0=firstProcessItem(edited.processItems,'CNC'),turn0=firstProcessItem(edited.processItems,'Torna'),weld0=firstProcessItem(edited.processItems,'Kaynak'),asm0=firstProcessItem(edited.processItems,'Montaj'),paint0=firstProcessItem(edited.processItems,'Boya'),coat0=firstProcessItem(edited.processItems,'Kaplama');
       edited.laserCutLengthMm=Number(cut0.laserCutLengthMm)||0; edited.laserFeedMmMin=Number(cut0.laserFeedMmMin)||0;
       edited.cncPathMm=Number(cnc0.cncPathMm)||0; edited.cncFeedMmMin=Number(cnc0.cncFeedMmMin)||0; edited.cncToolChanges=Math.max(1,Number(cnc0.cncToolChanges)||1); edited.cncDepthMm=Number(cnc0.cncDepthMm)||0; edited.cncPasses=Number(cnc0.cncPasses)||0; edited.cncToleranceClass=cnc0.cncToleranceClass||''; edited.cncSetupMinutes=Number(cnc0.cncSetupMinutes)||0; edited.cncLearningMode=cnc0.cncLearningMode||'normal'; edited.cncWorkMode=cnc0.cncWorkMode||'full'; edited.holeDiameters=Array.isArray(cnc0.holeDiameters)?cnc0.holeDiameters:[]; edited.holeTolerances=Array.isArray(cnc0.holeTolerances)?cnc0.holeTolerances:[]; edited.holeUpperDeviations=Array.isArray(cnc0.holeUpperDeviations)?cnc0.holeUpperDeviations:[]; edited.holeLowerDeviations=Array.isArray(cnc0.holeLowerDeviations)?cnc0.holeLowerDeviations:[];
-      edited.turnDiameterMm=Number(turn0.turnDiameterMm)||0; edited.turnLengthMm=Number(turn0.turnLengthMm)||0; edited.turnPasses=Math.max(1,Number(turn0.turnPasses)||2); edited.weldMode=weld0.weldMode||'full'; edited.weldTackCount=Number(weld0.weldTackCount)||0;
+      edited.turnDiameterMm=Number(turn0.turnDiameterMm)||0; edited.turnLengthMm=Number(turn0.turnLengthMm)||0; edited.turnPasses=Math.max(1,Number(turn0.turnPasses)||2); edited.weldMode=weld0.weldMode||'full'; edited.weldTackCount=Number(weld0.weldTackCount)||0; edited.weldGeometry=weld0.weldGeometry||'linear'; edited.weldDiameterMm=Number(weld0.weldDiameterMm)||0; edited.weldCircleCount=Math.max(1,Number(weld0.weldCircleCount)||1);
       edited.assemblySubparts=Number(asm0.assemblySubparts)||0; edited.assemblyFasteners=Number(asm0.assemblyFasteners)||0; edited.assemblyAlignments=Number(asm0.assemblyAlignments)||0; edited.assemblyHeightMm=Number(asm0.assemblyHeightMm)||0; edited.assemblyWeightKg=Number(asm0.assemblyWeightKg)||0; edited.assemblyClass=asm0.assemblyClass||'normal';
       edited.paintBatchQty=Math.max(1,Number(paint0.paintBatchQty)||20); edited.paintCureMinutes=Math.max(1,Number(paint0.paintCureMinutes)||25); edited.coatingBatchMinutes=Number(coat0.coatingBatchMinutes)||0;
       const learned=recordAnalysisFeedback(part,previousProfile,edited);
