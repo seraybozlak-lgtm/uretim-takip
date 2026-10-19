@@ -1516,6 +1516,11 @@
 .stage-batch-row input{width:100%;min-width:0;padding:7px 5px;border:1px solid var(--gray-300);border-radius:6px;background:var(--panel-2);color:var(--navy-900);font-size:11px}
 .stage-batch-row label{font-size:10px;color:var(--gray-500);grid-column:span 3}.stage-batch-row .icon-btn{grid-column:3;grid-row:1}
 [data-batch-day-fields][hidden],[data-batch-exact-fields][hidden]{display:none!important}
+[data-stage-date-time][hidden]{display:none!important}
+.stage-main-time-mode{min-width:0;width:100%;padding:7px 8px;font-size:11px;border:1px solid var(--gray-300);border-radius:6px;background:var(--panel-2);color:var(--navy-900)}
+.stage-day-only-note{font-size:10px;color:var(--gray-500);line-height:1.4;margin-top:4px}
+.stage-datetime-combo.stage-date-only{grid-template-columns:minmax(0,1fr)}
+.stage-batch-row .batch-worker-label{grid-column:1/-1}
 .stage-batch-row .batch-mode-label{grid-column:span 3}
 .stage-batch-row select{width:100%;padding:7px;border:1px solid var(--gray-300);border-radius:6px;background:var(--panel-2);color:var(--navy-900);font-size:11px}
 .stage-batch-row .batch-date-fields{grid-column:span 3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
@@ -2882,7 +2887,7 @@ function renderTrackingView(){
   const currentEntry = currentStageName ? getStageLastEntry(part, currentStageName) : null;
   const daysInStage = currentStageName ? stageProcessDurationDays(part,currentStageName,new Date()) : null;
   const lastCompletedStage=getLastCompletedStage(part,stages);
-  const waitingMinutes=lastCompletedStage&&!currentStageName ? processScheduledWorkingMinutes(lastCompletedStage.end,new Date(),stageProcessMeta(part,lastCompletedStage.stage,false)) : null;
+  const waitingMinutes=lastCompletedStage&&!currentStageName&&stageProcessMeta(part,lastCompletedStage.stage,false).timePrecision!=='day' ? processScheduledWorkingMinutes(lastCompletedStage.end,new Date(),stageProcessMeta(part,lastCompletedStage.stage,false)) : null;
   const isShippedFully = remaining===0 && Number(part.orderedQty||0)>0;
   const pinnedPartsInCompany = sortWithPinned(parts, state.pinnedParts);
 
@@ -2986,9 +2991,11 @@ function renderTrackingView(){
           const isFinal = i === stages.length-1;
           const editable = canEditStage(s);
           const lastEntry = getStageLastEntry(part, s);
-          const savedStageDateValue=meta.startDateCleared===true?'':(meta.startAt||historyEntryToLocalInputValue(getStageFirstPositiveEntry(part,s)||lastEntry));
+          const savedStageDateValue=meta.timePrecision==='day'?(meta.startAt||''):(meta.startDateCleared===true?'':(meta.startAt||historyEntryToLocalInputValue(getStageFirstPositiveEntry(part,s)||lastEntry)));
           const hasStageDateDraft=Object.prototype.hasOwnProperty.call(stageDateDraft,s);
           const stageDateValue=hasStageDateDraft ? stageDateDraft[s] : savedStageDateValue;
+          const modeDraft=((state.stageTimeModeDraftsByPart||{})[part.id]||{});
+          const dayOnly=(Object.prototype.hasOwnProperty.call(modeDraft,s)?modeDraft[s]:meta.timePrecision)==='day';
           const duration=stageProcessDurationDays(part,s,new Date());
           const endDate=stageEndDate(part,s);
           const monthRemain=!endDate&&stageStartDate(part,s)?workdaysUntilMonthEnd(meta,new Date(),inferPartMonth(part)):null;
@@ -3011,14 +3018,21 @@ function renderTrackingView(){
             <div class="reject-row"><label>Ret</label><input class="reject-input" type="number" min="0" data-reject-input="${escapeHtml(s)}" value="${rej}" ${!editable?'disabled':''}/></div>
             ${renderStageWorkSummary(part,s)}
             <div style="margin-top:9px;display:grid;gap:7px;">
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable)}</div>
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş tarih / saat <span style="font-weight:500;">(08:00–18:00)</span></label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Zaman bilgisi</label>
+                <select class="stage-main-time-mode" data-stage-time-mode="${escapeHtml(s)}" ${!editable?'disabled':''}>
+                  <option value="exact" ${!dayOnly?'selected':''}>Tarih ve saat biliniyor</option>
+                  <option value="day" ${dayOnly?'selected':''}>Saat bilinmiyor — yalnız tarih</option>
+                </select>
+                <div class="stage-day-only-note" data-stage-time-note ${!dayOnly?'hidden':''}>Yalnız bitiş günü biliniyorsa giriş tarihini boş bırakabilirsin. Süre hesaplanmaz.</div>
+              </div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş ${dayOnly?'tarihi (isteğe bağlı)':'tarih / saat (08:00–18:00)'}</label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable,dayOnly)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş ${dayOnly?'tarihi':'tarih / saat (08:00–18:00)'}</label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable,dayOnly)}</div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
               ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${renderStageOperatorAssignmentHtml(part,s,meta,company,editable)}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option><option value="brazing" ${meta.weldType==='brazing'?'selected':''}>Sert Lehimleme (Brazing)</option></select></div>`:''}</div>`:''}
             </div>
             ${renderStageBatchRows(part,s,editable)}
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
-            <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatDateTimeTR(stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatDateTimeTR(endDate))}`:''}${duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${stageOperatorList(meta).length?`<br/>${escapeHtml(stageOperatorList(meta).join(' + '))}`:''}</div>
+            <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatStageTrackedDate(part,s,stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatStageTrackedDate(part,s,endDate))}`:''}${dayOnly&&(endDate||stageStartDate(part,s))?'<br/><b>Süre: bilinmiyor</b>':duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${stageOperatorList(meta).length?`<br/>${escapeHtml(stageOperatorList(meta).join(' + '))}`:''}</div>
             ${isAdmin()?`<div class="manual-current-row">${part.manualCurrentStage===s?`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="clearManualCurrentStage" data-part="${part.id}">↺ Otomatik Konuma Dön</button>`:`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="setManualCurrentStage" data-part="${part.id}" data-stage="${escapeHtml(s)}">📍 Şu An Burada</button>`}</div>`:''}
           </div>`;
         }).join('')}
@@ -3097,6 +3111,11 @@ function syncTrackingFormToState(){
   document.querySelectorAll('[data-stage-sun]').forEach(inp=>{ if(!inp.disabled) stageProcessMeta(part,inp.getAttribute('data-stage-sun'),true).includeSunday=!!inp.checked; });
   syncStageOperatorInputs(part);
   document.querySelectorAll('[data-stage-weldtype]').forEach(inp=>{ if(!inp.disabled) stageProcessMeta(part,inp.getAttribute('data-stage-weldtype'),true).weldType=inp.value||'gasalti'; });
+  state.stageTimeModeDraftsByPart=state.stageTimeModeDraftsByPart||{};
+  state.stageTimeModeDraftsByPart[part.id]=state.stageTimeModeDraftsByPart[part.id]||{};
+  document.querySelectorAll('[data-stage-time-mode]').forEach(inp=>{
+    if(!inp.disabled)state.stageTimeModeDraftsByPart[part.id][inp.getAttribute('data-stage-time-mode')]=inp.value;
+  });
   part.measurements = part.measurements || [];
   document.querySelectorAll('[data-meas-value]').forEach(inp=>{
     if(inp.disabled) return;
@@ -3160,6 +3179,9 @@ function renderStageBatchRow(batch={},editable=true){
   return `<div class="stage-batch-row" data-stage-batch data-batch-id="${escapeHtml(batch.id||uid('batch'))}">
     <input type="text" data-batch-name placeholder="Alt parça / iş adı" aria-label="Alt parça adı" value="${escapeHtml(batch.name||'')}" ${!editable?'disabled':''}>
     <input type="number" min="0" step="1" data-batch-qty placeholder="Adet" aria-label="Üretilen adet" value="${batch.qty==null?'':Math.max(0,Number(batch.qty)||0)}" ${!editable?'disabled':''}>
+    <label class="batch-worker-label">Yapan kişi / operatör
+      <input type="text" data-batch-worker placeholder="Adı soyadı (isteğe bağlı)" aria-label="Bu üretimi yapan kişi" value="${escapeHtml(batch.worker||'')}" maxlength="120" ${!editable?'disabled':''}>
+    </label>
     <label class="batch-mode-label">Zaman bilgisi
       <select data-batch-time-mode ${!editable?'disabled':''}>
         <option value="day" ${dayOnly?'selected':''}>Saat bilinmiyor — yalnız tarih</option>
@@ -3204,8 +3226,35 @@ function stageRequestedQty(part,stage){
 
 const STAGE_CLOCK_MIN='08:00', STAGE_CLOCK_MAX='18:00';
 function splitStageDateTimeValue(value){
-  const m=String(value||'').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
-  return m?{date:m[1],time:m[2]}:{date:'',time:''};
+  const raw=String(value||'');
+  const m=raw.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?$/);
+  return m?{date:m[1],time:m[2]||''}:{date:'',time:''};
+}
+function parseStageTrackedDate(value){
+  const raw=String(value||'');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){
+    const [y,m,d]=raw.split('-').map(Number);
+    const date=new Date(y,m-1,d,12,0,0,0); // yalnız takvim günü karşılaştırılır, üretim saati değildir
+    return date.getFullYear()===y&&date.getMonth()===m-1&&date.getDate()===d?date:null;
+  }
+  return localDateTimeInputToDate(raw);
+}
+function formatStageTrackedDate(part,stage,date){
+  if(!(date instanceof Date)||isNaN(date.getTime()))return '';
+  if(stageProcessMeta(part,stage,false).timePrecision==='day')return `${pad2(date.getDate())}.${pad2(date.getMonth()+1)}.${date.getFullYear()}`;
+  return formatDateTimeTR(date);
+}
+function getStageComboValue(box){
+  const day=box.querySelector('[data-stage-date-day]')?.value||'';
+  const stage=box.getAttribute('data-stage')||'';
+  const stageCard=box.closest('.pipeline-stage');
+  const dayOnly=stageCard?.querySelector('[data-stage-time-mode]')?.value==='day';
+  if(!day)return '';
+  if(dayOnly)return day;
+  const timeInp=box.querySelector('[data-stage-date-time]');
+  const time=clampStageClockTime(timeInp?.value||STAGE_CLOCK_MIN)||STAGE_CLOCK_MIN;
+  if(timeInp)timeInp.value=time;
+  return `${day}T${time}`;
 }
 function clampStageClockTime(value){
   const t=String(value||'').slice(0,5);
@@ -3214,15 +3263,15 @@ function clampStageClockTime(value){
   if(t>STAGE_CLOCK_MAX) return STAGE_CLOCK_MAX;
   return t;
 }
-function renderStageDateTimeControl(part,stage,kind,value,originalValue,editable){
+function renderStageDateTimeControl(part,stage,kind,value,originalValue,editable,dayOnly=false){
   const v=splitStageDateTimeValue(value);
   const hiddenAttrs=kind==='start'
     ? `data-stage-datetime="${escapeHtml(stage)}" data-stage-datetime-original="${escapeHtml(originalValue||'')}"`
     : `data-stage-end-datetime="${escapeHtml(stage)}" data-stage-end-datetime-part="${escapeHtml(part.id)}"`;
   const displayTime=clampStageClockTime(v.time);
-  return `<div class="stage-datetime-combo" data-stage-datetime-combo="${escapeHtml(kind)}" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">
+  return `<div class="stage-datetime-combo ${dayOnly?'stage-date-only':''}" data-stage-datetime-combo="${escapeHtml(kind)}" data-stage="${escapeHtml(stage)}" data-part="${escapeHtml(part.id)}">
     <input type="date" data-stage-date-day value="${escapeHtml(v.date)}" ${!editable?'disabled':''}/>
-    <input type="time" data-stage-date-time min="${STAGE_CLOCK_MIN}" max="${STAGE_CLOCK_MAX}" step="60" value="${escapeHtml(displayTime)}" ${!editable?'disabled':''}/>
+    <input type="time" data-stage-date-time min="${STAGE_CLOCK_MIN}" max="${STAGE_CLOCK_MAX}" step="60" value="${escapeHtml(displayTime)}" ${dayOnly?'hidden':''} ${!editable?'disabled':''}/>
     <input type="hidden" ${hiddenAttrs} value="${escapeHtml(value||'')}"/>
   </div>`;
 }
@@ -3254,7 +3303,8 @@ function stageStartDate(part,stage){
   const meta=stageProcessMeta(part,stage,false);
   // Kullanıcı tarihi bilmediği için özellikle temizlediyse geçmiş adet kaydından tekrar tarih üretme.
   if(meta.startDateCleared===true) return null;
-  if(meta.startAt){ const d=localDateTimeInputToDate(meta.startAt); if(d) return d; }
+  if(meta.startAt){ const d=parseStageTrackedDate(meta.startAt); if(d) return d; }
+  if(meta.timePrecision==='day') return null; // yalnız bitiş günü biliniyorsa başlangıç saati/tarihi uydurulmaz
   const first=getStageFirstPositiveEntry(part,stage);
   if(first){ const ts=historyEntryTime(first); if(ts) return new Date(ts); }
   const last=getStageLastEntry(part,stage);
@@ -3264,7 +3314,7 @@ function stageStartDate(part,stage){
 function stageEndDate(part,stage){
   const meta=stageProcessMeta(part,stage,false);
   if(!meta.endAt) return null;
-  return localDateTimeInputToDate(meta.endAt);
+  return parseStageTrackedDate(meta.endAt);
 }
 function isCountedWorkday(date,meta){
   const day=date.getDay();
@@ -4742,8 +4792,9 @@ function processScheduledWorkingMinutes(start,end,meta){
   return total;
 }
 function stageProcessDurationMinutes(part,stage,asOf){
-  const start=stageStartDate(part,stage); if(!start) return null;
   const meta=stageProcessMeta(part,stage,false);
+  if(meta.timePrecision==='day') return null; // gün biliniyor, saat/süre bilinmiyor
+  const start=stageStartDate(part,stage); if(!start) return null;
   const end=stageEndDate(part,stage)||(asOf instanceof Date?asOf:new Date());
   return processScheduledWorkingMinutes(start,end,meta);
 }
@@ -6019,7 +6070,9 @@ function currentStageEstimateStatus(part, company){
   const stage=company.stages[idx], info=estimateStageMinutesInfo(part,stage);
   const expectedMinutes=info.minutes;
   if(expectedMinutes==null) return null;
-  const actualMinutes=stageProcessDurationMinutes(part,stage,new Date())||0;
+  const measuredMinutes=stageProcessDurationMinutes(part,stage,new Date());
+  if(measuredMinutes==null) return null; // bilinmeyen süreyi performansta 0 saat kabul etme
+  const actualMinutes=measuredMinutes;
   const ratio=expectedMinutes>0?actualMinutes/expectedMinutes:0;
   return {stage,actualMinutes,expectedMinutes,actual:actualMinutes/WORKDAY_SCHEDULED_MINUTES,expected:expectedMinutes/WORKDAY_NET_PRODUCTIVE_MINUTES,ratio,cls:ratio>1.5?'bad':ratio>1.1?'warn':'good'};
 }
@@ -7691,18 +7744,9 @@ function attachHandlers(){
   });
   app.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
     const sync=()=>{
-      const dayInput=box.querySelector('[data-stage-date-day]');
-      const timeSelect=box.querySelector('[data-stage-date-time]');
-      const day=dayInput?.value||'';
-      let time=timeSelect?.value||'';
       const hidden=box.querySelector('input[type="hidden"]');
-      if(!hidden) return;
-      // Sadece tarih seçilmişse 08:00 kullan. Saat alanı 08:00–18:00 arasında
-      // dakika hassasiyetinde serbesttir (örn. 08:17, 13:42, 17:59).
-      if(day&&!time) time=STAGE_CLOCK_MIN;
-      time=clampStageClockTime(time);
-      if(timeSelect) timeSelect.value=time;
-      hidden.value=day?`${day}T${time}`:'';
+      if(!hidden)return;
+      hidden.value=getStageComboValue(box);
       hidden.dispatchEvent(new Event('input',{bubbles:false}));
       hidden.dispatchEvent(new Event('change',{bubbles:false}));
     };
@@ -7710,6 +7754,26 @@ function attachHandlers(){
     box.querySelector('[data-stage-date-day]')?.addEventListener('change',sync);
     box.querySelector('[data-stage-date-time]')?.addEventListener('input',sync);
     box.querySelector('[data-stage-date-time]')?.addEventListener('change',sync);
+  });
+  app.querySelectorAll('[data-stage-time-mode]').forEach(select=>{
+    select.addEventListener('change',()=>{
+      const stage=select.getAttribute('data-stage-time-mode'),pid=state.selectedPartId;
+      state.stageTimeModeDraftsByPart=state.stageTimeModeDraftsByPart||{};
+      state.stageTimeModeDraftsByPart[pid]=state.stageTimeModeDraftsByPart[pid]||{};
+      state.stageTimeModeDraftsByPart[pid][stage]=select.value;
+      const card=select.closest('.pipeline-stage'),dayOnly=select.value==='day';
+      const note=card.querySelector('[data-stage-time-note]');
+      if(note)note.hidden=!dayOnly;
+      card.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
+        box.classList.toggle('stage-date-only',dayOnly);
+        const time=box.querySelector('[data-stage-date-time]');
+        if(time)time.hidden=dayOnly;
+        const label=box.parentElement.querySelector('label');
+        if(label)label.textContent=(box.getAttribute('data-stage-datetime-combo')==='start'?'Giriş ':'Bitiş ')+(dayOnly?'tarihi':'tarih / saat (08:00–18:00)');
+        const hidden=box.querySelector('input[type="hidden"]');
+        if(hidden){hidden.value=getStageComboValue(box);hidden.dispatchEvent(new Event('input',{bubbles:false}));hidden.dispatchEvent(new Event('change',{bubbles:false}));}
+      });
+    });
   });
 
   app.querySelectorAll('[data-stage-datetime]').forEach(inp=>{
@@ -8404,15 +8468,9 @@ async function handleAction(action, el){
       // Kaydet'e basıldığı anda görünür tarih/saat kontrollerini hidden alanlara bir kez daha aktar.
       // Böylece kullanıcı yalnız tarih seçip doğrudan Kaydet'e bassa bile giriş tarihi kaybolmaz.
       document.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
-        const day=box.querySelector('[data-stage-date-day]')?.value||'';
-        const timeSelect=box.querySelector('[data-stage-date-time]');
-        let time=timeSelect?.value||'';
         const hidden=box.querySelector('input[type="hidden"]');
         if(!hidden) return;
-        if(day&&!time) time=STAGE_CLOCK_MIN;
-        time=clampStageClockTime(time);
-        if(timeSelect) timeSelect.value=time;
-        hidden.value=day?`${day}T${time}`:'';
+        hidden.value=getStageComboValue(box);
         if(hidden.hasAttribute('data-stage-datetime')){
           state.stageEventDateDraftsByPart=state.stageEventDateDraftsByPart||{};
           state.stageEventDateDraftsByPart[partId]=state.stageEventDateDraftsByPart[partId]||{};
@@ -8447,6 +8505,12 @@ async function handleAction(action, el){
         });
       }
       const stageTiming={};
+      // Eski kayıtlar saatli kalır; "yalnız tarih" tercihi sadece seçilen proses için uygulanır.
+      document.querySelectorAll('[data-stage-time-mode]').forEach(select=>{
+        const stage=select.getAttribute('data-stage-time-mode');
+        if(!canEditStage(stage))return;
+        stageProcessMeta(part,stage,true).timePrecision=select.value==='day'?'day':'exact';
+      });
 
       // Önce giriş alanlarını oku. Kayıtlı tarih görünse bile alan değişmediyse yeni adet kaydı "şimdi" olur.
       for(const dtInp of dateInputs){
@@ -8454,12 +8518,15 @@ async function handleAction(action, el){
         const raw=dtInp.value||'', originalRaw=dtInp.getAttribute('data-stage-datetime-original')||'', edited=raw!==originalRaw;
         let d=recordedNow,custom=false;
         if(edited&&raw){
-          const parsed=localDateTimeInputToDate(raw);
+          const parsed=parseStageTrackedDate(raw);
           if(!parsed){showToast(`${stage} giriş tarihini okuyamadım.`);return;}
-          if(parsed.getTime()>Date.now()+60000){showToast(`${stage} giriş zamanı gelecekte olamaz.`);return;}
+          const dayOnly=stageProcessMeta(part,stage,false).timePrecision==='day';
+          if((dayOnly?raw.slice(0,10)>localInputFromTs(Date.now()).slice(0,10):parsed.getTime()>Date.now()+60000)){
+            showToast(`${stage} giriş zamanı gelecekte olamaz.`);return;
+          }
           d=parsed;custom=true;
         }
-        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:formatDateTimeTR(d),custom,edited,raw,originalRaw};
+        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:stageProcessMeta(part,stage,false).timePrecision==='day'&&custom?formatStageTrackedDate(part,stage,d):formatDateTimeTR(d),custom,edited,raw,originalRaw};
       }
       const timingFor=stage=>stageTiming[stage]||{eventDateObj:recordedNow,eventTs:recordedTs,eventDate:recordedAt,custom:false,edited:false,raw:'',originalRaw:''};
 
@@ -8500,8 +8567,15 @@ async function handleAction(action, el){
       // Bitiş doğrulaması ve değişiklik tespiti.
       for(const stage of company.stages){
         const meta=stageProcessMeta(part,stage,false), startD=stageStartDate(part,stage), endD=stageEndDate(part,stage);
-        if(endD&&endD.getTime()>Date.now()+60000){showToast(`${stage} bitiş zamanı gelecekte olamaz.`);return;}
-        if(startD&&endD&&endD<startD){showToast(`${stage}: bitiş tarihi giriş tarihinden önce olamaz.`);return;}
+        const dayOnly=meta.timePrecision==='day';
+        if(meta.endAt&&!endD){showToast(`${stage}: bitiş tarihi geçersiz.`);return;}
+        if(dayOnly&&meta.startAt&&!startD){showToast(`${stage}: giriş tarihi geçersiz.`);return;}
+        if(endD&&(dayOnly?String(meta.endAt).slice(0,10)>localInputFromTs(Date.now()).slice(0,10):endD.getTime()>Date.now()+60000)){
+          showToast(`${stage} bitiş zamanı gelecekte olamaz.`);return;
+        }
+        if(startD&&endD&&(dayOnly?String(meta.endAt).slice(0,10)<String(meta.startAt).slice(0,10):endD<startD)){
+          showToast(`${stage}: bitiş tarihi giriş tarihinden önce olamaz.`);return;
+        }
       }
       if(JSON.stringify(part.processMeta||{})!==metaBefore) changed=true;
 
@@ -8515,10 +8589,11 @@ async function handleAction(action, el){
           const name=(row.querySelector('[data-batch-name]')?.value||'').trim();
           const rawQty=row.querySelector('[data-batch-qty]')?.value||'';
           const qty=rawQty===''?0:Number(rawQty);
+          const worker=(row.querySelector('[data-batch-worker]')?.value||'').trim();
           const timePrecision=row.querySelector('[data-batch-time-mode]')?.value==='day'?'day':'exact';
           const startAt=(timePrecision==='day'?row.querySelector('[data-batch-start-day]'):row.querySelector('[data-batch-start]'))?.value||'';
           const endAt=(timePrecision==='day'?row.querySelector('[data-batch-end-day]'):row.querySelector('[data-batch-end]'))?.value||'';
-          if(!name&&!rawQty&&!startAt&&!endAt) continue;
+          if(!name&&!rawQty&&!startAt&&!endAt&&!worker) continue;
           if(!name){showToast(stage+': her ayrı proses kaydına parça/iş adı girin.');return;}
           if(!Number.isInteger(qty)||qty<0){showToast(stage+': kayıt adedi geçersiz.');return;}
           // Gün hassasiyetindeki kayıtları saatli kayıtlardan ayrı doğrula.
@@ -8538,7 +8613,7 @@ async function handleAction(action, el){
           if((startAt&&!start)||(endAt&&!end)){showToast(stage+': tarih formatı hatalı.');return;}
           if((start&&start.getTime()>Date.now()+60000)||(end&&end.getTime()>Date.now()+60000)){showToast(stage+': gelecek tarih girilemez.');return;}
           if(start&&end&&end<start){showToast(stage+': bitiş girişten önce olamaz.');return;}
-          rows.push({id:row.getAttribute('data-batch-id')||uid('batch'),name,qty,startAt,endAt,timePrecision});
+          rows.push({id:row.getAttribute('data-batch-id')||uid('batch'),name,qty,startAt,endAt,timePrecision,worker});
         }
         const meta=stageProcessMeta(part,stage,true);
         if(JSON.stringify(meta.batches||[])!==JSON.stringify(rows)){meta.batches=rows;changed=true;}
@@ -8561,7 +8636,7 @@ async function handleAction(action, el){
           const t=timingFor(ch.stage), meta=stageProcessMeta(part,ch.stage,true);
           // Proses ilk kez başlıyorsa giriş tarihini otomatik kaydet. Eski kayıtta zaten
           // bir ilk giriş varsa sırf adet güncellendi diye o tarihi bugüne çekme.
-          if(ch.newVal>0&&!meta.startAt&&meta.startDateCleared!==true){
+          if(ch.newVal>0&&meta.timePrecision!=='day'&&!meta.startAt&&meta.startDateCleared!==true){
             const existingFirst=getStageFirstPositiveEntry(part,ch.stage);
             meta.startAt=t.custom?t.raw:(existingFirst?historyEntryToLocalInputValue(existingFirst):localInputFromTs(recordedTs));
           }
@@ -8572,7 +8647,7 @@ async function handleAction(action, el){
           const hadBaselineStart=baselineStarts.some(x=>x.stage===ch.stage);
           let later=null,laterTs=-Infinity;
           baselineStarts.forEach(x=>{
-            if(x.idx<=targetIdx||!effectiveStart) return;
+            if(x.idx<=targetIdx||!effectiveStart||stageProcessMeta(part,ch.stage,false).timePrecision==='day'||stageProcessMeta(part,x.stage,false).timePrecision==='day') return;
             const ts=x.start.getTime();
             // Geri dönüş yalnızca girilen proses tarihi, daha ileri prosesin tarihinden sonra/eşitse mümkündür.
             if(ts<=effectiveStart.getTime()&&ts>laterTs){later=x;laterTs=ts;}
@@ -8613,7 +8688,7 @@ async function handleAction(action, el){
       const cleanedReturns=cleanupInvalidAutoReturnEvents(part,company.stages); if(cleanedReturns>0) changed=true;
       const autoNcrCount=ensureAutomaticMeasurementNcrs(part); if(autoNcrCount>0) changed=true;
       if(changed){part.lastUpdate=recordedAt;part.updatedBy=state.currentUser;}
-      const saved=await persistParts(company.id); if(saved!==false){ delete (state.stageEventDateDraftsByPart||{})[part.id]; delete (state.stageEndDateDraftsByPart||{})[part.id]; delete (state.requestedQtyDraftsByPart||{})[part.id]; }
+      const saved=await persistParts(company.id); if(saved!==false){ delete (state.stageEventDateDraftsByPart||{})[part.id]; delete (state.stageEndDateDraftsByPart||{})[part.id]; delete (state.requestedQtyDraftsByPart||{})[part.id]; delete (state.stageTimeModeDraftsByPart||{})[part.id]; }
       const notes=[]; if(requestedQtyChanges.length)notes.push(`istenen adet: ${requestedQtyChanges.map(x=>`${x.stage} ${fmtNum(x.oldVal)}→${fmtNum(x.newVal)}`).join(', ')}`); if(dateCorrections.length)notes.push(`giriş tarihi düzeltildi: ${dateCorrections.join(', ')}`); if(dateClears.length)notes.push(`giriş tarihi temizlendi: ${dateClears.join(', ')}`); if(stageChanges.length)notes.push(`çıkan adet: ${stageChanges.map(x=>x.stage).join(', ')}`);
       showToast(autoNcrCount>0?`${autoNcrCount} tolerans dışı ölçüm için NCR otomatik açıldı.${notes.length?' · '+notes.join(' · '):''}`:(changed?`Üretim verileri güncellendi.${notes.length?' · '+notes.join(' · '):''}`:'Değişiklik yok.'));
       render();
@@ -9521,7 +9596,7 @@ function processEstimateSheetData(companyId){
       const prof=processProfile(p);
       c.stages.filter(s=>s!=='Sevkiyat').forEach(stage=>{
         const est=estimateStageDays(p,stage),info=estimateStageMinutesInfo(p,stage),meta=stageProcessMeta(p,stage,false);
-        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Proses İstenen Adet':stageRequestedQty(p,stage),'Tahmini Vardiya':est==null?'':Number(est.toFixed(2)),'Tahmini Saat':info.minutes==null?'':Number((info.minutes/60).toFixed(2)),'Hesap Dayanağı':info.basis||'','Gerçek Giriş':stageStartDate(p,stage)?formatDateTimeTR(stageStartDate(p,stage)):'','Gerçek Bitiş':stageEndDate(p,stage)?formatDateTimeTR(stageEndDate(p,stage)):'','Gerçek Çalışma Günü':stageProcessDurationDays(p,stage,stageEndDate(p,stage)||new Date())??'','Operatör':stageOperatorList(meta).join(' + '),'Kaynak Yöntemi':stage==='Kaynak'?weldTypeLabel(meta.weldType||'gasalti'):'','Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
+        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Proses İstenen Adet':stageRequestedQty(p,stage),'Tahmini Vardiya':est==null?'':Number(est.toFixed(2)),'Tahmini Saat':info.minutes==null?'':Number((info.minutes/60).toFixed(2)),'Hesap Dayanağı':info.basis||'','Gerçek Giriş':stageStartDate(p,stage)?formatStageTrackedDate(p,stage,stageStartDate(p,stage)):'','Gerçek Bitiş':stageEndDate(p,stage)?formatStageTrackedDate(p,stage,stageEndDate(p,stage)):'','Gerçek Çalışma Günü':stageProcessDurationDays(p,stage,stageEndDate(p,stage)||new Date())??'','Operatör':stageOperatorList(meta).join(' + '),'Kaynak Yöntemi':stage==='Kaynak'?weldTypeLabel(meta.weldType||'gasalti'):'','Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
       });
     });
   });
