@@ -1526,6 +1526,9 @@
 .stage-batch-row .batch-date-fields{grid-column:span 3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
 .stage-batch-row .batch-date-fields label{grid-column:auto}
 .stage-batch-row .batch-date-fields small{grid-column:1/-1;color:var(--gray-500);font-size:10px}
+  .stage-batch-row .batch-date-fields label{display:flex;flex-direction:column;gap:5px}
+  .stage-batch-row .batch-date-fields input[type="time"]{width:100%}
+  .stage-batch-row .batch-date-fields input[type="time"][hidden]{display:none!important}
 .stage-batch-note{font-size:10px;color:var(--gray-500);line-height:1.45;margin-top:8px}
 @media(max-width:800px){.stage-batch-row{grid-template-columns:1fr 65px 28px}.stage-batch-row label{grid-column:span 3}.stage-batch-row .icon-btn{grid-column:3;grid-row:1}}
 </style>
@@ -2887,7 +2890,7 @@ function renderTrackingView(){
   const currentEntry = currentStageName ? getStageLastEntry(part, currentStageName) : null;
   const daysInStage = currentStageName ? stageProcessDurationDays(part,currentStageName,new Date()) : null;
   const lastCompletedStage=getLastCompletedStage(part,stages);
-  const waitingMinutes=lastCompletedStage&&!currentStageName&&stageProcessMeta(part,lastCompletedStage.stage,false).timePrecision!=='day' ? processScheduledWorkingMinutes(lastCompletedStage.end,new Date(),stageProcessMeta(part,lastCompletedStage.stage,false)) : null;
+  const waitingMinutes=lastCompletedStage&&!currentStageName&&stageClockIsKnown(stageProcessMeta(part,lastCompletedStage.stage,false).timePrecision,'end') ? processScheduledWorkingMinutes(lastCompletedStage.end,new Date(),stageProcessMeta(part,lastCompletedStage.stage,false)) : null;
   const isShippedFully = remaining===0 && Number(part.orderedQty||0)>0;
   const pinnedPartsInCompany = sortWithPinned(parts, state.pinnedParts);
 
@@ -2991,11 +2994,13 @@ function renderTrackingView(){
           const isFinal = i === stages.length-1;
           const editable = canEditStage(s);
           const lastEntry = getStageLastEntry(part, s);
-          const savedStageDateValue=meta.timePrecision==='day'?(meta.startAt||''):(meta.startDateCleared===true?'':(meta.startAt||historyEntryToLocalInputValue(getStageFirstPositiveEntry(part,s)||lastEntry)));
+          const savedStageDateValue=meta.startDateCleared===true?'':(meta.startAt||(stageClockIsKnown(meta.timePrecision,'start')?historyEntryToLocalInputValue(getStageFirstPositiveEntry(part,s)||lastEntry):''));
           const hasStageDateDraft=Object.prototype.hasOwnProperty.call(stageDateDraft,s);
           const stageDateValue=hasStageDateDraft ? stageDateDraft[s] : savedStageDateValue;
           const modeDraft=((state.stageTimeModeDraftsByPart||{})[part.id]||{});
-          const dayOnly=(Object.prototype.hasOwnProperty.call(modeDraft,s)?modeDraft[s]:meta.timePrecision)==='day';
+          const timeMode=normalizeProcessTimeMode(Object.prototype.hasOwnProperty.call(modeDraft,s)?modeDraft[s]:meta.timePrecision);
+          const startClockKnown=stageClockIsKnown(timeMode,'start'),endClockKnown=stageClockIsKnown(timeMode,'end');
+          const durationUnknown=timeMode!=='exact';
           const duration=stageProcessDurationDays(part,s,new Date());
           const endDate=stageEndDate(part,s);
           const monthRemain=!endDate&&stageStartDate(part,s)?workdaysUntilMonthEnd(meta,new Date(),inferPartMonth(part)):null;
@@ -3020,19 +3025,21 @@ function renderTrackingView(){
             <div style="margin-top:9px;display:grid;gap:7px;">
               <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Zaman bilgisi</label>
                 <select class="stage-main-time-mode" data-stage-time-mode="${escapeHtml(s)}" ${!editable?'disabled':''}>
-                  <option value="exact" ${!dayOnly?'selected':''}>Tarih ve saat biliniyor</option>
-                  <option value="day" ${dayOnly?'selected':''}>Saat bilinmiyor — yalnız tarih</option>
+                  <option value="exact" ${timeMode==='exact'?'selected':''}>Giriş ve bitiş saatleri biliniyor</option>
+                  <option value="start-exact" ${timeMode==='start-exact'?'selected':''}>Yalnız giriş saati biliniyor</option>
+                  <option value="end-exact" ${timeMode==='end-exact'?'selected':''}>Yalnız bitiş saati biliniyor</option>
+                  <option value="day" ${timeMode==='day'?'selected':''}>İki saat de bilinmiyor — yalnız tarih</option>
                 </select>
-                <div class="stage-day-only-note" data-stage-time-note ${!dayOnly?'hidden':''}>Yalnız bitiş günü biliniyorsa giriş tarihini boş bırakabilirsin. Süre hesaplanmaz.</div>
+                <div class="stage-day-only-note" data-stage-time-note ${!durationUnknown?'hidden':''}>Bilinmeyen saatleri boş bırak. Tarihleri girebilirsin; yalnızca iki saat de biliniyorsa süre hesaplanır.</div>
               </div>
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş ${dayOnly?'tarihi (isteğe bağlı)':'tarih / saat (08:00–18:00)'}</label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable,dayOnly)}</div>
-              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş ${dayOnly?'tarihi':'tarih / saat (08:00–18:00)'}</label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable,dayOnly)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Giriş ${startClockKnown?'tarih / saat (08:00–18:00)':'tarihi (saat bilinmiyor)'}</label>${renderStageDateTimeControl(part,s,'start',stageDateValue||'',savedStageDateValue,editable,!startClockKnown)}</div>
+              <div><label style="display:block;font-size:10.5px;font-weight:700;color:var(--gray-500);margin-bottom:5px;">Bitiş ${endClockKnown?'tarih / saat (08:00–18:00)':'tarihi (saat bilinmiyor)'}</label>${renderStageDateTimeControl(part,s,'end',Object.prototype.hasOwnProperty.call(stageEndDraft,s)?stageEndDraft[s]:(meta.endAt||''),'',editable,!endClockKnown)}</div>
               <div style="display:flex;gap:9px;flex-wrap:wrap;font-size:10px;color:var(--gray-500);"><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sat="${escapeHtml(s)}" ${meta.includeSaturday?'checked':''} ${!editable?'disabled':''}/> Cumartesiyi say</label><label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" data-stage-sun="${escapeHtml(s)}" ${meta.includeSunday?'checked':''} ${!editable?'disabled':''}/> Pazarı say</label></div>
               ${operatorStage?`<div class="operator-panel"><label class="operator-label">Operatör / Çalışan</label>${renderStageOperatorAssignmentHtml(part,s,meta,company,editable)}${s==='Kaynak'?`<div class="operator-weld-box"><label class="operator-label">Kaynak yöntemi</label><select data-stage-weldtype="Kaynak" ${!editable?'disabled':''}><option value="gasalti" ${(meta.weldType||'gasalti')==='gasalti'?'selected':''}>Gazaltı MIG/MAG</option><option value="argon" ${meta.weldType==='argon'?'selected':''}>Argon TIG</option><option value="brazing" ${meta.weldType==='brazing'?'selected':''}>Sert Lehimleme (Brazing)</option></select></div>`:''}</div>`:''}
             </div>
             ${renderStageBatchRows(part,s,editable)}
             <div class="stage-bar"><div class="stage-bar-fill" style="width:${pct}%;"></div></div>
-            <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatStageTrackedDate(part,s,stageStartDate(part,s)))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatStageTrackedDate(part,s,endDate))}`:''}${dayOnly&&(endDate||stageStartDate(part,s))?'<br/><b>Süre: bilinmiyor</b>':duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${stageOperatorList(meta).length?`<br/>${escapeHtml(stageOperatorList(meta).join(' + '))}`:''}</div>
+            <div class="stage-meta">${stageStartDate(part,s)?`Giriş: ${escapeHtml(formatStageTrackedDate(part,s,stageStartDate(part,s),'start'))}`:'Henüz giriş yok'}${endDate?`<br/>Bitiş: ${escapeHtml(formatStageTrackedDate(part,s,endDate,'end'))}`:''}${durationUnknown&&(endDate||stageStartDate(part,s))?'<br/><b>Süre: bilinmiyor</b>':duration!=null?`<br/><b>Süre: ${duration} çalışma günü</b>`:''}${monthRemain!=null?`<br/>Ay sonuna: ${monthRemain} çalışma günü`:''}${stageOperatorList(meta).length?`<br/>${escapeHtml(stageOperatorList(meta).join(' + '))}`:''}</div>
             ${isAdmin()?`<div class="manual-current-row">${part.manualCurrentStage===s?`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="clearManualCurrentStage" data-part="${part.id}">↺ Otomatik Konuma Dön</button>`:`<button type="button" class="btn btn-ghost btn-sm manual-current-btn" data-action="setManualCurrentStage" data-part="${part.id}" data-stage="${escapeHtml(s)}">📍 Şu An Burada</button>`}</div>`:''}
           </div>`;
         }).join('')}
@@ -3168,14 +3175,16 @@ function renderStageBatchRows(part,stage,editable){
     <div class="stage-batch-heading"><b>Ayrı üretim kayıtları</b><span>${batches.length} kayıt</span></div>
     <div data-batch-list>${batches.map(b=>renderStageBatchRow(b,editable)).join('')}</div>
     ${editable?`<button type="button" class="btn btn-ghost btn-sm" data-action="addStageBatch" data-part="${escapeHtml(part.id)}" data-stage="${escapeHtml(stage)}">+ Proses Kaydı Ekle</button>`:''}
-    <div class="stage-batch-note">Her alt parçanın bitiş gününü ayrı kaydedebilirsin. Saatini bilmiyorsan “Saat bilinmiyor — yalnız tarih” seç: sistem sahte bir işlem süresi hesaplamaz. Bu satırlar yukarıdaki toplam çıkan adede otomatik eklenmez.</div>
+    <div class="stage-batch-note">Her alt parça için giriş/bitiş tarihlerini ve bilinen saatleri ayrı kaydet. Yalnız bir saat biliniyorsa öteki boş kalır ve süre hesaplanmaz. Bu satırlar yukarıdaki toplam çıkan adede otomatik eklenmez.</div>
   </div>`;
 }
 function renderStageBatchRow(batch={},editable=true){
-  // Tarihi bilinen, ancak saatleri bilinmeyen imalatlar kesin süre olarak raporlanmaz.
-  const dayOnly=batch.timePrecision==='day'||(!batch.timePrecision&&(!batch.startAt&&!batch.endAt||/^\d{4}-\d{2}-\d{2}$/.test(batch.endAt||'')));
-  const startDate=String(batch.startAt||'').slice(0,10);
-  const endDate=String(batch.endAt||'').slice(0,10);
+  const startRaw=String(batch.startAt||''),endRaw=String(batch.endAt||'');
+  // Eski kayıtların formatını otomatik tanı: T içeren uçların saati biliniyor.
+  const inferredMode=startRaw.includes('T')?(endRaw.includes('T')?'exact':'start-exact'):(endRaw.includes('T')?'end-exact':'day');
+  const mode=normalizeProcessTimeMode(batch.timePrecision||inferredMode);
+  const start=splitStageDateTimeValue(startRaw),end=splitStageDateTimeValue(endRaw);
+  const startKnown=stageClockIsKnown(mode,'start'),endKnown=stageClockIsKnown(mode,'end');
   return `<div class="stage-batch-row" data-stage-batch data-batch-id="${escapeHtml(batch.id||uid('batch'))}">
     <input type="text" data-batch-name placeholder="Alt parça / iş adı" aria-label="Alt parça adı" value="${escapeHtml(batch.name||'')}" ${!editable?'disabled':''}>
     <input type="number" min="0" step="1" data-batch-qty placeholder="Adet" aria-label="Üretilen adet" value="${batch.qty==null?'':Math.max(0,Number(batch.qty)||0)}" ${!editable?'disabled':''}>
@@ -3184,38 +3193,36 @@ function renderStageBatchRow(batch={},editable=true){
     </label>
     <label class="batch-mode-label">Zaman bilgisi
       <select data-batch-time-mode ${!editable?'disabled':''}>
-        <option value="day" ${dayOnly?'selected':''}>Saat bilinmiyor — yalnız tarih</option>
-        <option value="exact" ${!dayOnly?'selected':''}>Giriş ve bitiş saati biliniyor</option>
+        <option value="exact" ${mode==='exact'?'selected':''}>Giriş ve bitiş saatleri biliniyor</option>
+        <option value="start-exact" ${mode==='start-exact'?'selected':''}>Yalnız giriş saati biliniyor</option>
+        <option value="end-exact" ${mode==='end-exact'?'selected':''}>Yalnız bitiş saati biliniyor</option>
+        <option value="day" ${mode==='day'?'selected':''}>İki saat de bilinmiyor — yalnız tarih</option>
       </select>
     </label>
-    <div data-batch-day-fields ${!dayOnly?'hidden':''} class="batch-date-fields">
-      <label>Başlama tarihi (isteğe bağlı)<input type="date" data-batch-start-day value="${escapeHtml(startDate)}" ${!editable?'disabled':''}></label>
-      <label>Tamamlandığı gün<input type="date" data-batch-end-day value="${escapeHtml(endDate)}" ${!editable?'disabled':''}></label>
-      <small>Süre: bilinmiyor. Aynı gün bitmişse yalnız tamamlandığı günü girmen yeterli.</small>
-    </div>
-    <div data-batch-exact-fields ${dayOnly?'hidden':''} class="batch-date-fields">
-      <label>Giriş<input type="datetime-local" data-batch-start value="${escapeHtml((batch.startAt||'').includes('T')?batch.startAt:'')}" ${!editable?'disabled':''}></label>
-      <label>Bitiş<input type="datetime-local" data-batch-end value="${escapeHtml((batch.endAt||'').includes('T')?batch.endAt:'')}" ${!editable?'disabled':''}></label>
+    <div class="batch-date-fields">
+      <label>Giriş günü
+        <input type="date" data-batch-start-day value="${escapeHtml(start.date)}" ${!editable?'disabled':''}>
+        <input type="time" min="${STAGE_CLOCK_MIN}" max="${STAGE_CLOCK_MAX}" step="60" data-batch-start-time aria-label="Giriş saati" value="${escapeHtml(start.time)}" ${!startKnown?'hidden':''} ${!editable?'disabled':''}>
+      </label>
+      <label>Bitiş günü
+        <input type="date" data-batch-end-day value="${escapeHtml(end.date)}" ${!editable?'disabled':''}>
+        <input type="time" min="${STAGE_CLOCK_MIN}" max="${STAGE_CLOCK_MAX}" step="60" data-batch-end-time aria-label="Bitiş saati" value="${escapeHtml(end.time)}" ${!endKnown?'hidden':''} ${!editable?'disabled':''}>
+      </label>
+      <small>${mode==='exact'?'Her iki saat de girilirse zaman aralığı belirlenir.':'Süre bilinmiyor: eksik saat için varsayılan bir değer atanmaz.'} Başlama gününü bilmiyorsan boş bırakabilirsin.</small>
     </div>
     ${editable?'<button type="button" class="icon-btn danger" data-action="removeStageBatch" title="Kaydı kaldır">✕</button>':''}
   </div>`;
 }
-// Mod değiştiğinde kayıt henüz kaydedilmemiş olsa bile girilmiş günler korunur.
+// Alt üretim kaydında başlangıç/bitiş saatleri bağımsızdır.
 document.addEventListener('change',event=>{
-  const mode=event.target.closest('[data-batch-time-mode]');
-  if(!mode)return;
-  const row=mode.closest('[data-stage-batch]');if(!row)return;
-  const day=mode.value==='day';
-  const dayFields=row.querySelector('[data-batch-day-fields]');
-  const exactFields=row.querySelector('[data-batch-exact-fields]');
-  if(day){
-    const s=row.querySelector('[data-batch-start]')?.value||'';
-    const e=row.querySelector('[data-batch-end]')?.value||'';
-    if(s&&!row.querySelector('[data-batch-start-day]').value)row.querySelector('[data-batch-start-day]').value=s.slice(0,10);
-    if(e&&!row.querySelector('[data-batch-end-day]').value)row.querySelector('[data-batch-end-day]').value=e.slice(0,10);
-  }
-  dayFields.hidden=!day;
-  exactFields.hidden=day;
+  const modeSelect=event.target.closest('[data-batch-time-mode]');
+  if(!modeSelect)return;
+  const row=modeSelect.closest('[data-stage-batch]');if(!row)return;
+  const startTime=row.querySelector('[data-batch-start-time]'),endTime=row.querySelector('[data-batch-end-time]');
+  if(startTime)startTime.hidden=!stageClockIsKnown(modeSelect.value,'start');
+  if(endTime)endTime.hidden=!stageClockIsKnown(modeSelect.value,'end');
+  const note=row.querySelector('.batch-date-fields small');
+  if(note)note.textContent=modeSelect.value==='exact'?'Her iki saat de girilirse zaman aralığı belirlenir.':'Süre bilinmiyor: eksik saat için varsayılan bir değer atanmaz.';
 });
 
 function stageRequestedQty(part,stage){
@@ -3239,22 +3246,29 @@ function parseStageTrackedDate(value){
   }
   return localDateTimeInputToDate(raw);
 }
-function formatStageTrackedDate(part,stage,date){
+function normalizeProcessTimeMode(mode){
+  return ['exact','day','start-exact','end-exact'].includes(mode)?mode:'exact';
+}
+function stageClockIsKnown(mode,kind){
+  const m=normalizeProcessTimeMode(mode);
+  return m==='exact'||(m==='start-exact'&&kind==='start')||(m==='end-exact'&&kind==='end');
+}
+function formatStageTrackedDate(part,stage,date,kind='start'){
   if(!(date instanceof Date)||isNaN(date.getTime()))return '';
-  if(stageProcessMeta(part,stage,false).timePrecision==='day')return `${pad2(date.getDate())}.${pad2(date.getMonth()+1)}.${date.getFullYear()}`;
+  if(!stageClockIsKnown(stageProcessMeta(part,stage,false).timePrecision,kind))return `${pad2(date.getDate())}.${pad2(date.getMonth()+1)}.${date.getFullYear()}`;
   return formatDateTimeTR(date);
 }
 function getStageComboValue(box){
   const day=box.querySelector('[data-stage-date-day]')?.value||'';
   const stage=box.getAttribute('data-stage')||'';
   const stageCard=box.closest('.pipeline-stage');
-  const dayOnly=stageCard?.querySelector('[data-stage-time-mode]')?.value==='day';
+  const mode=stageCard?.querySelector('[data-stage-time-mode]')?.value||'exact';
+  const kind=box.getAttribute('data-stage-datetime-combo')||'start';
   if(!day)return '';
-  if(dayOnly)return day;
-  const timeInp=box.querySelector('[data-stage-date-time]');
-  const time=clampStageClockTime(timeInp?.value||STAGE_CLOCK_MIN)||STAGE_CLOCK_MIN;
-  if(timeInp)timeInp.value=time;
-  return `${day}T${time}`;
+  if(!stageClockIsKnown(mode,kind))return day;
+  const time=box.querySelector('[data-stage-date-time]')?.value||'';
+  // Saat eksikse tarihi geçici olarak gösterir; Kaydet doğrulaması bunu engeller.
+  return time?`${day}T${time}`:day;
 }
 function clampStageClockTime(value){
   const t=String(value||'').slice(0,5);
@@ -3304,7 +3318,7 @@ function stageStartDate(part,stage){
   // Kullanıcı tarihi bilmediği için özellikle temizlediyse geçmiş adet kaydından tekrar tarih üretme.
   if(meta.startDateCleared===true) return null;
   if(meta.startAt){ const d=parseStageTrackedDate(meta.startAt); if(d) return d; }
-  if(meta.timePrecision==='day') return null; // yalnız bitiş günü biliniyorsa başlangıç saati/tarihi uydurulmaz
+  if(!stageClockIsKnown(meta.timePrecision,'start')) return null; // bilinmeyen giriş saati geçmişten uydurulmaz
   const first=getStageFirstPositiveEntry(part,stage);
   if(first){ const ts=historyEntryTime(first); if(ts) return new Date(ts); }
   const last=getStageLastEntry(part,stage);
@@ -4793,7 +4807,7 @@ function processScheduledWorkingMinutes(start,end,meta){
 }
 function stageProcessDurationMinutes(part,stage,asOf){
   const meta=stageProcessMeta(part,stage,false);
-  if(meta.timePrecision==='day') return null; // gün biliniyor, saat/süre bilinmiyor
+  if(normalizeProcessTimeMode(meta.timePrecision)!=='exact') return null; // herhangi bir saat bilinmiyorsa süre bilinmiyor
   const start=stageStartDate(part,stage); if(!start) return null;
   const end=stageEndDate(part,stage)||(asOf instanceof Date?asOf:new Date());
   return processScheduledWorkingMinutes(start,end,meta);
@@ -7761,15 +7775,17 @@ function attachHandlers(){
       state.stageTimeModeDraftsByPart=state.stageTimeModeDraftsByPart||{};
       state.stageTimeModeDraftsByPart[pid]=state.stageTimeModeDraftsByPart[pid]||{};
       state.stageTimeModeDraftsByPart[pid][stage]=select.value;
-      const card=select.closest('.pipeline-stage'),dayOnly=select.value==='day';
+      const card=select.closest('.pipeline-stage');
       const note=card.querySelector('[data-stage-time-note]');
-      if(note)note.hidden=!dayOnly;
+      if(note)note.hidden=select.value==='exact';
       card.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
-        box.classList.toggle('stage-date-only',dayOnly);
+        const kind=box.getAttribute('data-stage-datetime-combo')||'start';
+        const known=stageClockIsKnown(select.value,kind);
+        box.classList.toggle('stage-date-only',!known);
         const time=box.querySelector('[data-stage-date-time]');
-        if(time)time.hidden=dayOnly;
+        if(time)time.hidden=!known;
         const label=box.parentElement.querySelector('label');
-        if(label)label.textContent=(box.getAttribute('data-stage-datetime-combo')==='start'?'Giriş ':'Bitiş ')+(dayOnly?'tarihi':'tarih / saat (08:00–18:00)');
+        if(label)label.textContent=(kind==='start'?'Giriş ':'Bitiş ')+(known?'tarih / saat (08:00–18:00)':'tarihi (saat bilinmiyor)');
         const hidden=box.querySelector('input[type="hidden"]');
         if(hidden){hidden.value=getStageComboValue(box);hidden.dispatchEvent(new Event('input',{bubbles:false}));hidden.dispatchEvent(new Event('change',{bubbles:false}));}
       });
@@ -8465,6 +8481,17 @@ async function handleAction(action, el){
       const requestedQtyInputs=Array.from(document.querySelectorAll(`[data-requested-qty][data-requested-qty-part="${partId}"]`));
       const inputs = Array.from(document.querySelectorAll('[data-stage-input]'));
       const rejectInputs = Array.from(document.querySelectorAll('[data-reject-input]'));
+      // Önce yalnızca bilindiği işaretlenen saatleri zorunlu kıl; bilinmeyene asla 08:00 atama.
+      for(const box of document.querySelectorAll('[data-stage-datetime-combo]')){
+        const stage=box.getAttribute('data-stage')||'',kind=box.getAttribute('data-stage-datetime-combo')||'start';
+        if(!canEditStage(stage))continue;
+        const mode=box.closest('.pipeline-stage')?.querySelector('[data-stage-time-mode]')?.value||'exact';
+        const day=box.querySelector('[data-stage-date-day]')?.value||'';
+        const clock=box.querySelector('[data-stage-date-time]')?.value||'';
+        if(stageClockIsKnown(mode,kind)&&day&&!clock){showToast(`${stage}: ${kind==='start'?'giriş':'bitiş'} saatini girin veya "Zaman bilgisi" seçeneğini değiştirin.`);return;}
+        if(stageClockIsKnown(mode,kind)&&!day&&clock){showToast(`${stage}: ${kind==='start'?'giriş':'bitiş'} saatinin tarihini de girin.`);return;}
+        if(clock&&day&&stageClockIsKnown(mode,kind)&&clampStageClockTime(clock)!==clock){showToast(`${stage}: saati 08:00–18:00 arasında girin.`);return;}
+      }
       // Kaydet'e basıldığı anda görünür tarih/saat kontrollerini hidden alanlara bir kez daha aktar.
       // Böylece kullanıcı yalnız tarih seçip doğrudan Kaydet'e bassa bile giriş tarihi kaybolmaz.
       document.querySelectorAll('[data-stage-datetime-combo]').forEach(box=>{
@@ -8509,7 +8536,7 @@ async function handleAction(action, el){
       document.querySelectorAll('[data-stage-time-mode]').forEach(select=>{
         const stage=select.getAttribute('data-stage-time-mode');
         if(!canEditStage(stage))return;
-        stageProcessMeta(part,stage,true).timePrecision=select.value==='day'?'day':'exact';
+        stageProcessMeta(part,stage,true).timePrecision=normalizeProcessTimeMode(select.value);
       });
 
       // Önce giriş alanlarını oku. Kayıtlı tarih görünse bile alan değişmediyse yeni adet kaydı "şimdi" olur.
@@ -8520,13 +8547,13 @@ async function handleAction(action, el){
         if(edited&&raw){
           const parsed=parseStageTrackedDate(raw);
           if(!parsed){showToast(`${stage} giriş tarihini okuyamadım.`);return;}
-          const dayOnly=stageProcessMeta(part,stage,false).timePrecision==='day';
+          const dayOnly=!stageClockIsKnown(stageProcessMeta(part,stage,false).timePrecision,'start');
           if((dayOnly?raw.slice(0,10)>localInputFromTs(Date.now()).slice(0,10):parsed.getTime()>Date.now()+60000)){
             showToast(`${stage} giriş zamanı gelecekte olamaz.`);return;
           }
           d=parsed;custom=true;
         }
-        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:stageProcessMeta(part,stage,false).timePrecision==='day'&&custom?formatStageTrackedDate(part,stage,d):formatDateTimeTR(d),custom,edited,raw,originalRaw};
+        stageTiming[stage]={eventDateObj:d,eventTs:d.getTime(),eventDate:!stageClockIsKnown(stageProcessMeta(part,stage,false).timePrecision,'start')&&custom?formatStageTrackedDate(part,stage,d,'start'):formatDateTimeTR(d),custom,edited,raw,originalRaw};
       }
       const timingFor=stage=>stageTiming[stage]||{eventDateObj:recordedNow,eventTs:recordedTs,eventDate:recordedAt,custom:false,edited:false,raw:'',originalRaw:''};
 
@@ -8567,13 +8594,13 @@ async function handleAction(action, el){
       // Bitiş doğrulaması ve değişiklik tespiti.
       for(const stage of company.stages){
         const meta=stageProcessMeta(part,stage,false), startD=stageStartDate(part,stage), endD=stageEndDate(part,stage);
-        const dayOnly=meta.timePrecision==='day';
+        const startKnown=stageClockIsKnown(meta.timePrecision,'start'),endKnown=stageClockIsKnown(meta.timePrecision,'end');
         if(meta.endAt&&!endD){showToast(`${stage}: bitiş tarihi geçersiz.`);return;}
-        if(dayOnly&&meta.startAt&&!startD){showToast(`${stage}: giriş tarihi geçersiz.`);return;}
-        if(endD&&(dayOnly?String(meta.endAt).slice(0,10)>localInputFromTs(Date.now()).slice(0,10):endD.getTime()>Date.now()+60000)){
+        if(meta.startAt&&!startD){showToast(`${stage}: giriş tarihi geçersiz.`);return;}
+        if(endD&&(endKnown?endD.getTime()>Date.now()+60000:String(meta.endAt).slice(0,10)>localInputFromTs(Date.now()).slice(0,10))){
           showToast(`${stage} bitiş zamanı gelecekte olamaz.`);return;
         }
-        if(startD&&endD&&(dayOnly?String(meta.endAt).slice(0,10)<String(meta.startAt).slice(0,10):endD<startD)){
+        if(startD&&endD&&((startKnown&&endKnown)?endD<startD:String(meta.endAt).slice(0,10)<String(meta.startAt).slice(0,10))){
           showToast(`${stage}: bitiş tarihi giriş tarihinden önce olamaz.`);return;
         }
       }
@@ -8590,29 +8617,27 @@ async function handleAction(action, el){
           const rawQty=row.querySelector('[data-batch-qty]')?.value||'';
           const qty=rawQty===''?0:Number(rawQty);
           const worker=(row.querySelector('[data-batch-worker]')?.value||'').trim();
-          const timePrecision=row.querySelector('[data-batch-time-mode]')?.value==='day'?'day':'exact';
-          const startAt=(timePrecision==='day'?row.querySelector('[data-batch-start-day]'):row.querySelector('[data-batch-start]'))?.value||'';
-          const endAt=(timePrecision==='day'?row.querySelector('[data-batch-end-day]'):row.querySelector('[data-batch-end]'))?.value||'';
+          const timePrecision=normalizeProcessTimeMode(row.querySelector('[data-batch-time-mode]')?.value||'day');
+          const startKnown=stageClockIsKnown(timePrecision,'start'),endKnown=stageClockIsKnown(timePrecision,'end');
+          const startDay=row.querySelector('[data-batch-start-day]')?.value||'';
+          const endDay=row.querySelector('[data-batch-end-day]')?.value||'';
+          const startClock=row.querySelector('[data-batch-start-time]')?.value||'';
+          const endClock=row.querySelector('[data-batch-end-time]')?.value||'';
+          if(startKnown&&startDay&&!startClock){showToast(stage+': ayrı üretim giriş saatini yazın veya zaman bilgisini değiştirin.');return;}
+          if(endKnown&&endDay&&!endClock){showToast(stage+': ayrı üretim bitiş saatini yazın veya zaman bilgisini değiştirin.');return;}
+          if(startKnown&&!startDay&&startClock || endKnown&&!endDay&&endClock){showToast(stage+': saat için tarih de seçmelisiniz.');return;}
+          if(startKnown&&startClock&&clampStageClockTime(startClock)!==startClock || endKnown&&endClock&&clampStageClockTime(endClock)!==endClock){showToast(stage+': saatleri 08:00–18:00 aralığında girin.');return;}
+          const startAt=startDay?(startKnown?startDay+'T'+startClock:startDay):'';
+          const endAt=endDay?(endKnown?endDay+'T'+endClock:endDay):'';
           if(!name&&!rawQty&&!startAt&&!endAt&&!worker) continue;
           if(!name){showToast(stage+': her ayrı proses kaydına parça/iş adı girin.');return;}
           if(!Number.isInteger(qty)||qty<0){showToast(stage+': kayıt adedi geçersiz.');return;}
-          // Gün hassasiyetindeki kayıtları saatli kayıtlardan ayrı doğrula.
-          // YYYY-MM-DD biçimi aynen saklanır; 00:00 veya 18:00 uydurulmaz.
-          const parseBatchDate=value=>{
-            if(!value)return null;
-            if(timePrecision==='day'){
-              if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
-              const [y,m,d]=value.split('-').map(Number);
-              const parsed=new Date(y,m-1,d);
-              return parsed.getFullYear()===y&&parsed.getMonth()===m-1&&parsed.getDate()===d?parsed:null;
-            }
-            return localDateTimeInputToDate(value);
-          };
+          const parseBatchDate=value=>value?parseStageTrackedDate(value):null;
           const start=parseBatchDate(startAt);
           const end=parseBatchDate(endAt);
           if((startAt&&!start)||(endAt&&!end)){showToast(stage+': tarih formatı hatalı.');return;}
-          if((start&&start.getTime()>Date.now()+60000)||(end&&end.getTime()>Date.now()+60000)){showToast(stage+': gelecek tarih girilemez.');return;}
-          if(start&&end&&end<start){showToast(stage+': bitiş girişten önce olamaz.');return;}
+          if((startAt&&(startKnown?start.getTime()>Date.now()+60000:startAt.slice(0,10)>localInputFromTs(Date.now()).slice(0,10)))||(endAt&&(endKnown?end.getTime()>Date.now()+60000:endAt.slice(0,10)>localInputFromTs(Date.now()).slice(0,10)))){showToast(stage+': gelecek tarih girilemez.');return;}
+          if(start&&end&&((startKnown&&endKnown)?end<start:endAt.slice(0,10)<startAt.slice(0,10))){showToast(stage+': bitiş girişten önce olamaz.');return;}
           rows.push({id:row.getAttribute('data-batch-id')||uid('batch'),name,qty,startAt,endAt,timePrecision,worker});
         }
         const meta=stageProcessMeta(part,stage,true);
@@ -8636,7 +8661,7 @@ async function handleAction(action, el){
           const t=timingFor(ch.stage), meta=stageProcessMeta(part,ch.stage,true);
           // Proses ilk kez başlıyorsa giriş tarihini otomatik kaydet. Eski kayıtta zaten
           // bir ilk giriş varsa sırf adet güncellendi diye o tarihi bugüne çekme.
-          if(ch.newVal>0&&meta.timePrecision!=='day'&&!meta.startAt&&meta.startDateCleared!==true){
+          if(ch.newVal>0&&stageClockIsKnown(meta.timePrecision,'start')&&!meta.startAt&&meta.startDateCleared!==true){
             const existingFirst=getStageFirstPositiveEntry(part,ch.stage);
             meta.startAt=t.custom?t.raw:(existingFirst?historyEntryToLocalInputValue(existingFirst):localInputFromTs(recordedTs));
           }
@@ -8647,7 +8672,7 @@ async function handleAction(action, el){
           const hadBaselineStart=baselineStarts.some(x=>x.stage===ch.stage);
           let later=null,laterTs=-Infinity;
           baselineStarts.forEach(x=>{
-            if(x.idx<=targetIdx||!effectiveStart||stageProcessMeta(part,ch.stage,false).timePrecision==='day'||stageProcessMeta(part,x.stage,false).timePrecision==='day') return;
+            if(x.idx<=targetIdx||!effectiveStart||!stageClockIsKnown(stageProcessMeta(part,ch.stage,false).timePrecision,'start')||!stageClockIsKnown(stageProcessMeta(part,x.stage,false).timePrecision,'start')) return;
             const ts=x.start.getTime();
             // Geri dönüş yalnızca girilen proses tarihi, daha ileri prosesin tarihinden sonra/eşitse mümkündür.
             if(ts<=effectiveStart.getTime()&&ts>laterTs){later=x;laterTs=ts;}
@@ -9596,7 +9621,7 @@ function processEstimateSheetData(companyId){
       const prof=processProfile(p);
       c.stages.filter(s=>s!=='Sevkiyat').forEach(stage=>{
         const est=estimateStageDays(p,stage),info=estimateStageMinutesInfo(p,stage),meta=stageProcessMeta(p,stage,false);
-        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Proses İstenen Adet':stageRequestedQty(p,stage),'Tahmini Vardiya':est==null?'':Number(est.toFixed(2)),'Tahmini Saat':info.minutes==null?'':Number((info.minutes/60).toFixed(2)),'Hesap Dayanağı':info.basis||'','Gerçek Giriş':stageStartDate(p,stage)?formatStageTrackedDate(p,stage,stageStartDate(p,stage)):'','Gerçek Bitiş':stageEndDate(p,stage)?formatStageTrackedDate(p,stage,stageEndDate(p,stage)):'','Gerçek Çalışma Günü':stageProcessDurationDays(p,stage,stageEndDate(p,stage)||new Date())??'','Operatör':stageOperatorList(meta).join(' + '),'Kaynak Yöntemi':stage==='Kaynak'?weldTypeLabel(meta.weldType||'gasalti'):'','Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
+        rows.push({'Şirket':c.name,'Sipariş Ayı':monthLabel(inferPartMonth(p)),'Parça No':p.partNo,'Parça Adı':p.partName,'Sipariş Adedi':p.orderedQty,'Proses':stage,'Proses İstenen Adet':stageRequestedQty(p,stage),'Tahmini Vardiya':est==null?'':Number(est.toFixed(2)),'Tahmini Saat':info.minutes==null?'':Number((info.minutes/60).toFixed(2)),'Hesap Dayanağı':info.basis||'','Gerçek Giriş':stageStartDate(p,stage)?formatStageTrackedDate(p,stage,stageStartDate(p,stage),'start'):'','Gerçek Bitiş':stageEndDate(p,stage)?formatStageTrackedDate(p,stage,stageEndDate(p,stage),'end'):'','Gerçek Çalışma Günü':stageProcessDurationDays(p,stage,stageEndDate(p,stage)||new Date())??'','Operatör':stageOperatorList(meta).join(' + '),'Kaynak Yöntemi':stage==='Kaynak'?weldTypeLabel(meta.weldType||'gasalti'):'','Malzeme':prof.material||'','Kalınlık mm':prof.thickness||'','En mm':prof.width||'','Boy mm':prof.length||'','Delik':prof.holeCount||0,'Büküm':prof.bendCount||0,'Kaynak mm':prof.weldLengthMm||0,'Karmaşıklık':prof.complexity||'normal','Tolerans':prof.toleranceClass||'normal'});
       });
     });
   });
