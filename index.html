@@ -1515,6 +1515,12 @@
 .stage-batch-row{display:grid;grid-template-columns:minmax(0,1fr) 70px 26px;gap:6px;align-items:end;margin-bottom:8px}
 .stage-batch-row input{width:100%;min-width:0;padding:7px 5px;border:1px solid var(--gray-300);border-radius:6px;background:var(--panel-2);color:var(--navy-900);font-size:11px}
 .stage-batch-row label{font-size:10px;color:var(--gray-500);grid-column:span 3}.stage-batch-row .icon-btn{grid-column:3;grid-row:1}
+[data-batch-day-fields][hidden],[data-batch-exact-fields][hidden]{display:none!important}
+.stage-batch-row .batch-mode-label{grid-column:span 3}
+.stage-batch-row select{width:100%;padding:7px;border:1px solid var(--gray-300);border-radius:6px;background:var(--panel-2);color:var(--navy-900);font-size:11px}
+.stage-batch-row .batch-date-fields{grid-column:span 3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.stage-batch-row .batch-date-fields label{grid-column:auto}
+.stage-batch-row .batch-date-fields small{grid-column:1/-1;color:var(--gray-500);font-size:10px}
 .stage-batch-note{font-size:10px;color:var(--gray-500);line-height:1.45;margin-top:8px}
 @media(max-width:800px){.stage-batch-row{grid-template-columns:1fr 65px 28px}.stage-batch-row label{grid-column:span 3}.stage-batch-row .icon-btn{grid-column:3;grid-row:1}}
 </style>
@@ -3143,18 +3149,53 @@ function renderStageBatchRows(part,stage,editable){
     <div class="stage-batch-heading"><b>Ayrı üretim kayıtları</b><span>${batches.length} kayıt</span></div>
     <div data-batch-list>${batches.map(b=>renderStageBatchRow(b,editable)).join('')}</div>
     ${editable?`<button type="button" class="btn btn-ghost btn-sm" data-action="addStageBatch" data-part="${escapeHtml(part.id)}" data-stage="${escapeHtml(stage)}">+ Proses Kaydı Ekle</button>`:''}
-    <div class="stage-batch-note">Örn. CNC parça 1 ve CNC parça 2 farklı tarihlerde üretilebilir. Bu satırlar bağımsız takip edilir; yukarıdaki toplam çıkan adede otomatik eklenmez.</div>
+    <div class="stage-batch-note">Her alt parçanın bitiş gününü ayrı kaydedebilirsin. Saatini bilmiyorsan “Saat bilinmiyor — yalnız tarih” seç: sistem sahte bir işlem süresi hesaplamaz. Bu satırlar yukarıdaki toplam çıkan adede otomatik eklenmez.</div>
   </div>`;
 }
 function renderStageBatchRow(batch={},editable=true){
+  // Tarihi bilinen, ancak saatleri bilinmeyen imalatlar kesin süre olarak raporlanmaz.
+  const dayOnly=batch.timePrecision==='day'||(!batch.timePrecision&&(!batch.startAt&&!batch.endAt||/^\d{4}-\d{2}-\d{2}$/.test(batch.endAt||'')));
+  const startDate=String(batch.startAt||'').slice(0,10);
+  const endDate=String(batch.endAt||'').slice(0,10);
   return `<div class="stage-batch-row" data-stage-batch data-batch-id="${escapeHtml(batch.id||uid('batch'))}">
     <input type="text" data-batch-name placeholder="Alt parça / iş adı" aria-label="Alt parça adı" value="${escapeHtml(batch.name||'')}" ${!editable?'disabled':''}>
     <input type="number" min="0" step="1" data-batch-qty placeholder="Adet" aria-label="Üretilen adet" value="${batch.qty==null?'':Math.max(0,Number(batch.qty)||0)}" ${!editable?'disabled':''}>
-    <label>Giriş<input type="datetime-local" data-batch-start value="${escapeHtml(batch.startAt||'')}" ${!editable?'disabled':''}></label>
-    <label>Bitiş<input type="datetime-local" data-batch-end value="${escapeHtml(batch.endAt||'')}" ${!editable?'disabled':''}></label>
+    <label class="batch-mode-label">Zaman bilgisi
+      <select data-batch-time-mode ${!editable?'disabled':''}>
+        <option value="day" ${dayOnly?'selected':''}>Saat bilinmiyor — yalnız tarih</option>
+        <option value="exact" ${!dayOnly?'selected':''}>Giriş ve bitiş saati biliniyor</option>
+      </select>
+    </label>
+    <div data-batch-day-fields ${!dayOnly?'hidden':''} class="batch-date-fields">
+      <label>Başlama tarihi (isteğe bağlı)<input type="date" data-batch-start-day value="${escapeHtml(startDate)}" ${!editable?'disabled':''}></label>
+      <label>Tamamlandığı gün<input type="date" data-batch-end-day value="${escapeHtml(endDate)}" ${!editable?'disabled':''}></label>
+      <small>Süre: bilinmiyor. Aynı gün bitmişse yalnız tamamlandığı günü girmen yeterli.</small>
+    </div>
+    <div data-batch-exact-fields ${dayOnly?'hidden':''} class="batch-date-fields">
+      <label>Giriş<input type="datetime-local" data-batch-start value="${escapeHtml((batch.startAt||'').includes('T')?batch.startAt:'')}" ${!editable?'disabled':''}></label>
+      <label>Bitiş<input type="datetime-local" data-batch-end value="${escapeHtml((batch.endAt||'').includes('T')?batch.endAt:'')}" ${!editable?'disabled':''}></label>
+    </div>
     ${editable?'<button type="button" class="icon-btn danger" data-action="removeStageBatch" title="Kaydı kaldır">✕</button>':''}
   </div>`;
 }
+// Mod değiştiğinde kayıt henüz kaydedilmemiş olsa bile girilmiş günler korunur.
+document.addEventListener('change',event=>{
+  const mode=event.target.closest('[data-batch-time-mode]');
+  if(!mode)return;
+  const row=mode.closest('[data-stage-batch]');if(!row)return;
+  const day=mode.value==='day';
+  const dayFields=row.querySelector('[data-batch-day-fields]');
+  const exactFields=row.querySelector('[data-batch-exact-fields]');
+  if(day){
+    const s=row.querySelector('[data-batch-start]')?.value||'';
+    const e=row.querySelector('[data-batch-end]')?.value||'';
+    if(s&&!row.querySelector('[data-batch-start-day]').value)row.querySelector('[data-batch-start-day]').value=s.slice(0,10);
+    if(e&&!row.querySelector('[data-batch-end-day]').value)row.querySelector('[data-batch-end-day]').value=e.slice(0,10);
+  }
+  dayFields.hidden=!day;
+  exactFields.hidden=day;
+});
+
 function stageRequestedQty(part,stage){
   const meta=stageProcessMeta(part,stage,false);
   if(meta && Object.prototype.hasOwnProperty.call(meta,'requestedQty')) return Math.max(0,Number(meta.requestedQty)||0);
@@ -8474,17 +8515,30 @@ async function handleAction(action, el){
           const name=(row.querySelector('[data-batch-name]')?.value||'').trim();
           const rawQty=row.querySelector('[data-batch-qty]')?.value||'';
           const qty=rawQty===''?0:Number(rawQty);
-          const startAt=row.querySelector('[data-batch-start]')?.value||'';
-          const endAt=row.querySelector('[data-batch-end]')?.value||'';
+          const timePrecision=row.querySelector('[data-batch-time-mode]')?.value==='day'?'day':'exact';
+          const startAt=(timePrecision==='day'?row.querySelector('[data-batch-start-day]'):row.querySelector('[data-batch-start]'))?.value||'';
+          const endAt=(timePrecision==='day'?row.querySelector('[data-batch-end-day]'):row.querySelector('[data-batch-end]'))?.value||'';
           if(!name&&!rawQty&&!startAt&&!endAt) continue;
           if(!name){showToast(stage+': her ayrı proses kaydına parça/iş adı girin.');return;}
           if(!Number.isInteger(qty)||qty<0){showToast(stage+': kayıt adedi geçersiz.');return;}
-          const start=startAt?localDateTimeInputToDate(startAt):null;
-          const end=endAt?localDateTimeInputToDate(endAt):null;
+          // Gün hassasiyetindeki kayıtları saatli kayıtlardan ayrı doğrula.
+          // YYYY-MM-DD biçimi aynen saklanır; 00:00 veya 18:00 uydurulmaz.
+          const parseBatchDate=value=>{
+            if(!value)return null;
+            if(timePrecision==='day'){
+              if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+              const [y,m,d]=value.split('-').map(Number);
+              const parsed=new Date(y,m-1,d);
+              return parsed.getFullYear()===y&&parsed.getMonth()===m-1&&parsed.getDate()===d?parsed:null;
+            }
+            return localDateTimeInputToDate(value);
+          };
+          const start=parseBatchDate(startAt);
+          const end=parseBatchDate(endAt);
           if((startAt&&!start)||(endAt&&!end)){showToast(stage+': tarih formatı hatalı.');return;}
           if((start&&start.getTime()>Date.now()+60000)||(end&&end.getTime()>Date.now()+60000)){showToast(stage+': gelecek tarih girilemez.');return;}
           if(start&&end&&end<start){showToast(stage+': bitiş girişten önce olamaz.');return;}
-          rows.push({id:row.getAttribute('data-batch-id')||uid('batch'),name,qty,startAt,endAt});
+          rows.push({id:row.getAttribute('data-batch-id')||uid('batch'),name,qty,startAt,endAt,timePrecision});
         }
         const meta=stageProcessMeta(part,stage,true);
         if(JSON.stringify(meta.batches||[])!==JSON.stringify(rows)){meta.batches=rows;changed=true;}
